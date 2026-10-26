@@ -165,6 +165,9 @@ void apply_values(const std::map<std::string, std::string>& kv, HostConfig* c) {
     str("input.swap_ab", &c->input_swap_ab);
     str("input.back_short", &c->input_back_short);
     num("input.back_long_ms", &c->input_back_long_ms);
+    for (const auto& e : kv) {
+        if (e.first.rfind("input.pad.", 0) == 0) c->input_pad[e.first.substr(10)] = unquote(e.second);
+    }
     str("video.resolution", &c->resolution);
     str("video.window_mode", &c->window_mode);
     str("video.model_detail", &c->model_detail);
@@ -1028,6 +1031,24 @@ bool config_write_template(const std::string& path) {
            "# Empty: Back is just Gestures, as before.\n"
            "back_short = \"\"\n"
            "back_long_ms = 450\n"
+           "\n[input.pad]\n"
+           "# All optional: remove the # to use one.\n"
+           "# Remaps the controller's buttons. The names are SDL's layout, the same on\n"
+           "# every pad: south east west north (Cross Circle Square Triangle on a\n"
+           "# DualShock, A B X Y on an Xbox pad), l1 r1 l3 r3 start back touchpad,\n"
+           "# dpad_up dpad_down dpad_left dpad_right. L2 and R2 are not remapped. A button\n"
+           "# not listed keeps its own (south and east follow swap_ab above); one that is\n"
+           "# listed wins over swap_ab.\n"
+           "# The value is what it presses: cross circle square triangle l1 r1 l3 r3\n"
+           "# options touchpad up down left right, gestures or personal_effects (the\n"
+           "# touchpad's left or right side), none (nothing).\n"
+           "# \"<name>_long\" splits a button by how long it is held: let go inside long_ms\n"
+           "# it gives its own value, held past it gives the _long one.\n"
+           "# south = \"circle\"\n"
+           "# east = \"cross\"\n"
+           "# l3 = \"personal_effects\"\n"
+           "# l3_long = \"gestures\"\n"
+           "# long_ms = 450\n"
            "\n[video]\n"
            "width = 1920\n"
            "height = 1080\n"
