@@ -72,18 +72,29 @@ back_short = ""
 back_long_ms = 450
 
 [input.pad]
-# All optional: remove the # to use one.
+# All optional: remove the # to use one. Names are written as shown (case is
+# ignored); a wrong one is logged and ignored.
 # Remaps the controller's buttons. The names are SDL's layout, the same on
 # every pad: south east west north (Cross Circle Square Triangle on a
 # DualShock, A B X Y on an Xbox pad), l1 r1 l3 r3 start back touchpad,
-# dpad_up dpad_down dpad_left dpad_right. L2 and R2 are not remapped. A button
-# not listed keeps its own (south and east follow swap_ab above); one that is
-# listed wins over swap_ab.
-# The value is what it presses: cross circle square triangle l1 r1 l3 r3
-# options touchpad up down left right, gestures or personal_effects (the
-# touchpad's left or right side), none (nothing).
+# dpad_up dpad_down dpad_left dpad_right. L2 and R2, and the sticks, are not
+# remapped.
+# The value is what the button presses: cross circle square triangle l1 r1 l3
+# r3 options touchpad up down left right, gestures or personal_effects (the
+# touchpad's left or right side), none (the button does nothing).
+# A button that is not listed keeps its own behaviour: to leave one alone, do
+# not list it (none is not "leave it alone"). south and east then follow
+# swap_ab above; listing either fixes it as written, and swap_ab no longer
+# touches it (south = "cross" with east = "circle" turns the swap off).
 # "<name>_long" splits a button by how long it is held: let go inside long_ms
-# it gives its own value, held past it gives the _long one.
+# (milliseconds) it gives its own value, held past it gives the _long one.
+# back, back_long and long_ms here win over back_short and back_long_ms above,
+# the older way of splitting Back.
+# The DualShock 4 / DualSense touchpad: leave touchpad alone. Its click goes
+# to the game together with where the finger is, and the game takes the left
+# (Gestures) or right (Personal Effects) side from that. touchpad = "none"
+# turns the click off; another button sent to "touchpad" is a click with no
+# finger, so give it gestures or personal_effects to name a side.
 # south = "circle"
 # east = "cross"
 # l3 = "personal_effects"
