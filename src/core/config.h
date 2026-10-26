@@ -54,6 +54,9 @@ struct HostConfig {
     std::string input_swap_ab = "auto";  // input.swap_ab: "auto", "true" or "false"
     std::string input_back_short;     // input.back_short: "personal_effects", "gestures", or "" (off)
     int input_back_long_ms = 450;     // input.back_long_ms
+    // [input.pad]: the controller's buttons remapped (host/window.cpp, pad_remap): "south" = "circle",
+    // "south_long" = "cross", "long_ms" = 450, ... Keys are as written, without "input.pad.".
+    std::map<std::string, std::string> input_pad;
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     bool headless = false;     // video.headless / --headless / BBHOST_HEADLESS=1
     bool skip_intro = false;   // startup.skip_intro / BBHOST_SKIP_INTRO=0|1: the three company logos only

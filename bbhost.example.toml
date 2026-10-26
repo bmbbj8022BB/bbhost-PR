@@ -71,6 +71,25 @@ swap_ab = "auto"
 back_short = ""
 back_long_ms = 450
 
+[input.pad]
+# All optional: remove the # to use one.
+# Remaps the controller's buttons. The names are SDL's layout, the same on
+# every pad: south east west north (Cross Circle Square Triangle on a
+# DualShock, A B X Y on an Xbox pad), l1 r1 l3 r3 start back touchpad,
+# dpad_up dpad_down dpad_left dpad_right. L2 and R2 are not remapped. A button
+# not listed keeps its own (south and east follow swap_ab above); one that is
+# listed wins over swap_ab.
+# The value is what it presses: cross circle square triangle l1 r1 l3 r3
+# options touchpad up down left right, gestures or personal_effects (the
+# touchpad's left or right side), none (nothing).
+# "<name>_long" splits a button by how long it is held: let go inside long_ms
+# it gives its own value, held past it gives the _long one.
+# south = "circle"
+# east = "cross"
+# l3 = "personal_effects"
+# l3_long = "gestures"
+# long_ms = 450
+
 [video]
 # The window's size (fullscreen takes the desktop's).
 width = 1920
