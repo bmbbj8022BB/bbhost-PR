@@ -1,0 +1,798 @@
+# Korean (ko) for bbhost. msgid is the English text in the source; msgstr is shown instead.
+# Keep every %s / %d / %llu / %.0f in the same order. Put an edited copy at <bbhost folder>/lang/ko.po to override this table without rebuilding.
+
+msgid "bbhost %s - setup"
+msgstr "bbhost %s - 설정"
+
+msgid "Saved to %s, which every copy of bbhost reads."
+msgstr "%s에 저장되며, 모든 bbhost 사본이 이 파일을 읽습니다."
+
+msgid "bbhost %s is available"
+msgstr "bbhost %s 새 버전이 있습니다"
+
+msgid "Open the release page"
+msgstr "릴리스 페이지 열기"
+
+msgid "Game"
+msgstr "게임"
+
+msgid "PC enhancements"
+msgstr "PC 추가 기능"
+
+msgid "Patches"
+msgstr "패치"
+
+msgid "Shaders"
+msgstr "셰이더"
+
+msgid "Plugins"
+msgstr "플러그인"
+
+msgid "Play"
+msgstr "플레이"
+
+msgid "Save"
+msgstr "저장"
+
+msgid "Quit"
+msgstr "종료"
+
+msgid "Cancel"
+msgstr "취소"
+
+msgid "Copy"
+msgstr "복사"
+
+msgid "Name"
+msgstr "이름"
+
+msgid "Host"
+msgstr "호스트"
+
+msgid "Scheme"
+msgstr "프로토콜"
+
+msgid "Account"
+msgstr "계정"
+
+msgid "Online"
+msgstr "온라인"
+
+msgid "Custom"
+msgstr "직접 입력"
+
+msgid "Updates"
+msgstr "업데이트"
+
+msgid "Diagnostics"
+msgstr "진단"
+
+msgid "Browse..."
+msgstr "찾아보기..."
+
+msgid "Defaults"
+msgstr "기본값"
+
+msgid "Compile now"
+msgstr "지금 컴파일"
+
+msgid "The caches"
+msgstr "캐시"
+
+msgid "Additions to the game itself, all on by default. Turn them off for the game as it shipped."
+msgstr "게임 자체에 더해지는 기능이며, 기본적으로 모두 켜져 있습니다. 출시된 그대로의 게임을 원하면 끄세요."
+
+msgid "Each is read when the game starts: one changed in the game waits for the next start."
+msgstr "각 항목은 게임을 시작할 때 읽습니다. 게임 안에서 바꾼 항목은 다음 시작부터 적용됩니다."
+
+msgid "All off (the game as it shipped)"
+msgstr "모두 끄기 (출시 당시 그대로의 게임)"
+
+msgid "All on"
+msgstr "모두 켜기"
+
+msgid "Hunter's Dream mirror"
+msgstr "사냥꾼의 꿈 거울"
+
+msgid "The workshop's mirror opens the appearance editor: the developers' unused \"Put on Disguise\"."
+msgstr "공방의 거울로 외형 편집기를 엽니다: 개발자들이 쓰지 않고 남겨 둔 \"변장하기\"입니다."
+
+msgid "Rebirth at the Altar of Despair"
+msgstr "절망의 제단에서 환생"
+
+msgid "With the Yharnam Stone, the altar returns the hunter to their origin's level and gives the blood echoes back to spend again; leaving asks to accept or undo."
+msgstr "야남의 돌이 있으면 제단이 사냥꾼을 출신 직업의 레벨로 되돌리고 피의 유지를 돌려주어 다시 쓸 수 있게 합니다. 나갈 때 확정할지 되돌릴지 묻습니다."
+
+msgid "Five players in the late areas"
+msgstr "후반 지역에서 5인 플레이"
+
+msgid "The Nightmare of Mensis, Mergo's Loft, the Nightmare Frontier and the Old Hunters' areas take two invaders, as the chalice dungeons do. Every player in a session needs it on."
+msgstr "멘시스의 악몽, 메르고의 누각, 악몽의 기슭, 올드헌터스 지역에서 성배 던전처럼 침입자를 두 명까지 받습니다. 세션의 모든 플레이어가 켜야 합니다."
+
+msgid "Byte patches to the game's code, applied when it starts: bbhost's own (the patches folder beside it) and any a mod brings (<mods>/patches)."
+msgstr "게임 코드에 적용하는 바이트 패치로, 게임이 시작될 때 적용됩니다. bbhost 자체 패치(실행 파일 옆의 patches 폴더)와 모드가 가져오는 패치(<mods>/patches)가 있습니다."
+
+msgid "A patch made for another eboot is never applied."
+msgstr "다른 eboot용으로 만든 패치는 적용되지 않습니다."
+
+msgid "No patches found."
+msgstr "패치가 없습니다."
+
+msgid "Not read: %s."
+msgstr "읽지 못함: %s."
+
+msgid "Made for another eboot: not applied."
+msgstr "다른 eboot용 패치: 적용되지 않습니다."
+
+msgid "Follows %s, which this bbhost does not know: not applied."
+msgstr "이 bbhost가 모르는 설정 %s을(를) 따르므로 적용되지 않습니다."
+
+msgid "Its name cannot be a bbhost.toml key, so it is always on."
+msgstr "이름을 bbhost.toml 키로 쓸 수 없어서 항상 켜져 있습니다."
+
+msgid "Off unless turned on here. "
+msgstr "기본값은 OFF입니다. "
+
+msgid "One of the %s variants: one is on at a time. "
+msgstr "%s 변형 중 하나입니다. 한 번에 하나만 켤 수 있습니다. "
+
+msgid "Changes the game: while it is on, your online rules say so, and the server keeps your bloodstains, messages and statistics apart from vanilla players'. "
+msgstr "게임체인지: 켜져 있는 동안 온라인 규칙에 이 사실이 표시되며, 서버가 당신의 혈흔, 메시지, 통계를 일반(바닐라) 플레이어와 분리해서 보관합니다. "
+
+msgid "All off (the game's code as it shipped)"
+msgstr "모두 끄기 (출시 당시 그대로의 게임 코드)"
+
+msgid "The same switch as the Game tab's Skip company logos."
+msgstr "게임 탭의 \"회사 로고 건너뛰기\"와 같은 스위치입니다."
+
+msgid "The same switch as the Game tab's Debug camera."
+msgstr "게임 탭의 \"디버그 카메라\"와 같은 스위치입니다."
+
+msgid "Saved as quick_reentry under [loading] in bbhost.toml."
+msgstr "bbhost.toml의 [loading] 아래에 quick_reentry로 저장됩니다."
+
+msgid "Saved as all_post_processors under [streaming] in bbhost.toml."
+msgstr "bbhost.toml의 [streaming] 아래에 all_post_processors로 저장됩니다."
+
+msgid "Saved as %s under [patches] in bbhost.toml."
+msgstr "bbhost.toml의 [patches] 아래에 %s(으)로 저장됩니다."
+
+msgid "Could not write %s"
+msgstr "%s에 쓸 수 없습니다"
+
+msgid "Saved to %s"
+msgstr "%s에 저장했습니다"
+
+msgid "Recommended: compile the shaders now."
+msgstr "권장: 지금 셰이더를 컴파일하세요."
+
+msgid "%s. Compiling now takes %s; otherwise the game compiles them while you play."
+msgstr "%s. 지금 컴파일하면 %s 걸립니다. 그렇지 않으면 게임이 플레이 중에 컴파일합니다."
+
+msgid "Compile shaders now"
+msgstr "지금 셰이더 컴파일"
+
+msgid "bbhost turns the game's shaders into HLSL on this PC and compiles them with DXC. The game does this itself: a start uses what is ready and compiles the rest in the background for the next start, so you can play straight away. Compiling now does all of it up front."
+msgstr "bbhost는 게임의 셰이더를 이 PC에서 HLSL로 변환하고 DXC로 컴파일합니다. 게임이 이 작업을 알아서 하므로, 시작할 때는 준비된 것을 쓰고 나머지는 다음 시작을 위해 백그라운드에서 컴파일하니 바로 플레이할 수 있습니다. 지금 컴파일하면 전부 미리 처리합니다."
+
+msgid "HLSL: compiled by DXC on this PC. Lifted: the translator's own SPIR-V only. Saved with Save or Play; the game reads it at its start."
+msgstr "HLSL: 이 PC에서 DXC로 컴파일합니다. Lifted: 변환기가 만든 SPIR-V만 사용합니다. 저장 또는 플레이 시 저장되며, 게임은 시작할 때 이 값을 읽습니다."
+
+msgid "No shader caches yet: the first start compiles everything."
+msgstr "셰이더 캐시가 아직 없습니다: 처음 시작할 때 전부 컴파일합니다."
+
+msgid "Made by this bbhost's shader translator."
+msgstr "이 bbhost의 셰이더 변환기로 만들어졌습니다."
+
+msgid "Made by another bbhost version: the next start compiles everything again."
+msgstr "다른 bbhost 버전이 만들었습니다: 다음 시작 때 전부 다시 컴파일합니다."
+
+msgid "Made for this graphics driver."
+msgstr "이 그래픽 드라이버용으로 만들어졌습니다."
+
+msgid "Made for another GPU or driver version: the driver compiles its part again."
+msgstr "다른 GPU 또는 드라이버 버전용입니다: 드라이버가 자기 몫을 다시 컴파일합니다."
+
+msgid "Checking the graphics driver..."
+msgstr "그래픽 드라이버를 확인하는 중..."
+
+msgid "Translations, lifts and DXC's modules %.0f MiB; the driver's pipelines %.0f MiB; what was drawn: %.1f + %.1f MiB."
+msgstr "변환 결과, lift, DXC 모듈 %.0f MiB; 드라이버 파이프라인 %.0f MiB; 그려진 내역: %.1f + %.1f MiB."
+
+msgid "The last compile: %s, %s (%s s), bbhost %s"
+msgstr "마지막 컴파일: %s, %s (%s초), bbhost %s"
+
+msgid "finished"
+msgstr "완료"
+
+msgid "On %s: shaders %s; %s."
+msgstr "%s에서: 셰이더 %s; %s."
+
+msgid "Pipelines %s."
+msgstr "파이프라인 %s."
+
+msgid "Not compiled alone (%s): vertex shaders that write LDS, which only run inside another stage (tessellation); they are compiled when the game draws them."
+msgstr "단독으로 컴파일되지 않음(%s): LDS에 쓰는 버텍스 셰이더는 다른 단계(테셀레이션) 안에서만 실행되므로, 게임이 그릴 때 컴파일됩니다."
+
+msgid "Failed: %s"
+msgstr "실패: %s"
+
+msgid "Kept the lift: %s"
+msgstr "lift 유지: %s"
+
+msgid "Every shader the game uses, with this PC's graphics driver. It can be cancelled."
+msgstr "게임이 쓰는 모든 셰이더를 이 PC의 그래픽 드라이버로 컴파일합니다. 취소할 수 있습니다."
+
+msgid "%.0f s so far, about %.0f s left"
+msgstr "%.0f초 경과, 약 %.0f초 남음"
+
+msgid "%.0f s"
+msgstr "%.0f초"
+
+msgid "%llu took DXC's module, %llu kept the lift; %llu failed"
+msgstr "DXC 모듈 사용 %llu개, lift 유지 %llu개; 실패 %llu개"
+
+msgid "Pipelines from your earlier sessions and the shipped list: %llu of %llu"
+msgstr "이전 세션과 배포 목록의 파이프라인: %llu / %llu"
+
+msgid "Done: the next start takes these from the caches."
+msgstr "완료: 다음 시작부터는 캐시에서 가져옵니다."
+
+msgid "Cancelled: what was compiled is kept; the game compiles the rest."
+msgstr "취소됨: 컴파일된 것은 유지되며, 나머지는 게임이 컴파일합니다."
+
+msgid "%s; optional."
+msgstr "%s; 선택 사항입니다."
+
+msgid "Game files"
+msgstr "게임 파일"
+
+msgid "Game folder (the one that contains dvdroot_ps4)"
+msgstr "게임 폴더 (dvdroot_ps4가 들어 있는 폴더)"
+
+msgid "version 01.09 (the update's files are in it)"
+msgstr "버전 01.09 (업데이트 파일이 들어 있음)"
+
+msgid "version 01.09, the update read from %s"
+msgstr "버전 01.09, 업데이트를 %s에서 읽음"
+
+msgid " (in %s)"
+msgstr " (%s 안)"
+
+msgid "no sce_sys/param.sfo in it - is it the whole game folder?"
+msgstr "sce_sys/param.sfo가 없습니다 - 게임 폴더 전체가 맞나요?"
+
+msgid "version %s%s - copy the 1.09 update's files over this folder, or the game stops while loading"
+msgstr "버전 %s%s - 1.09 업데이트 파일을 이 폴더에 덮어 복사하세요. 그렇지 않으면 로딩 중에 게임이 멈춥니다"
+
+msgid "Eboot (the 1.09 update's eboot.bin, decrypted)"
+msgstr "Eboot (1.09 업데이트의 eboot.bin, 복호화된 것)"
+
+msgid "not the 1.09 eboot (SHA-256 %s...)"
+msgstr "1.09 eboot이 아닙니다 (SHA-256 %s...)"
+
+msgid "Data folder (saves and caches; empty for the default)"
+msgstr "데이터 폴더 (세이브와 캐시; 비워 두면 기본값)"
+
+msgid "has dvdroot_ps4"
+msgstr "dvdroot_ps4가 있습니다"
+
+msgid "not set"
+msgstr "설정되지 않음"
+
+msgid "that folder does not exist"
+msgstr "그 폴더가 없습니다"
+
+msgid "pick the folder above dvdroot_ps4, not dvdroot_ps4 itself"
+msgstr "dvdroot_ps4 자체가 아니라 그 위쪽 폴더를 고르세요"
+
+msgid "no dvdroot_ps4 in it"
+msgstr "안에 dvdroot_ps4가 없습니다"
+
+msgid "the 1.09 eboot"
+msgstr "1.09 eboot입니다"
+
+msgid "that file does not exist"
+msgstr "그 파일이 없습니다"
+
+msgid "Live server (thehuntersdream.com)"
+msgstr "라이브 서버 (thehuntersdream.com)"
+
+msgid "Playtest server (dev.thehuntersdream.com)"
+msgstr "플레이테스트 서버 (dev.thehuntersdream.com)"
+
+msgid "Check the server's certificate"
+msgstr "서버 인증서 확인"
+
+msgid "Require an account (F10 > Account)"
+msgstr "계정 필요 (F10 > 계정)"
+
+msgid "This run uses %s, whose own settings may choose another server."
+msgstr "이번 실행은 %s을(를) 사용하며, 이 파일의 설정이 다른 서버를 고를 수 있습니다."
+
+msgid "Log in with Discord"
+msgstr "Discord로 로그인"
+
+msgid "opens the website: sign in there with Discord and approve the code"
+msgstr "웹사이트가 열립니다. 거기서 Discord로 로그인하고 코드를 승인하세요"
+
+msgid "Create account on this PC"
+msgstr "이 PC에 계정 만들기"
+
+msgid "Recovery code"
+msgstr "복구 코드"
+
+msgid "Recover account"
+msgstr "계정 복구"
+
+msgid "Website sign-in code"
+msgstr "웹사이트 로그인 코드"
+
+msgid "Sign out"
+msgstr "로그아웃"
+
+msgid "Start-up and display"
+msgstr "시작 및 화면"
+
+msgid "Fullscreen"
+msgstr "전체 화면"
+
+msgid "Skip company logos"
+msgstr "회사 로고 건너뛰기"
+
+msgid "Debug camera"
+msgstr "디버그 카메라"
+
+msgid "Lance McDonald's free camera: hold Interact (E) and press L3 (Left Ctrl). The debug menu's LOAD TEST crashes while it is on."
+msgstr "Lance McDonald의 자유 카메라: 상호작용(E)을 누른 채 L3(왼쪽 Ctrl)를 누르세요. 켜져 있는 동안 디버그 메뉴의 LOAD TEST가 충돌합니다."
+
+msgid "Uncapped"
+msgstr "제한 없음"
+
+msgid "Frame rate"
+msgstr "프레임 레이트"
+
+msgid "The game's own speed. Uncapped steps it by the frame time: the display's refresh rate with V-Sync on, up to 240 fps off in the world."
+msgstr "게임 원래의 속도입니다. 제한 없음은 프레임 시간만큼 진행합니다: V-Sync가 켜져 있으면 화면 주사율, 꺼져 있으면 월드에서 최대 240fps입니다."
+
+msgid "Render resolution"
+msgstr "렌더 해상도"
+
+msgid "F10 in the game has every other setting."
+msgstr "그 밖의 모든 설정은 게임 안의 F10에 있습니다."
+
+msgid "Tooling and logging"
+msgstr "도구 및 로그"
+
+msgid "The periodic reports in the log, the stall detector, the GPU busy meter (GPU % beside the FPS counter) and the recent-draw history. Off gives the game that headroom; the log keeps the start, warnings and errors. Leave it on when reporting a problem."
+msgstr "로그의 주기적 보고, 정지 감지기, GPU 사용률 표시(FPS 카운터 옆의 GPU %), 최근 그리기 기록을 켭니다. 끄면 게임에 그만큼 여유가 생기며, 로그에는 시작 정보, 경고, 오류만 남습니다. 문제를 신고할 때는 켜 두세요."
+
+msgid "Check for a newer bbhost at start"
+msgstr "시작할 때 새 bbhost 확인"
+
+msgid "GitHub token file (only while the releases are private)"
+msgstr "GitHub 토큰 파일 (릴리스가 비공개인 동안에만)"
+
+msgid "Show this window every time bbhost starts"
+msgstr "bbhost를 시작할 때마다 이 창 표시"
+
+msgid "Or start bbhost with --setup to open it once."
+msgstr "또는 --setup으로 bbhost를 시작하면 한 번 열립니다."
+
+msgid "Play waits for the compile (Shaders tab)."
+msgstr "컴파일이 끝날 때까지 플레이를 기다립니다 (셰이더 탭)."
+
+msgid "Play needs the game folder and the 1.09 eboot."
+msgstr "플레이하려면 게임 폴더와 1.09 eboot이 필요합니다."
+
+msgid "  (next start)"
+msgstr "  (다음 시작부터)"
+
+msgid "Random seed"
+msgstr "무작위 시드"
+
+msgid "(turn the plugin on and restart)"
+msgstr "(플러그인을 켜고 다시 시작하세요)"
+
+msgid "(in the game: the plugin menu)"
+msgstr "(게임 안: 플러그인 메뉴)"
+
+msgid "Get the latest official plugins"
+msgstr "최신 공식 플러그인 받기"
+
+msgid "Rescan"
+msgstr "다시 검색"
+
+msgid "Show plugin settings at every start"
+msgstr "시작할 때마다 플러그인 설정 표시"
+
+msgid "No plugins. Get the official ones above, or put plugin files in %s/plugins."
+msgstr "플러그인이 없습니다. 위에서 공식 플러그인을 받거나, 플러그인 파일을 %s/plugins에 넣으세요."
+
+msgid "  (off)"
+msgstr "  (꺼짐)"
+
+msgid "by %s - %s"
+msgstr "제작: %s - %s"
+
+msgid "Turned on"
+msgstr "켜짐"
+
+msgid "off - joins other players' %s worlds when summoned"
+msgstr "꺼짐 - 소환되면 다른 플레이어의 %s 월드에 참여합니다"
+
+msgid "starts with the next launch"
+msgstr "다음 실행부터 시작됩니다"
+
+msgid "stops at the next launch"
+msgstr "다음 실행부터 멈춥니다"
+
+msgid "No settings."
+msgstr "설정이 없습니다."
+
+msgid "official"
+msgstr "공식"
+
+msgid "signature does not match - not loaded"
+msgstr "서명이 일치하지 않음 - 불러오지 않음"
+
+msgid "not signed"
+msgstr "서명 없음"
+
+msgid "changes the game"
+msgstr "게임체인지"
+
+msgid "Boss rush"
+msgstr "보스 러시"
+
+msgid "Debug Menu"
+msgstr "디버그 메뉴"
+
+msgid "Mutators"
+msgstr "뮤테이터"
+
+msgid "Randomizer"
+msgstr "랜덤마이저"
+
+msgid "Fight the game's bosses back to back, timed; deaths retry the round and the save's bosses are restored at the end."
+msgstr "게임의 보스들을 연달아, 시간을 재며 상대합니다. 죽으면 그 라운드를 다시 하고, 끝나면 세이브의 보스 상태가 복원됩니다."
+
+msgid "The developers' debug menu, still in the game: ` opens and closes it (from the next start). Cheating against other players with it gets an account banned; trying it out online with friends is fine."
+msgstr "개발자용 디버그 메뉴가 게임에 그대로 남아 있습니다: `로 열고 닫습니다(다음 실행부터). 이것으로 다른 플레이어를 상대로 치트를 쓰면 계정이 정지되며, 친구들과 온라인에서 시험해 보는 것은 괜찮습니다."
+
+msgid "Gravity, game speed, bullet time, one-hit death, blood drain, tougher enemies, echo rate and chaos effects - each a switch."
+msgstr "중력, 게임 속도, 불릿 타임, 한 방 즉사, 혈액 소모, 더 강한 적, 피의 유지 획득률, 혼돈 효과를 각각 스위치로 켭니다."
+
+msgid "Shuffles item pickups, shop stock and enemies, based on a seed. Key items never move, so every run can still be finished."
+msgstr "시드를 기준으로 획득 아이템, 상점 재고, 적을 섞습니다. 핵심 아이템은 움직이지 않아 어떤 판도 끝까지 깰 수 있습니다."
+
+msgid "Start it from the in-game plugin menu"
+msgstr "게임 안 플러그인 메뉴에서 시작합니다"
+
+msgid "Play it on a save of its own: bosses give their rewards again."
+msgstr "전용 세이브에서 하세요: 보스가 보상을 다시 줍니다."
+
+msgid "Start the boss rush"
+msgstr "보스 러시 시작"
+
+msgid "Begins in a few seconds, from wherever you are."
+msgstr "몇 초 뒤, 지금 있는 곳에서 시작합니다."
+
+msgid "Skip this round"
+msgstr "이번 라운드 건너뛰기"
+
+msgid "Stop"
+msgstr "중지"
+
+msgid "Ends the run and puts the save's bosses back as they were."
+msgstr "도전을 끝내고 세이브의 보스 상태를 원래대로 되돌립니다."
+
+msgid "The run"
+msgstr "도전 설정"
+
+msgid "Read when a run starts."
+msgstr "도전이 시작될 때 적용됩니다."
+
+msgid "Order"
+msgstr "순서"
+
+msgid "Seed for the random order"
+msgstr "무작위 순서의 시드"
+
+msgid "The Old Hunters' bosses"
+msgstr "올드헌터스 보스"
+
+msgid "Skipped on a save that cannot enter their maps."
+msgstr "그 지역에 들어갈 수 없는 세이브에서는 건너뜁니다."
+
+msgid "Chalice dungeon bosses"
+msgstr "성배 던전 보스"
+
+msgid "Ten found only in the chalice dungeons, in their fixed dungeons, after the others. An altar's slot is borrowed and given back."
+msgstr "성배 던전에서만 만나는 열 명으로, 고정 던전에서 다른 보스 뒤에 나옵니다. 제단의 칸을 빌려 쓰고 끝나면 돌려줍니다."
+
+msgid "Start at boss"
+msgstr "시작 보스 번호"
+
+msgid "1 is the first of the order; with Rounds 1, practice one boss."
+msgstr "1은 순서상 첫 번째입니다. 라운드를 1로 하면 보스 하나만 연습할 수 있습니다."
+
+msgid "Rounds"
+msgstr "라운드 수"
+
+msgid "0: every boss."
+msgstr "0: 모든 보스."
+
+msgid "Skip the bosses' first entrances"
+msgstr "보스 첫 등장 연출 건너뛰기"
+
+msgid "Each round starts at the fog wall, as on a return. Off: as the first time (cutscenes)."
+msgstr "각 라운드를 재도전할 때처럼 안개 벽 앞에서 시작합니다. 끄면 처음 만날 때처럼(컷신 포함) 시작합니다."
+
+msgid "Refill vials and bullets on death"
+msgstr "사망 시 수혈액과 총알 보충"
+
+msgid "Off: what you have left, as the game restocks it from storage."
+msgstr "끄면 남은 만큼만 가지고, 게임이 보관함에서 채워 주는 대로 진행합니다."
+
+msgid "Start by itself"
+msgstr "자동 시작"
+
+msgid "Begin a run when the world first loads, without the menu."
+msgstr "월드가 처음 로드될 때 메뉴 없이 도전을 시작합니다."
+
+msgid "Seconds before the first round"
+msgstr "첫 라운드 전 대기 시간(초)"
+
+msgid "story"
+msgstr "스토리 순"
+
+msgid "random"
+msgstr "무작위"
+
+msgid "Menu text"
+msgstr "메뉴 문구"
+
+msgid "English, or the developers' original Japanese."
+msgstr "영어 또는 개발자들의 원래 일본어입니다."
+
+msgid "English"
+msgstr "영어"
+
+msgid "Japanese"
+msgstr "일본어"
+
+msgid "Playing online"
+msgstr "온라인 플레이"
+
+msgid "Using the debug menu to cheat against other players - in their worlds, in invasions or on the leaderboards - gets your account banned. Trying it out online with friends is fine."
+msgstr "디버그 메뉴로 다른 플레이어를 상대로 치트를 쓰면(상대의 월드, 침입, 순위표) 계정이 정지됩니다. 친구들과 온라인에서 시험해 보는 것은 괜찮습니다."
+
+msgid "Using it"
+msgstr "사용법"
+
+msgid "` (the key left of 1) opens and closes it, and Key Bindings can move it. The arrows move, Enter opens an entry and Backspace goes back. Sessions with it on keep their messages, bloodstains and statistics apart from other players'."
+msgstr "`(1 왼쪽 키)로 열고 닫으며, 키 설정에서 바꿀 수 있습니다. 방향키로 이동하고 Enter로 항목을 열며 Backspace로 돌아갑니다. 이 기능을 켠 세션은 메시지, 혈흔, 통계를 다른 플레이어와 분리해서 보관합니다."
+
+msgid "World"
+msgstr "월드"
+
+msgid "These change at once in the in-game menu."
+msgstr "게임 안 메뉴에서 바로 바뀝니다."
+
+msgid "Gravity"
+msgstr "중력"
+
+msgid "0.2: the moon is close - long falls, floating corpses."
+msgstr "0.2: 달이 가까운 듯 오래 떨어지고 시체가 둥둥 뜹니다."
+
+msgid "Game speed"
+msgstr "게임 속도"
+
+msgid "0.75 a slower hunt, 1.25 a frantic one (as far as the machine keeps up)."
+msgstr "0.75는 느긋한 사냥, 1.25는 정신없는 사냥입니다(컴퓨터가 따라가는 한도 안에서)."
+
+msgid "Bullet time"
+msgstr "불릿 타임"
+
+msgid "Under 30% HP the world slows to half speed."
+msgstr "HP가 30% 미만이면 세상이 절반 속도로 느려집니다."
+
+msgid "The hunter"
+msgstr "사냥꾼"
+
+msgid "One hit"
+msgstr "한 방"
+
+msgid "Anything that hurts you kills you."
+msgstr "피해를 주는 것은 무엇이든 즉사입니다."
+
+msgid "Blood drain"
+msgstr "혈액 소모"
+
+msgid "% of max HP lost every 10 s; rally it back by hitting things."
+msgstr "10초마다 최대 HP의 이 비율만큼 잃으며, 적을 공격해 되찾을 수 있습니다."
+
+msgid "Blood Echoes gained"
+msgstr "얻는 피의 유지"
+
+msgid "Chaos every N seconds"
+msgstr "N초마다 혼돈"
+
+msgid "A random consumable's effect lands on you. 0: off."
+msgstr "무작위 소모품의 효과가 몸에 걸립니다. 0: 끔."
+
+msgid "Chaos seed"
+msgstr "혼돈 시드"
+
+msgid "Enemies"
+msgstr "적"
+
+msgid "Enemy HP"
+msgstr "적 HP"
+
+msgid "Every enemy's HP times this (from the next start)."
+msgstr "모든 적의 HP에 이 값을 곱합니다(다음 실행부터)."
+
+msgid "The seed"
+msgstr "시드"
+
+msgid "The same seed always gives the same shuffle. Item and shop changes apply at once, enemy changes the next time an area loads. In another randomizer player's world you play their seed."
+msgstr "같은 시드는 항상 같은 배치가 됩니다. 아이템과 상점 변경은 바로, 적 변경은 다음에 지역을 불러올 때 적용됩니다. 다른 랜덤마이저 플레이어의 월드에서는 그 사람의 시드로 플레이합니다."
+
+msgid "Seed"
+msgstr "시드"
+
+msgid "Leave empty for a random one, made at the first start and kept in plugins/randomizer/seed.txt. Random seed picks a new one. Share a seed to play the same shuffle as someone else."
+msgstr "비워 두면 무작위 시드를 처음 시작할 때 만들어 plugins/randomizer/seed.txt에 보관합니다. '무작위 시드'를 누르면 새로 고릅니다. 시드를 공유하면 다른 사람과 같은 배치로 플레이할 수 있습니다."
+
+msgid "Items"
+msgstr "아이템"
+
+msgid "Shuffle item pickups"
+msgstr "획득 아이템 섞기"
+
+msgid "Each item you find in the world - lying around, on a corpse, in a chest or left by a boss - is swapped with another of them. Keys and story items stay where they are."
+msgstr "월드에서 얻는 아이템(바닥, 시체, 상자, 보스가 남기는 것)이 서로 바뀝니다. 열쇠와 스토리 아이템은 그대로입니다."
+
+msgid "Shuffle chalices too"
+msgstr "성배도 섞기"
+
+msgid "Off: every chalice stays where the game puts it."
+msgstr "끄면 모든 성배가 원래 위치에 있습니다."
+
+msgid "Shuffle shop stock"
+msgstr "상점 재고 섞기"
+
+msgid "Shops sell each other's goods. Every item keeps its usual price."
+msgstr "상점끼리 상품이 바뀝니다. 가격은 원래대로입니다."
+
+msgid "Shuffle enemies"
+msgstr "적 섞기"
+
+msgid "Regular enemies become other kinds of enemies. Bosses and NPCs you can talk to stay as they are."
+msgstr "일반 적이 다른 종류의 적으로 바뀝니다. 보스와 대화할 수 있는 NPC는 그대로입니다."
+
+msgid "New enemies come from"
+msgstr "새 적의 출처"
+
+msgid "Same area: kinds that already live in that area. Whole game: any regular enemy of the game, with its own AI - a late-game enemy keeps its late-game strength."
+msgstr "같은 지역: 그 지역에 원래 있던 종류. 게임 전체: 게임의 모든 일반 적을 자기 AI 그대로 사용하며, 후반 적은 후반 강함을 유지합니다."
+
+msgid "same area"
+msgstr "같은 지역"
+
+msgid "whole game"
+msgstr "게임 전체"
+
+msgid "How often each kind appears"
+msgstr "종류별 출현 빈도"
+
+msgid "Evenly: every kind as likely as the next. Like the original: kinds that were common stay common."
+msgstr "고르게: 모든 종류가 같은 확률. 원본대로: 원래 흔하던 종류가 계속 흔합니다."
+
+msgid "evenly"
+msgstr "고르게"
+
+msgid "like the original"
+msgstr "원본대로"
+
+msgid "Include hostile hunters"
+msgstr "적대 사냥꾼 포함"
+
+msgid "Human enemies in hunter gear are shuffled too. NPCs you can talk to never are."
+msgstr "사냥꾼 장비를 한 인간형 적도 섞습니다. 대화할 수 있는 NPC는 섞이지 않습니다."
+
+msgid "Bosses as regular enemies"
+msgstr "보스를 일반 적으로"
+
+msgid "A few or many: bosses such as Father Gascoigne, Vicar Amelia or Lady Maria turn up among the enemies, at their full boss strength. The real boss fights stay where they are."
+msgstr "조금 또는 많이: 가스코인 신부, 교구장 아멜리아, 마리아 같은 보스가 보스 본래 강함으로 적 사이에 나타납니다. 실제 보스전은 그대로입니다."
+
+msgid "none"
+msgstr "없음"
+
+msgid "a few"
+msgstr "조금"
+
+msgid "many"
+msgstr "많이"
+
+msgid "Aerial Vectors 1/480 fps (Kyo)"
+msgstr "공중 벡터 1/480fps (Kyo)"
+
+msgid "+10% analog run range (Kyo)"
+msgstr "아날로그 달리기 범위 +10% (Kyo)"
+
+msgid "+20% analog run range (Kyo)"
+msgstr "아날로그 달리기 범위 +20% (Kyo)"
+
+msgid "+30% analog run range (Kyo)"
+msgstr "아날로그 달리기 범위 +30% (Kyo)"
+
+msgid "+40% analog run range (Kyo)"
+msgstr "아날로그 달리기 범위 +40% (Kyo)"
+
+msgid "Bigger Weapons 1.2x (normal size) (Kyo)"
+msgstr "무기 크기 1.2배(일반 크기) (Kyo)"
+
+msgid "Restore Debug Camera (Lance McDonald): hold Action and press L3 to cycle the free camera's modes"
+msgstr "디버그 카메라 복원 (Lance McDonald): 액션을 누른 채 L3로 자유 카메라 모드를 바꿉니다"
+
+msgid "Restore Debug Dash (stagvant)"
+msgstr "디버그 대시 복원 (stagvant)"
+
+msgid "the game's run-time deflate compresses at level 1, not 9 (a main-thread hitch every ~50 s)"
+msgstr "게임의 실시간 deflate 압축을 9단계 대신 1단계로 합니다(약 50초마다 생기던 메인 스레드 끊김 해소)"
+
+msgid "Disable Dynamic Light Shadow - Kyo's patch: dynamic lights cast no shadows (faster)"
+msgstr "동적 조명 그림자 끄기 - Kyo의 패치: 동적 조명이 그림자를 만들지 않습니다(더 빠름)"
+
+msgid "Disable Misc. Renders - Kyo's patch: four of the scene's extra targets are not made, nor their passes drawn"
+msgstr "기타 렌더 끄기 - Kyo의 패치: 장면의 추가 렌더 타깃 네 개를 만들지도, 그리지도 않습니다"
+
+msgid "the field of view is no longer capped at 48 degrees"
+msgstr "시야각이 48도로 제한되지 않습니다"
+
+msgid "FXAA2_GS + DLAA_GS - Kyo's patch: both anti-aliasing filters"
+msgstr "FXAA2_GS + DLAA_GS - Kyo의 패치: 안티앨리어싱 필터 두 가지"
+
+msgid "Glow: force on + Blur 12.5/12.5/30 (all time slots) (Kyo)"
+msgstr "글로우: 강제 켜기 + 블러 12.5/12.5/30 (모든 시간대) (Kyo)"
+
+msgid "HD Motion Blur 360p (640x360) - Kyo's patch"
+msgstr "HD 모션 블러 360p (640x360) - Kyo의 패치"
+
+msgid "HD Motion Blur 4K (3840x2160) - Kyo's patch"
+msgstr "HD 모션 블러 4K (3840x2160) - Kyo의 패치"
+
+msgid "all three resource post-processors run in play, not two"
+msgstr "플레이 중 리소스 후처리기 세 개가 모두 실행됩니다(기본은 두 개)"
+
+msgid "motion blur's buffers - the velocity map and the depth it tests against - at 640x360 (the quarter-size depth at 320x180) at every resolution, as the shadPS4 resolution patches"
+msgstr "모션 블러의 버퍼(속도 맵과 이를 비교하는 깊이 버퍼)를 어떤 해상도에서도 640x360(1/4 크기 깊이는 320x180)으로 만듭니다. shadPS4의 해상도 패치와 같습니다"
+
+msgid "Movement + Roll-Dodge 1.1x (normal size) (Kyo)"
+msgstr "이동 + 구르기 1.1배(일반 크기) (Kyo)"
+
+msgid "The Old Hunters is available: the game takes itself for the edition that includes it"
+msgstr "올드헌터스를 사용할 수 있습니다: 게임이 자신을 올드헌터스 포함 에디션으로 인식합니다"
+
+msgid "Performance Patch v3 (Decals On) (Kyo)"
+msgstr "성능 패치 v3 (데칼 켬) (Kyo)"
+
+msgid "Performance Patch v3 (Velomap + Camera Blur, Decals On) (Kyo)"
+msgstr "성능 패치 v3 (속도 맵 + 카메라 블러, 데칼 켬) (Kyo)"
+
+msgid "a load after a death or lamp travel ends when the area is ready, not after a 12-second minimum"
+msgstr "사망이나 등불 이동 뒤 로딩이 최소 12초를 채우지 않고 지역이 준비되면 끝납니다"
+
+msgid "Rally Window 2x + Stacking (6s before decay) (Kyo)"
+msgstr "랠리 가능 시간 2배 + 중첩 (감소 전 6초) (Kyo)"
+
+msgid "Enable Screen Space Reflections (enable only, keeps res) - Kyo's patch"
+msgstr "스크린 스페이스 리플렉션 켜기(켜기만 하고 해상도 유지) - Kyo의 패치"
+
+msgid "the three company logos and the Exit Game warning are skipped at startup"
+msgstr "시작할 때 회사 로고 세 개와 게임 종료 경고를 건너뜁니다"
+

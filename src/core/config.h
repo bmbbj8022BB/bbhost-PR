@@ -57,6 +57,8 @@ struct HostConfig {
     // [input.pad]: the controller's buttons remapped (host/window.cpp, pad_remap): "south" = "circle",
     // "south_long" = "cross", "long_ms" = 450, ... Keys are as written, without "input.pad.".
     std::map<std::string, std::string> input_pad;
+    std::string ui_language = "en";   // ui.language: "en" or "ko" (the setup window and the F9/F10 screens)
+    std::string ui_font;              // ui.font: a font file with Hangul; empty: the system's (Malgun Gothic on Windows)
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     bool headless = false;     // video.headless / --headless / BBHOST_HEADLESS=1
     bool skip_intro = false;   // startup.skip_intro / BBHOST_SKIP_INTRO=0|1: the three company logos only
