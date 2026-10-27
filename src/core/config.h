@@ -47,6 +47,7 @@ struct HostConfig {
     std::string window_mode;   // video.window_mode: the Window mode setting's default ("Windowed" or "Fullscreen")
     std::string model_detail;  // video.model_detail: the Model detail setting's default ("Full", "Normal", "Low", "Lowest")
     std::string shaders;       // video.shaders: the Shaders setting's default ("HLSL" or "Lifted")
+
     // [input]: the controller. swap_ab exchanges Cross and Circle (the pad's A and B): "auto" (the default)
     // does so only for the Asian release, CUSA03023 or CUSA01363 (config_swap_ab); "true" / "false" force it. A non-empty
     // back_short splits the Back / Select / Share button: released before back_long_ms it presses that
@@ -57,6 +58,10 @@ struct HostConfig {
     // [input.pad]: the controller's buttons remapped (host/window.cpp, pad_remap): "south" = "circle",
     // "south_long" = "cross", "long_ms" = 450, ... Keys are as written, without "input.pad.".
     std::map<std::string, std::string> input_pad;
+
+    std::string ui_language = "en";   // ui.language: "en" or "ko" (the setup window and the F9/F10 screens)
+    std::string ui_font;              // ui.font: a font file with Hangul; empty: the system's (Malgun Gothic on Windows)
+
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     bool headless = false;     // video.headless / --headless / BBHOST_HEADLESS=1
     bool skip_intro = false;   // startup.skip_intro / BBHOST_SKIP_INTRO=0|1: the three company logos only

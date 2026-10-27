@@ -1,5 +1,7 @@
 #include "host/launcher.h"
 
+#include "host/i18n.h"
+
 #include "bbhost_version.h"
 #include "core/sha256.h"
 #include "engine/addr.h"
@@ -28,6 +30,11 @@
 #include <thread>
 #include <string>
 #include <vector>
+
+using i18n::tf;
+using i18n::tr;
+using i18n::trl;
+using i18n::trs;
 
 namespace {
 
@@ -128,9 +135,9 @@ std::string toml_string(const std::string& s) {
 
 void status_line(bool ok, const char* good, const std::string& bad) {
     if (ok) {
-        ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.45f, 1.0f), "OK  %s", good);
+        ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.45f, 1.0f), tr("OK  %s"), tr(good));
     } else {
-        ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.30f, 1.0f), "!   %s", bad.c_str());
+        ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.30f, 1.0f), tr("!   %s"), trs(bad).c_str());
     }
 }
 
@@ -162,6 +169,21 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     ImGui::GetStyle().FontSizeBase = 17.0f;
     ImGui_ImplSDL3_InitForSDLRenderer(win, ren);
     ImGui_ImplSDLRenderer3_Init(ren);
+
+    // The default font has no Hangul. A system font that has it is added next
+    // to the default one, and each frame uses it while Korean is on; with no
+    // such font the window stays in English.
+    io.Fonts->AddFontDefault();
+    ImFont* ko_font = nullptr;
+    const std::string ko_font_file = i18n::find_font(cfg.ui_font);
+    if (!ko_font_file.empty()) {
+        ko_font = io.Fonts->AddFontFromFileTTF(ko_font_file.c_str(), 0.0f);
+        host_log("setup: Korean font %s", ko_font_file.c_str());
+    } else {
+        host_log("setup: no font with Hangul found (set [ui] font in bbhost.toml); the window stays in English");
+    }
+    int language = cfg.ui_language == "ko" && ko_font ? 1 : 0;  // 0 English, 1 Korean
+    i18n::set_language(language == 1 ? "ko" : "en");
 
     // The fields, from what the configuration holds now.
     enum { kApp0, kEboot, kData, kToken, kHost, kFields };
@@ -286,11 +308,11 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     };
     auto patch_note = [&](const PatchRow& r) -> std::string {
         const std::string& o = r.p.option;
-        if (o == "startup.skip_intro") return "The same switch as the Game tab's Skip company logos.";
-        if (o == "debug.free_camera") return "The same switch as the Game tab's Debug camera.";
-        if (o == "loading.quick_reentry") return "Saved as quick_reentry under [loading] in bbhost.toml.";
-        if (o == "streaming.all_post_processors") return "Saved as all_post_processors under [streaming] in bbhost.toml.";
-        return "Saved as " + r.p.name + " under [patches] in bbhost.toml.";
+        if (o == "startup.skip_intro") return tr("The same switch as the Game tab's Skip company logos.");
+        if (o == "debug.free_camera") return tr("The same switch as the Game tab's Debug camera.");
+        if (o == "loading.quick_reentry") return tr("Saved as quick_reentry under [loading] in bbhost.toml.");
+        if (o == "streaming.all_post_processors") return tr("Saved as all_post_processors under [streaming] in bbhost.toml.");
+        return tf("Saved as %s under [patches] in bbhost.toml.", r.p.name.c_str());
     };
 
     EbootCheck eboot = check_eboot(f[kEboot].str());
@@ -339,6 +361,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         if (!f[kToken].str().empty()) e.push_back({"update", "token_file", toml_string(saved_path(f[kToken].str()))});
         e.push_back({"startup", "setup_window", show_every_start ? "true" : "false"});
         e.push_back({"debug", "tooling", tooling ? "true" : "false"});
+        e.push_back({"ui", "language", language == 1 ? "\"ko\"" : "\"en\""});
         // What this bbhost's file looks like (core/config.h): a value saved
         // from here is a choice.
         e.push_back({"bbhost", "config_version", std::to_string(kUserConfigVersion)});
@@ -351,7 +374,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             e.push_back({"streaming", "all_post_processors", all_post_processors ? "true" : "false"});
         const std::string file = config_user_file();
         if (!config_set_values(file, e)) {
-            saved_note = "Could not write " + file;
+            saved_note = tf("Could not write %s", file.c_str());
             return false;
         }
         for (PatchRow& r : patch_rows) r.was = r.on;
@@ -366,7 +389,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         host_opt_set_resolution_index(resolution);
         for (const Enhancement& x : enhancements) host_opt_set(x.key, x.on);
         host_options_save_now();
-        saved_note = "Saved to " + file;
+        saved_note = tf("Saved to %s", file.c_str());
         host_log("setup: saved %s", file.c_str());
         return true;
     };
@@ -394,22 +417,39 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
+        if (language == 1 && ko_font) ImGui::PushFont(ko_font, 0.0f);
         const ImGuiViewport* vp = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(vp->WorkPos);
         ImGui::SetNextWindowSize(vp->WorkSize);
         ImGui::Begin("setup", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
 
-        ImGui::Text("bbhost %s - setup", BBHOST_VERSION);
-        ImGui::TextDisabled("Saved to %s, which every copy of bbhost reads.", config_user_file().c_str());
+        ImGui::Text(tr("bbhost %s - setup"), BBHOST_VERSION);
+        if (ko_font) {
+            // English / Korean, at the right of the first line; applies at once, saved with Save or Play.
+            ImGui::SameLine(ImGui::GetWindowWidth() - 150 * scale);
+            ImGui::SetNextItemWidth(130 * scale);
+            static const char* const kLanguages[] = {"English", "\xed\x95\x9c\xea\xb5\xad\xec\x96\xb4"};  // "한국어"
+            int chosen = language;
+            // The list's second entry is Hangul: the Korean font draws the box even while English is on.
+            const bool combo_font = language != 1;
+            if (combo_font) ImGui::PushFont(ko_font, 0.0f);
+            const bool picked = ImGui::Combo("##language", &chosen, kLanguages, 2);
+            if (combo_font) ImGui::PopFont();
+            if (picked && chosen != language) {
+                language = chosen;
+                i18n::set_language(language == 1 ? "ko" : "en");
+            }
+        }
+        ImGui::TextDisabled(tr("Saved to %s, which every copy of bbhost reads."), config_user_file().c_str());
         if (!reason.empty()) ImGui::TextColored(ImVec4(0.95f, 0.65f, 0.30f, 1.0f), "%s", reason.c_str());
         // While the Updates box is checked: one check, on a thread of its own
         // (host/updater.h), and a newer release's page opens in the browser.
         if (check_updates) updater::check_once();
         if (check_updates && updater::update_available()) {
             ImGui::AlignTextToFramePadding();
-            ImGui::TextColored(ImVec4(0.95f, 0.80f, 0.40f, 1.0f), "bbhost %s is available", updater::latest_tag().c_str());
+            ImGui::TextColored(ImVec4(0.95f, 0.80f, 0.40f, 1.0f), tr("bbhost %s is available"), updater::latest_tag().c_str());
             ImGui::SameLine();
-            if (ImGui::Button("Open the release page")) updater::open_release_page();
+            if (ImGui::Button(trl("Open the release page"))) updater::open_release_page();
         }
         ImGui::Separator();
 
@@ -447,32 +487,32 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             }
         };
         if (ImGui::BeginTabBar("##tabs")) {
-            if (ImGui::BeginTabItem("Game")) {
+            if (ImGui::BeginTabItem(trl("Game"))) {
                 game_tab = true;
                 ImGui::EndTabItem();
             }
             // Additions to the game itself, for players who want it as it
             // shipped: the same three the game's System > PC Enhancements and
             // F10 > PC ENHANCEMENTS have.
-            if (ImGui::BeginTabItem("PC enhancements")) {
+            if (ImGui::BeginTabItem(trl("PC enhancements"))) {
                 ImGui::BeginChild("##enhancements", ImVec2(0, ImGui::GetContentRegionAvail().y - footer));
-                ImGui::TextWrapped("Additions to the game itself, all on by default. Turn them off for the game as it shipped.");
-                ImGui::TextDisabled("Each is read when the game starts: one changed in the game waits for the next start.");
+                ImGui::TextWrapped("%s", tr("Additions to the game itself, all on by default. Turn them off for the game as it shipped."));
+                ImGui::TextDisabled("%s", tr("Each is read when the game starts: one changed in the game waits for the next start."));
                 ImGui::Spacing();
                 for (Enhancement& e : enhancements) {
-                    ImGui::Checkbox(e.label, &e.on);
+                    ImGui::Checkbox(trl(e.label), &e.on);
                     ImGui::Indent();
                     ImGui::PushTextWrapPos(0.0f);
-                    ImGui::TextDisabled("%s", e.text);
+                    ImGui::TextDisabled("%s", tr(e.text));
                     ImGui::PopTextWrapPos();
                     ImGui::Unindent();
                     ImGui::Spacing();
                 }
-                if (ImGui::Button("All off (the game as it shipped)")) {
+                if (ImGui::Button(trl("All off (the game as it shipped)"))) {
                     for (Enhancement& e : enhancements) e.on = false;
                 }
                 ImGui::SameLine();
-                if (ImGui::Button("All on")) {
+                if (ImGui::Button(trl("All on"))) {
                     for (Enhancement& e : enhancements) e.on = true;
                 }
                 ImGui::EndChild();
@@ -484,13 +524,13 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 plugins_tab = false;
             }
             // The patch manifests, as the Plugins tab has the plugins.
-            if (ImGui::BeginTabItem("Patches")) {
+            if (ImGui::BeginTabItem(trl("Patches"))) {
                 ImGui::BeginChild("##patches", ImVec2(0, ImGui::GetContentRegionAvail().y - footer));
-                ImGui::TextWrapped("Byte patches to the game's code, applied when it starts: bbhost's own (the patches folder beside "
-                                   "it) and any a mod brings (<mods>/patches).");
-                ImGui::TextDisabled("A patch made for another eboot is never applied.");
+                ImGui::TextWrapped("%s", tr("Byte patches to the game's code, applied when it starts: bbhost's own (the patches folder beside "
+                                   "it) and any a mod brings (<mods>/patches)."));
+                ImGui::TextDisabled("%s", tr("A patch made for another eboot is never applied."));
                 ImGui::Spacing();
-                if (patch_rows.empty()) ImGui::TextDisabled("No patches found.");
+                if (patch_rows.empty()) ImGui::TextDisabled("%s", tr("No patches found."));
                 // Whether a row's switch can be changed here.
                 auto switchable = [&](const PatchRow& r) {
                     const bool other_eboot = eboot.ok && !r.p.eboot.empty() && r.p.eboot != eboot.sha;
@@ -517,17 +557,17 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     ImGui::PopID();
                     ImGui::Indent();
                     ImGui::PushTextWrapPos(0.0f);
-                    if (!r.p.description.empty()) ImGui::TextDisabled("%s", r.p.description.c_str());
-                    std::string why = !r.p.error.empty()        ? "Not read: " + r.p.error + "."
-                                      : other_eboot             ? "Made for another eboot: not applied."
-                                      : unknown_option          ? "Follows " + r.p.option + ", which this bbhost does not know: not applied."
-                                      : r.p.option.empty() && !bare_key(r.p.name) ? "Its name cannot be a bbhost.toml key, so it is always on."
+                    if (!r.p.description.empty()) ImGui::TextDisabled("%s", trs(r.p.description).c_str());
+                    std::string why = !r.p.error.empty()        ? tf("Not read: %s.", r.p.error.c_str())
+                                      : other_eboot             ? std::string(tr("Made for another eboot: not applied."))
+                                      : unknown_option          ? tf("Follows %s, which this bbhost does not know: not applied.", r.p.option.c_str())
+                                      : r.p.option.empty() && !bare_key(r.p.name) ? std::string(tr("Its name cannot be a bbhost.toml key, so it is always on."))
                                                                                  : patch_note(r);
-                    if (!fixed && !r.p.enabled) why = "Off unless turned on here. " + why;
-                    if (!fixed && !r.p.group.empty()) why = "One of the " + r.p.group + " variants: one is on at a time. " + why;
+                    if (!fixed && !r.p.enabled) why = std::string(tr("Off unless turned on here. ")) + why;
+                    if (!fixed && !r.p.group.empty()) why = tf("One of the %s variants: one is on at a time. ", r.p.group.c_str()) + why;
                     if (!fixed && r.p.gameplay)
-                        why = "Changes the game: while it is on, your online rules say so, and the server keeps your bloodstains, "
-                              "messages and statistics apart from vanilla players'. " + why;
+                        why = std::string(tr("Changes the game: while it is on, your online rules say so, and the server keeps your bloodstains, "
+                                             "messages and statistics apart from vanilla players'. ")) + why;
                     const std::string where = generic(fs::path(r.p.path).lexically_normal().string());
                     ImGui::TextDisabled("%s %s", why.c_str(), where.c_str());
                     ImGui::PopTextWrapPos();
@@ -544,55 +584,55 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                             *patch_switch(r) = defaults && r.p.enabled;
                         }
                     };
-                    if (ImGui::Button("All off (the game's code as it shipped)")) set_all(false);
+                    if (ImGui::Button(trl("All off (the game's code as it shipped)"))) set_all(false);
                     ImGui::SameLine();
-                    if (ImGui::Button("Defaults##patches")) set_all(true);
+                    if (ImGui::Button(trl("Defaults##patches"))) set_all(true);
                 }
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
             const ImGuiTabItemFlags sflags = select_shaders_tab ? ImGuiTabItemFlags_SetSelected : 0;
             select_shaders_tab = false;
-            if (ImGui::BeginTabItem("Shaders", nullptr, sflags)) {
+            if (ImGui::BeginTabItem(trl("Shaders"), nullptr, sflags)) {
                 ImGui::BeginChild("##shaders", ImVec2(0, ImGui::GetContentRegionAvail().y - footer));
                 if (recommend_compile) {
-                    ImGui::TextColored(warn, "Recommended: compile the shaders now.");
+                    ImGui::TextColored(warn, "%s", tr("Recommended: compile the shaders now."));
                     ImGui::PushTextWrapPos(0.0f);
-                    ImGui::TextUnformatted((advice.why + ". Compiling now takes " + advice.time +
-                                            "; otherwise the game compiles them while you play.")
+                    ImGui::TextUnformatted(tf("%s. Compiling now takes %s; otherwise the game compiles them while you play.",
+                                              advice.why.c_str(), advice.time.c_str())
                                                .c_str());
                     ImGui::PopTextWrapPos();
                     ImGui::BeginDisabled(!app0_ok || !eboot.ok);
-                    if (ImGui::Button("Compile shaders now##advice")) start_compile();
+                    if (ImGui::Button(trl("Compile shaders now##advice"))) start_compile();
                     ImGui::EndDisabled();
                     ImGui::Separator();
                     ImGui::Spacing();
                 }
-                ImGui::TextWrapped("bbhost turns the game's shaders into HLSL on this PC and compiles them with DXC. The game does this "
+                ImGui::TextWrapped("%s", tr("bbhost turns the game's shaders into HLSL on this PC and compiles them with DXC. The game does this "
                                    "itself: a start uses what is ready and compiles the rest in the background for the next start, so "
-                                   "you can play straight away. Compiling now does all of it up front.");
+                                   "you can play straight away. Compiling now does all of it up front."));
                 ImGui::Spacing();
                 ImGui::SetNextItemWidth(200 * scale);
                 static const char* const kShaderModes[] = {"HLSL", "Lifted"};
                 ImGui::BeginDisabled(cv.running);
-                ImGui::Combo("Shaders", &shaders, kShaderModes, 2);
+                ImGui::Combo(trl("Shaders"), &shaders, kShaderModes, 2);
                 ImGui::EndDisabled();
                 ImGui::PushTextWrapPos(0.0f);
-                ImGui::TextDisabled("HLSL: compiled by DXC on this PC. Lifted: the translator's own SPIR-V only. Saved with Save or Play; "
-                                    "the game reads it at its start.");
+                ImGui::TextDisabled("%s", tr("HLSL: compiled by DXC on this PC. Lifted: the translator's own SPIR-V only. Saved with Save or Play; "
+                                    "the game reads it at its start."));
                 ImGui::PopTextWrapPos();
-                ImGui::SeparatorText("The caches");
+                ImGui::SeparatorText(tr("The caches"));
                 ImGui::TextDisabled("%s", cache_state.dir.c_str());
                 if (!cache_state.have_caches) {
-                    ImGui::TextColored(warn, "No shader caches yet: the first start compiles everything.");
+                    ImGui::TextColored(warn, "%s", tr("No shader caches yet: the first start compiles everything."));
                 } else {
-                    if (cache_state.translator_current) ImGui::TextColored(good, "Made by this bbhost's shader translator.");
-                    else ImGui::TextColored(warn, "Made by another bbhost version: the next start compiles everything again.");
-                    if (cache_state.device_current == 1) ImGui::TextColored(good, "Made for this graphics driver.");
-                    else if (cache_state.device_current == 0) ImGui::TextColored(warn, "Made for another GPU or driver version: the driver compiles its part again.");
-                    else ImGui::TextDisabled("Checking the graphics driver...");
+                    if (cache_state.translator_current) ImGui::TextColored(good, "%s", tr("Made by this bbhost's shader translator."));
+                    else ImGui::TextColored(warn, "%s", tr("Made by another bbhost version: the next start compiles everything again."));
+                    if (cache_state.device_current == 1) ImGui::TextColored(good, "%s", tr("Made for this graphics driver."));
+                    else if (cache_state.device_current == 0) ImGui::TextColored(warn, "%s", tr("Made for another GPU or driver version: the driver compiles its part again."));
+                    else ImGui::TextDisabled("%s", tr("Checking the graphics driver..."));
                     ImGui::PushTextWrapPos(0.0f);
-                    ImGui::TextDisabled("Translations, lifts and DXC's modules %.0f MiB; the driver's pipelines %.0f MiB; what was drawn: %.1f + %.1f MiB.",
+                    ImGui::TextDisabled(tr("Translations, lifts and DXC's modules %.0f MiB; the driver's pipelines %.0f MiB; what was drawn: %.1f + %.1f MiB."),
                                         cache_state.translation_bytes / 1048576.0, cache_state.pipeline_bytes / 1048576.0,
                                         cache_state.stage_manifest_bytes / 1048576.0, cache_state.pipeline_manifest_bytes / 1048576.0);
                     ImGui::PopTextWrapPos();
@@ -615,32 +655,32 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                         else if (k == "pipelines") pipelines = v;
                         else if (k == "lift") lift.push_back(v);
                     }
-                    ImGui::Text("The last compile: %s, %s (%s s), bbhost %s", result == "done" ? "finished" : result.c_str(), when.c_str(),
+                    ImGui::Text(tr("The last compile: %s, %s (%s s), bbhost %s"), result == "done" ? tr("finished") : result.c_str(), when.c_str(),
                                 seconds.c_str(), version.c_str());
                     ImGui::Indent();
                     ImGui::PushTextWrapPos(0.0f);
-                    ImGui::TextDisabled("On %s: shaders %s; %s.", device.c_str(), stages.c_str(), hlsl.c_str());
-                    if (!pipelines.empty() && pipelines.rfind("0 of 0", 0) != 0) ImGui::TextDisabled("Pipelines %s.", pipelines.c_str());
+                    ImGui::TextDisabled(tr("On %s: shaders %s; %s."), device.c_str(), stages.c_str(), hlsl.c_str());
+                    if (!pipelines.empty() && pipelines.rfind("0 of 0", 0) != 0) ImGui::TextDisabled(tr("Pipelines %s."), pipelines.c_str());
                     for (const std::string& r : failed) {
                         if (r.find("LDS use outside a compute shader") != std::string::npos)
-                            ImGui::TextDisabled("Not compiled alone (%s): vertex shaders that write LDS, which only run inside another stage (tessellation); they are compiled when the game draws them.",
+                            ImGui::TextDisabled(tr("Not compiled alone (%s): vertex shaders that write LDS, which only run inside another stage (tessellation); they are compiled when the game draws them."),
                                                 r.substr(r.rfind(' ') + 1).c_str());
                         else
-                            ImGui::TextDisabled("Failed: %s", r.c_str());
+                            ImGui::TextDisabled(tr("Failed: %s"), r.c_str());
                     }
-                    for (const std::string& r : lift) ImGui::TextDisabled("Kept the lift: %s", r.c_str());
+                    for (const std::string& r : lift) ImGui::TextDisabled(tr("Kept the lift: %s"), r.c_str());
                     ImGui::PopTextWrapPos();
                     ImGui::Unindent();
                 }
-                ImGui::SeparatorText("Compile now");
+                ImGui::SeparatorText(tr("Compile now"));
                 if (!cv.running) {
                     ImGui::BeginDisabled(!app0_ok || !eboot.ok);
-                    if (ImGui::Button("Compile shaders now")) start_compile();
+                    if (ImGui::Button(trl("Compile shaders now"))) start_compile();
                     ImGui::EndDisabled();
                     ImGui::SameLine();
-                    ImGui::TextDisabled("Every shader the game uses, with this PC's graphics driver. It can be cancelled.");
+                    ImGui::TextDisabled("%s", tr("Every shader the game uses, with this PC's graphics driver. It can be cancelled."));
                 } else {
-                    if (ImGui::Button("Cancel")) compile_job.cancel();
+                    if (ImGui::Button(trl("Cancel"))) compile_job.cancel();
                     ImGui::SameLine();
                     ImGui::TextDisabled("%s", cv.phase.c_str());
                 }
@@ -651,23 +691,23 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                                   static_cast<unsigned long long>(cv.total));
                     ImGui::ProgressBar(frac, ImVec2(-1, 0), over);
                     if (cv.eta >= 0 && cv.running)
-                        ImGui::Text("%.0f s so far, about %.0f s left", cv.seconds, cv.eta);
+                        ImGui::Text(tr("%.0f s so far, about %.0f s left"), cv.seconds, cv.eta);
                     else
-                        ImGui::Text("%.0f s", cv.seconds);
-                    ImGui::Text("%llu took DXC's module, %llu kept the lift; %llu failed", static_cast<unsigned long long>(cv.hlsl),
+                        ImGui::Text(tr("%.0f s"), cv.seconds);
+                    ImGui::Text(tr("%llu took DXC's module, %llu kept the lift; %llu failed"), static_cast<unsigned long long>(cv.hlsl),
                                 static_cast<unsigned long long>(cv.lift), static_cast<unsigned long long>(cv.failed));
                     if (cv.recipes_total)
-                        ImGui::Text("Pipelines from your earlier sessions and the shipped list: %llu of %llu",
+                        ImGui::Text(tr("Pipelines from your earlier sessions and the shipped list: %llu of %llu"),
                                     static_cast<unsigned long long>(cv.recipes_done), static_cast<unsigned long long>(cv.recipes_total));
-                    if (cv.finished) ImGui::TextColored(good, "Done: the next start takes these from the caches.");
-                    if (cv.cancelled) ImGui::TextColored(warn, "Cancelled: what was compiled is kept; the game compiles the rest.");
+                    if (cv.finished) ImGui::TextColored(good, "%s", tr("Done: the next start takes these from the caches."));
+                    if (cv.cancelled) ImGui::TextColored(warn, "%s", tr("Cancelled: what was compiled is kept; the game compiles the rest."));
                     if (!cv.error.empty()) ImGui::TextColored(warn, "%s", cv.error.c_str());
                     for (const std::string& r : cv.reasons) ImGui::BulletText("%s", r.c_str());
                 }
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Plugins", nullptr, pflags)) {
+            if (ImGui::BeginTabItem(trl("Plugins"), nullptr, pflags)) {
                 plugin_ui_draw(plugin_ui, scale, ImGui::GetContentRegionAvail().y - footer);
                 plugin_seen = true;
                 ImGui::EndTabItem();
@@ -676,14 +716,14 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         }
         if (game_tab) ImGui::BeginChild("##game", ImVec2(0, ImGui::GetContentRegionAvail().y - footer));
 
-        const float browse_w = ImGui::CalcTextSize("Browse...").x + ImGui::GetStyle().FramePadding.x * 2;
+        const float browse_w = ImGui::CalcTextSize(tr("Browse...")).x + ImGui::GetStyle().FramePadding.x * 2;
         auto path_row = [&](const char* label, int field, bool folder, const char* hint) {
-            ImGui::TextUnformatted(label);
+            ImGui::TextUnformatted(tr(label));
             ImGui::PushID(field);
             ImGui::SetNextItemWidth(-browse_w - ImGui::GetStyle().ItemSpacing.x);
-            const bool changed = ImGui::InputTextWithHint("##p", hint, f[field].text, sizeof(f[field].text));
+            const bool changed = ImGui::InputTextWithHint(trl("##p"), hint, f[field].text, sizeof(f[field].text));
             ImGui::SameLine();
-            if (ImGui::Button("Browse...")) {
+            if (ImGui::Button(trl("Browse..."))) {
                 void* ud = reinterpret_cast<void*>(static_cast<std::intptr_t>(field));
                 const std::string at = f[field].str();
                 if (folder) {
@@ -702,16 +742,16 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ImGui::TextColored(warn, "%s.", advice.why.c_str());
             ImGui::SameLine();
             ImGui::BeginDisabled(!app0_ok || !eboot.ok);
-            if (ImGui::SmallButton("Compile shaders now##main")) {
+            if (ImGui::SmallButton(trl("Compile shaders now##main"))) {
                 start_compile();
                 select_shaders_tab = true;
             }
             ImGui::EndDisabled();
             ImGui::SameLine();
-            ImGui::TextDisabled("%s; optional.", advice.time.c_str());
+            ImGui::TextDisabled(tr("%s; optional."), advice.time.c_str());
         }
-        ImGui::SeparatorText("Game files");
-        path_row("Game folder (the one that contains dvdroot_ps4)", kApp0, true, "C:/Games/Bloodborne/CUSA00900");
+        ImGui::SeparatorText(tr("Game files"));
+        path_row(tr("Game folder (the one that contains dvdroot_ps4)"), kApp0, true, "C:/Games/Bloodborne/CUSA00900");
         status_line(app0_ok, "has dvdroot_ps4",
                     app0.empty()           ? "not set"
                     : !is_dir(app0)        ? "that folder does not exist"
@@ -722,53 +762,52 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             // Its version: the 1.09 update's files copied over it, or in an
             // update folder beside it (core/config.h), or the game stops when
             // it reads one. A warning, not a stop: Play stays on.
-            static std::string seen, good;
+            static std::string seen, update_name;
             static App0Version ver;
             if (seen != app0) {
                 seen = app0;
                 ver = config_app0_version(app0);
-                good = ver.update.empty() ? std::string("version 01.09 (the update's files are in it)")
-                                          : "version 01.09, the update read from " + fs::path(ver.update).filename().string();
+                update_name = fs::path(ver.update).filename().string();
             }
-            status_line(ver.app_ver == "01.09", good.c_str(),
-                        ver.app_ver.empty() ? std::string("no sce_sys/param.sfo in it - is it the whole game folder?")
-                                            : "version " + ver.app_ver +
-                                                  (ver.update.empty() ? std::string()
-                                                                      : " (in " + fs::path(ver.update).filename().string() + ")") +
-                                                  " - copy the 1.09 update's files over this folder, or the game stops "
-                                                  "while loading");
+            const std::string version_ok = ver.update.empty() ? std::string(tr("version 01.09 (the update's files are in it)"))
+                                                              : tf("version 01.09, the update read from %s", update_name.c_str());
+            const std::string in_folder = ver.update.empty() ? std::string() : tf(" (in %s)", update_name.c_str());
+            status_line(ver.app_ver == "01.09", version_ok.c_str(),
+                        ver.app_ver.empty() ? std::string(tr("no sce_sys/param.sfo in it - is it the whole game folder?"))
+                                            : tf("version %s%s - copy the 1.09 update's files over this folder, or the game stops while loading",
+                                                 ver.app_ver.c_str(), in_folder.c_str()));
         }
-        if (path_row("Eboot (the 1.09 update's eboot.bin, decrypted)", kEboot, false, "C:/Games/Bloodborne/eboot-109-decrypted.bin") ||
+        if (path_row(tr("Eboot (the 1.09 update's eboot.bin, decrypted)"), kEboot, false, "C:/Games/Bloodborne/eboot-109-decrypted.bin") ||
             (eboot.path != f[kEboot].str() && !ImGui::IsAnyItemActive())) {
             eboot = check_eboot(f[kEboot].str());
         }
         status_line(eboot.ok, "the 1.09 eboot",
                     f[kEboot].str().empty() ? "not set"
                     : !is_file(f[kEboot].str()) ? "that file does not exist"
-                                                : "not the 1.09 eboot (SHA-256 " + eboot.sha.substr(0, 16) + "...)");
-        path_row("Data folder (saves and caches; empty for the default)", kData, true, config_default_data_dir().c_str());
+                                                : tf("not the 1.09 eboot (SHA-256 %s...)", eboot.sha.substr(0, 16).c_str()));
+        path_row(tr("Data folder (saves and caches; empty for the default)"), kData, true, config_default_data_dir().c_str());
 
-        ImGui::SeparatorText("Online");
+        ImGui::SeparatorText(tr("Online"));
         ImGui::SetNextItemWidth(-1);
-        static const char* const kServerLabels[] = {kServers[0].label, kServers[1].label, "Custom"};
-        ImGui::Combo("##server", &server, kServerLabels, 3);
+        const char* const kServerLabels[] = {tr(kServers[0].label), tr(kServers[1].label), tr("Custom")};
+        ImGui::Combo(trl("##server"), &server, kServerLabels, 3);
         if (server == 2) {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-            ImGui::InputTextWithHint("Host", "server.example.com", f[kHost].text, sizeof(f[kHost].text));
+            ImGui::InputTextWithHint(trl("Host"), tr("server.example.com"), f[kHost].text, sizeof(f[kHost].text));
             ImGui::SetNextItemWidth(100 * scale);
-            ImGui::InputText("Scheme", scheme, sizeof(scheme));
-            ImGui::Checkbox("Check the server's certificate", &verify_tls);
-            ImGui::Checkbox("Require an account (F10 > Account)", &require_account);
+            ImGui::InputText(trl("Scheme"), scheme, sizeof(scheme));
+            ImGui::Checkbox(trl("Check the server's certificate"), &verify_tls);
+            ImGui::Checkbox(trl("Require an account (F10 > Account)"), &require_account);
         }
         if (!cfg.profile.empty()) {
-            ImGui::TextDisabled("This run uses %s, whose own settings may choose another server.", cfg.profile_config.c_str());
+            ImGui::TextDisabled(tr("This run uses %s, whose own settings may choose another server."), cfg.profile_config.c_str());
         }
 
         // The private server's account, as F10 > ACCOUNT in the game has it:
         // no password - this PC linked to the account signed into on the
         // website with Discord, or an account held by this PC with a
         // recovery code. The calls go to the server chosen above.
-        ImGui::SeparatorText("Account");
+        ImGui::SeparatorText(tr("Account"));
         {
             const bool busy = host_account_busy();
             const std::string signed_in = host_account_signed_in();
@@ -780,7 +819,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             if (!detail.empty()) {
                 ImGui::TextColored(ImVec4(0.95f, 0.80f, 0.40f, 1.0f), "%s", detail.c_str());
                 ImGui::SameLine();
-                if (ImGui::SmallButton("Copy")) {
+                if (ImGui::SmallButton(trl("Copy"))) {
                     // The code alone: the word after "Code" or "code".
                     std::string code = detail;
                     for (const char* lead : {"Code ", "Recovery code ", "Website code "}) {
@@ -791,30 +830,30 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 }
             }
             ImGui::BeginDisabled(busy);
-            if (ImGui::Button("Log in with Discord")) {
+            if (ImGui::Button(trl("Log in with Discord"))) {
                 apply_server();
                 host_account_action(0, "", "");
             }
             ImGui::SameLine();
-            ImGui::TextDisabled("opens the website: sign in there with Discord and approve the code");
+            ImGui::TextDisabled("%s", tr("opens the website: sign in there with Discord and approve the code"));
             const float field_w = 220 * scale;
             ImGui::SetNextItemWidth(field_w);
-            ImGui::InputTextWithHint("##acct_name", "Name", acct_name, sizeof(acct_name));
+            ImGui::InputTextWithHint(trl("##acct_name"), tr("Name"), acct_name, sizeof(acct_name));
             ImGui::SameLine();
-            if (ImGui::Button("Create account on this PC")) {
+            if (ImGui::Button(trl("Create account on this PC"))) {
                 apply_server();
                 host_account_action(1, acct_name, "");
             }
             ImGui::SetNextItemWidth(field_w);
-            ImGui::InputTextWithHint("##acct_code", "Recovery code", acct_code, sizeof(acct_code));
+            ImGui::InputTextWithHint(trl("##acct_code"), tr("Recovery code"), acct_code, sizeof(acct_code));
             ImGui::SameLine();
-            if (ImGui::Button("Recover account")) {
+            if (ImGui::Button(trl("Recover account"))) {
                 apply_server();
                 host_account_action(2, acct_name, acct_code);
                 acct_code[0] = 0;
             }
             ImGui::BeginDisabled(!net::account_logged_in());
-            if (ImGui::Button("Website sign-in code")) {
+            if (ImGui::Button(trl("Website sign-in code"))) {
                 apply_server();
                 host_account_action(3, "", "");
             }
@@ -823,61 +862,61 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ImGui::SameLine();
             // Also stops a Discord link that is waiting for approval.
             ImGui::BeginDisabled(!busy && !net::account_logged_in());
-            if (ImGui::Button(busy ? "Cancel" : "Sign out")) {
+            if (ImGui::Button(trl(busy ? "Cancel" : "Sign out"))) {
                 apply_server();
                 host_account_action(4, "", "");
             }
             ImGui::EndDisabled();
         }
 
-        ImGui::SeparatorText("Start-up and display");
-        ImGui::Checkbox("Fullscreen", &fullscreen);
+        ImGui::SeparatorText(tr("Start-up and display"));
+        ImGui::Checkbox(trl("Fullscreen"), &fullscreen);
         ImGui::SameLine(260 * scale);
-        ImGui::Checkbox("Skip company logos", &skip_logos);
-        ImGui::Checkbox("Debug camera", &debug_camera);
+        ImGui::Checkbox(trl("Skip company logos"), &skip_logos);
+        ImGui::Checkbox(trl("Debug camera"), &debug_camera);
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Lance McDonald's free camera: hold Interact (E) and press L3 (Left Ctrl). The debug menu's LOAD TEST crashes while it is on.");
+            ImGui::SetTooltip("%s", tr("Lance McDonald's free camera: hold Interact (E) and press L3 (Left Ctrl). The debug menu's LOAD TEST crashes while it is on."));
         ImGui::SetNextItemWidth(200 * scale);
-        static const char* const kCapLabels[] = {"30 fps", "60 fps", "90 fps", "120 fps", "Uncapped"};
+        const char* const kCapLabels[] = {"30 fps", "60 fps", "90 fps", "120 fps", tr("Uncapped")};
         static_assert(sizeof(kCapLabels) / sizeof(kCapLabels[0]) == sizeof(kCaps) / sizeof(kCaps[0]), "a label for every rate");
-        ImGui::Combo("Frame rate", &cap_choice, kCapLabels, kCapCount);
+        ImGui::Combo(trl("Frame rate"), &cap_choice, kCapLabels, kCapCount);
         if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("The game's own speed. Uncapped steps it by the frame time: the display's refresh rate with V-Sync on, up to 240 fps off in the world.");
+            ImGui::SetTooltip("%s", tr("The game's own speed. Uncapped steps it by the frame time: the display's refresh rate with V-Sync on, up to 240 fps off in the world."));
         ImGui::SetNextItemWidth(200 * scale);
-        ImGui::Combo("Render resolution", &resolution, kResolutions, static_cast<int>(sizeof(kResolutions) / sizeof(kResolutions[0])));
-        ImGui::TextDisabled("F10 in the game has every other setting.");
+        ImGui::Combo(trl("Render resolution"), &resolution, kResolutions, static_cast<int>(sizeof(kResolutions) / sizeof(kResolutions[0])));
+        ImGui::TextDisabled("%s", tr("F10 in the game has every other setting."));
 
-        ImGui::SeparatorText("Diagnostics");
-        ImGui::Checkbox("Tooling and logging", &tooling);
+        ImGui::SeparatorText(tr("Diagnostics"));
+        ImGui::Checkbox(trl("Tooling and logging"), &tooling);
         ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextDisabled("The periodic reports in the log, the stall detector, the GPU busy meter (GPU %% beside the FPS counter) "
+        ImGui::TextDisabled("%s", tr("The periodic reports in the log, the stall detector, the GPU busy meter (GPU % beside the FPS counter) "
                             "and the recent-draw history. Off gives the game that headroom; the log keeps the start, warnings and "
-                            "errors. Leave it on when reporting a problem.");
+                            "errors. Leave it on when reporting a problem."));
         ImGui::PopTextWrapPos();
 
-        ImGui::SeparatorText("Updates");
-        ImGui::Checkbox("Check for a newer bbhost at start", &check_updates);
+        ImGui::SeparatorText(tr("Updates"));
+        ImGui::Checkbox(trl("Check for a newer bbhost at start"), &check_updates);
         if (check_updates) {
             ImGui::TextDisabled("%s", updater::status().c_str());
             if (const std::string d = updater::detail(); !d.empty()) ImGui::TextDisabled("%s", d.c_str());
         }
-        path_row("GitHub token file (only while the releases are private)", kToken, false, "");
+        path_row(tr("GitHub token file (only while the releases are private)"), kToken, false, "");
 
         }
         if (game_tab) ImGui::EndChild();
         ImGui::Separator();
-        ImGui::Checkbox("Show this window every time bbhost starts", &show_every_start);
-        ImGui::TextDisabled("Or start bbhost with --setup to open it once.");
+        ImGui::Checkbox(trl("Show this window every time bbhost starts"), &show_every_start);
+        ImGui::TextDisabled("%s", tr("Or start bbhost with --setup to open it once."));
         ImGui::Spacing();
         const bool compiling = compile_job.running();
         const bool can_play = app0_ok && eboot.ok && !compiling;
         ImGui::BeginDisabled(!can_play);
-        const bool play = ImGui::Button("Play", ImVec2(140 * scale, 0)) || (test && !std::strcmp(test, "play") && ++frames > 30);
+        const bool play = ImGui::Button(trl("Play"), ImVec2(140 * scale, 0)) || (test && !std::strcmp(test, "play") && ++frames > 30);
         ImGui::EndDisabled();
         ImGui::SameLine();
-        if (ImGui::Button("Save", ImVec2(140 * scale, 0))) save();
+        if (ImGui::Button(trl("Save"), ImVec2(140 * scale, 0))) save();
         ImGui::SameLine();
-        if (ImGui::Button("Quit", ImVec2(140 * scale, 0)) || (test && !std::strcmp(test, "quit") && ++frames > 30)) done = true;
+        if (ImGui::Button(trl("Quit"), ImVec2(140 * scale, 0)) || (test && !std::strcmp(test, "quit") && ++frames > 30)) done = true;
         if (test_link && ++frames > 30) {
             if (!test_created) {
                 test_created = true;
@@ -902,10 +941,10 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         }
         if (compiling) {
             ImGui::SameLine();
-            ImGui::TextDisabled("Play waits for the compile (Shaders tab).");
+            ImGui::TextDisabled("%s", tr("Play waits for the compile (Shaders tab)."));
         } else if (!can_play) {
             ImGui::SameLine();
-            ImGui::TextDisabled("Play needs the game folder and the 1.09 eboot.");
+            ImGui::TextDisabled("%s", tr("Play needs the game folder and the 1.09 eboot."));
         }
         if (!saved_note.empty()) ImGui::TextDisabled("%s", saved_note.c_str());
         if (play && can_play && save()) {
@@ -913,6 +952,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             done = true;
         }
         ImGui::End();
+        if (language == 1 && ko_font) ImGui::PopFont();
 
         ImGui::Render();
         SDL_SetRenderDrawColor(ren, 20, 20, 24, 255);
@@ -938,5 +978,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     SDL_DestroyWindow(win);
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
     host_log("setup: %s", result == LauncherResult::Play ? "play" : "closed");
+    // The in-game screens (F9, F10) have no Hangul font: back to English for them.
+    i18n::set_language("en");
     return result;
 }

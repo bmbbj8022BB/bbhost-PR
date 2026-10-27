@@ -1,5 +1,7 @@
 #include "host/plugin_ui.h"
 
+#include "host/i18n.h"
+
 #include "bbhost_plugin.h"
 #include "core/config.h"
 #include "host/updater.h"
@@ -12,6 +14,11 @@
 #include <cstring>
 #include <random>
 #include <sstream>
+
+using i18n::tf;
+using i18n::tr;
+using i18n::trl;
+using i18n::trs;
 
 namespace {
 
@@ -40,7 +47,7 @@ std::string random_seed() {
 
 void badge(const char* text, ImVec4 colour) {
     ImGui::SameLine();
-    ImGui::TextColored(colour, "[%s]", text);
+    ImGui::TextColored(colour, "[%s]", tr(text));
 }
 
 // One setting's widget. `value` is what the config holds (or the default);
@@ -49,12 +56,12 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
     const std::string id = p.name + "." + o.key;
     ImGui::PushID(id.c_str());
     const bool later = ui.in_game && !o.live && o.type != BB_OPT_ACTION && o.type != BB_OPT_HEADING;
-    const std::string label = o.label + (later ? "  (next start)" : "");
+    const std::string label = trs(o.label) + (later ? tr("  (next start)") : "");
     const std::string value = plugins_option_value(p, o);
     const float width = 260 * scale;
     switch (o.type) {
     case BB_OPT_HEADING:
-        ImGui::SeparatorText(o.label.c_str());
+        ImGui::SeparatorText(trs(o.label).c_str());
         break;
     case BB_OPT_BOOL: {
         bool on = value == "true" || value == "1";
@@ -96,9 +103,9 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
             if (choices[i] == value) cur = static_cast<int>(i);
         }
         ImGui::SetNextItemWidth(width);
-        if (ImGui::BeginCombo(label.c_str(), choices.empty() ? "" : choices[static_cast<std::size_t>(cur)].c_str())) {
+        if (ImGui::BeginCombo(label.c_str(), choices.empty() ? "" : trs(choices[static_cast<std::size_t>(cur)]).c_str())) {
             for (std::size_t i = 0; i < choices.size(); ++i) {
-                if (ImGui::Selectable(choices[i].c_str(), static_cast<int>(i) == cur)) plugins_set_option(p.name, o.key, choices[i]);
+                if (ImGui::Selectable(trl(choices[i].c_str()), static_cast<int>(i) == cur)) plugins_set_option(p.name, o.key, choices[i]);
             }
             ImGui::EndCombo();
         }
@@ -116,7 +123,7 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
         // A seed: a new one at the click, shown in the box and saved.
         if (o.key == "seed") {
             ImGui::SameLine();
-            if (ImGui::Button("Random seed")) {
+            if (ImGui::Button(trl("Random seed"))) {
                 it->second = random_seed();
                 plugins_set_option(p.name, o.key, it->second);
             }
@@ -127,11 +134,11 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
     case BB_OPT_ACTION: {
         const bool can = ui.in_game && p.loaded;
         ImGui::BeginDisabled(!can);
-        if (ImGui::Button(o.label.c_str(), ImVec2(width, 0))) plugins_run_action(p.name, o.key);
+        if (ImGui::Button(trl(o.label.c_str()), ImVec2(width, 0))) plugins_run_action(p.name, o.key);
         ImGui::EndDisabled();
         if (!can) {
             ImGui::SameLine();
-            ImGui::TextDisabled(ui.in_game ? "(turn the plugin on and restart)" : "(in the game: the plugin menu)");
+            ImGui::TextDisabled("%s", ui.in_game ? tr("(turn the plugin on and restart)") : tr("(in the game: the plugin menu)"));
         }
         break;
     }
@@ -141,12 +148,12 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
     if (!o.help.empty() && o.type != BB_OPT_HEADING) {
         ImGui::Indent(16 * scale);
         ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextDisabled("%s", o.help.c_str());
+        ImGui::TextDisabled("%s", trs(o.help).c_str());
         ImGui::PopTextWrapPos();
         ImGui::Unindent(16 * scale);
     } else if (!o.help.empty()) {
         ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextDisabled("%s", o.help.c_str());
+        ImGui::TextDisabled("%s", trs(o.help).c_str());
         ImGui::PopTextWrapPos();
     }
     ImGui::PopID();
@@ -180,13 +187,13 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
     was_busy = busy;
 
     ImGui::BeginDisabled(busy);
-    if (ImGui::Button("Get the latest official plugins")) updater::fetch_plugins(config_user_dir() + "/plugins");
+    if (ImGui::Button(trl("Get the latest official plugins"))) updater::fetch_plugins(config_user_dir() + "/plugins");
     ImGui::EndDisabled();
     ImGui::SameLine();
-    if (ImGui::Button("Rescan")) plugin_ui_refresh(ui);
+    if (ImGui::Button(trl("Rescan"))) plugin_ui_refresh(ui);
     ImGui::SameLine();
     bool every = config_value("plugins.show_settings") == "true";
-    if (ImGui::Checkbox("Show plugin settings at every start", &every)) {
+    if (ImGui::Checkbox(trl("Show plugin settings at every start"), &every)) {
         config_set_values(config_user_file(), {{"plugins", "show_settings", every ? "true" : "false"}});
         config_value_set("plugins.show_settings", every ? "true" : "false");
     }
@@ -196,12 +203,12 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
     ImGui::BeginChild("##list", ImVec2(230 * scale, h), ImGuiChildFlags_Borders);
     if (ui.plugins.empty()) {
         ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextDisabled("No plugins. Get the official ones above, or put plugin files in %s/plugins.", config_user_dir().c_str());
+        ImGui::TextDisabled(tr("No plugins. Get the official ones above, or put plugin files in %s/plugins."), config_user_dir().c_str());
         ImGui::PopTextWrapPos();
     }
     for (std::size_t i = 0; i < ui.plugins.size(); ++i) {
         const PluginEntry& p = ui.plugins[i];
-        std::string line = p.title + (p.enabled ? "" : "  (off)");
+        std::string line = trs(p.title) + (p.enabled ? "" : tr("  (off)"));
         if (ImGui::Selectable(line.c_str(), ui.selected == static_cast<int>(i))) ui.selected = static_cast<int>(i);
     }
     ImGui::EndChild();
@@ -209,7 +216,7 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
     ImGui::BeginChild("##details", ImVec2(0, h), ImGuiChildFlags_Borders);
     if (!ui.plugins.empty()) {
         PluginEntry& p = ui.plugins[static_cast<std::size_t>(ui.selected)];
-        ImGui::Text("%s", p.title.c_str());
+        ImGui::Text("%s", trs(p.title).c_str());
         if (!p.version.empty()) {
             ImGui::SameLine();
             ImGui::TextDisabled("%s", p.version.c_str());
@@ -218,31 +225,31 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
         else if (p.bad_signature) badge("signature does not match - not loaded", ImVec4(0.95f, 0.35f, 0.30f, 1.0f));
         else badge("not signed", ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
         if (p.flags & BB_PLUGIN_GAMEPLAY) badge("changes the game", ImVec4(0.95f, 0.70f, 0.30f, 1.0f));
-        if (!p.author.empty()) ImGui::TextDisabled("by %s - %s", p.author.c_str(), p.file.c_str());
+        if (!p.author.empty()) ImGui::TextDisabled(tr("by %s - %s"), p.author.c_str(), p.file.c_str());
         if (!p.description.empty()) {
             ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextUnformatted(p.description.c_str());
+            ImGui::TextUnformatted(trs(p.description).c_str());
             ImGui::PopTextWrapPos();
         }
         ImGui::BeginDisabled(p.bad_signature);
         bool on = p.enabled;
-        if (ImGui::Checkbox("Turned on", &on)) {
+        if (ImGui::Checkbox(trl("Turned on"), &on)) {
             plugins_set_enabled(p.name, on);
             p.enabled = on;
         }
         ImGui::EndDisabled();
         if (p.visitor && !p.enabled) {
             ImGui::SameLine();
-            ImGui::TextDisabled("off - joins other players' %s worlds when summoned", p.title.c_str());
+            ImGui::TextDisabled(tr("off - joins other players' %s worlds when summoned"), p.title.c_str());
         } else if (ui.in_game && p.enabled != p.loaded) {
             ImGui::SameLine();
-            ImGui::TextColored(ImVec4(0.95f, 0.70f, 0.30f, 1.0f), p.enabled ? "starts with the next launch" : "stops at the next launch");
+            ImGui::TextColored(ImVec4(0.95f, 0.70f, 0.30f, 1.0f), "%s", p.enabled ? tr("starts with the next launch") : tr("stops at the next launch"));
         }
         if (!p.options.empty()) {
             ImGui::Spacing();
             for (const PluginOptionDesc& o : p.options) option_row(ui, p, o, scale);
         } else {
-            ImGui::TextDisabled("No settings.");
+            ImGui::TextDisabled("%s", tr("No settings."));
         }
     }
     ImGui::EndChild();
