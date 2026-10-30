@@ -1,6 +1,10 @@
 # Enable Screen Space Reflections: Kyo's 1.09 patch from his shadPS4 list
 # (Bloodborne.xml, "Enable Screen Space Reflections (enable only, keeps res)"),
-# byte for byte. Off until turned on (the setup window's Patches tab, or
+# with the reflection's tuning left as the game has it: the list's version
+# also writes 0.0 over the 1.0 at 0x12a8cfd, -10000 over the -0.8 at
+# 0x2695a5b and loads -10000 instead of -1.0 at 0x26b8d65, and the 0.0 alone
+# made the ray march take 7.8 ms a frame at 1080p on the Radeon 8060S against
+# the game's values' 6.1. Off until turned on (the setup window's Patches tab, or
 # screen-space-reflections = true under [patches] in bbhost.toml).
 #
 # It turns the scene context's reflection pass on and puts the depth renders
@@ -45,24 +49,6 @@ bytes = "90 90"
 address = "0x026c3d7d"
 expect = "01"
 bytes = "01"
-
-# -0.8f -> -10000.0f
-[site.constant-a]
-address = "0x02695a5b"
-expect = "cd cc 4c bf"
-bytes = "00 40 1c c6"
-
-# vmovss xmm0 from another constant
-[site.constant-load]
-address = "0x026b8d65"
-expect = "c5 fa 10 05 1f 0f 67 02"
-bytes = "c5 fa 10 05 c7 7c 5c 02"
-
-# 1.0f -> 0.0f
-[site.constant-b]
-address = "0x012a8cfd"
-expect = "00 00 80 3f"
-bytes = "00 00 00 00"
 
 # the game's own: width / 2
 [site.depth-half-width]
