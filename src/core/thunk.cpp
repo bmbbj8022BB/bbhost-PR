@@ -33,7 +33,14 @@
 
 // Plain byte emission, the same on every platform; see the header.
 std::uint8_t* thunk_emit_prologue_stub(std::uint8_t* c, std::uint64_t id, void* host, std::uint64_t resume,
-                                      const std::uint8_t* displaced, std::size_t n, bool keep_rax) {
+                                      const std::uint8_t* displaced, std::size_t n, bool keep_rax, bool site) {
+    // Inside a body rsp is 16-byte aligned: the entry's 8 made up here.
+    static constexpr std::uint8_t kPad[] = {0x48, 0x83, 0xec, 0x08};    // sub rsp, 8
+    static constexpr std::uint8_t kUnpad[] = {0x48, 0x83, 0xc4, 0x08};  // add rsp, 8 (flags: the host's test follows)
+    if (site) {
+        std::memcpy(c, kPad, sizeof(kPad));
+        c += sizeof(kPad);
+    }
     // Below the six registers: a return slot (zeroed; what a skipped call
     // returns, saved[-1] to the host) and xmm0-7, which carry a hooked
     // function's float arguments and which host code would otherwise clobber.
@@ -103,6 +110,10 @@ std::uint8_t* thunk_emit_prologue_stub(std::uint8_t* c, std::uint64_t id, void* 
     } else {
         std::memcpy(c, kRestore, sizeof(kRestore));
         c += sizeof(kRestore);
+    }
+    if (site) {
+        std::memcpy(c, kUnpad, sizeof(kUnpad));
+        c += sizeof(kUnpad);
     }
     static constexpr std::uint8_t kReturn[] = {
         0x4d, 0x85, 0xdb,  // test r11, r11

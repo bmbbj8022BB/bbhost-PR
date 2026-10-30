@@ -7,6 +7,7 @@
 #include "hle/hle.h"
 #include "engine/guest.h"
 #include "engine/menu_pointer.h"
+#include "host/bindings.h"
 #include "host/gpu.h"
 #include "core/config.h"
 #include "host/window.h"
@@ -384,6 +385,11 @@ void test_requests(std::uint64_t display_va, std::uint64_t count) {
             host_gpu_capture_arm(n, arg2.c_str());
             host_log("test: draw captures armed for %d at flip %llu%s%s", n, static_cast<unsigned long long>(count), arg2.empty() ? "" : " into ",
                      arg2.c_str());
+        } else if (verb == "zoom" && (arg == "in" || arg == "out" || arg == "reset")) {
+            // The camera zoom's presses, as the wheel and the middle button make them.
+            const int n = arg2.empty() ? 1 : std::atoi(arg2.c_str());
+            host_bind_queue_zoom(arg == "in" ? -n : arg == "out" ? n : 0, arg == "reset");
+            host_log("test: zoom %s %d at flip %llu", arg.c_str(), n, static_cast<unsigned long long>(count));
         } else if ((verb == "tap" || verb == "menutap") && !arg.empty()) {
             const std::uint32_t button = arg == "confirm" ? menu_confirm_button() : hle_pad_button_named(arg);
             const int hold = arg2.empty() ? 200 : std::atoi(arg2.c_str());

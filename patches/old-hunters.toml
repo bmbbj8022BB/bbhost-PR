@@ -15,8 +15,8 @@
 # together. bbhost's saves go by directory name, not title ID, so the
 # character list is the same either way.
 #
-# A patch like any other, on unless turned off: the setup window's Patches
-# tab, or `old-hunters = false` under [patches] in bbhost.toml; it applies at
+# A patch like any other, off until turned on: the setup window's Patches
+# tab, or `old-hunters = true` under [patches] in bbhost.toml; it applies at
 # the next start. bbhost leaves it off, saying why in the log, when the game
 # files lack the DLC's own (its title art, MENU_Title_00004, and its three
 # areas): files older than the 1.09 update's, whose title would be a flat
@@ -24,8 +24,12 @@
 # [world]; a file that turned it off there still does.)
 [patch]
 name = "old-hunters"
+title = "The Old Hunters"
 eboot = "941f887a562aae054fac35af8cc8f27cf075f3d4cc2e029fb5ae2a663aaa5ae7"
 description = "The Old Hunters is available: the game takes itself for the edition that includes it"
+enabled = false
+order = 1000
+live = false
 
 [site.pkgedition]
 address = "0x023b6d20"

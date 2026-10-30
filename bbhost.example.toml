@@ -63,8 +63,9 @@ ime = "type"
 # The window's size (fullscreen takes the desktop's).
 width = 1920
 height = 1080
-# The default of F10's Frame rate: 30 (the game's own), 60, 90, 120, or 0 for
-# uncapped; what F10 saves wins over it.
+# The default of F10's Frame rate: 30 (the game's own), 60, 90, 120, 150, 180,
+# 240, 360, 480, 960, or 0 for Display-Limited (the display's refresh rate
+# when the game starts); what F10 saves wins over it.
 fps_cap = 30
 # Above 30 fps, the effects (the lamps' and candles' flicker among them) and
 # the wind on grass and trees step in whole 1/30 s, 30 times a second as at
@@ -134,9 +135,9 @@ skip_intro = false
 [loading]
 # After a death or lamp travel the game keeps its loading screen up for at
 # least 12 seconds, however soon the area is ready (about 2 s on a PC).
-# true: the load ends when the area is ready. false keeps the game's 12 s.
-# BBHOST_QUICK_REENTRY=0 or 1 overrides this setting.
-quick_reentry = true
+# true: the load ends when the area is ready. false (the default) keeps the
+# game's 12 s. BBHOST_QUICK_REENTRY=0 or 1 overrides this setting.
+quick_reentry = false
 
 [streaming]
 # The game decompresses and builds what it streams in on three threads, two of
@@ -146,14 +147,15 @@ quick_reentry = true
 all_post_processors = false
 
 # [patches]
-# The patch manifests (patches/*.toml, a mod's <mods>/patches), by name: false
-# leaves one out. The setup window's Patches tab writes these; a manifest tied
-# to a setting (skip-intro, debug-camera, ...) follows that setting instead.
+# The patch manifests (patches/*.toml, a mod's <mods>/patches), by name: every
+# shipped one is off until true puts it in. The setup window's Patches tab
+# writes these; a manifest tied to a setting (skip-intro, debug-camera, ...)
+# follows that setting instead.
 # old-hunters: the game takes itself for the edition that includes The Old
 # Hunters (Kyo's 1.09 patch) and counts the DLC as installed; its title screen
-# reads "The Old Hunters Edition". false keeps the base game.
-# old-hunters = false
-# fov-uncap = false
+# reads "The Old Hunters Edition". Off: the base game.
+# old-hunters = true
+# fov-uncap = true
 
 [world]
 # The PC enhancements: additions to the game itself, all on by default. The
@@ -183,6 +185,10 @@ rebirth = true
 # the session to have it; one without keeps the game's rule. false keeps the
 # game's rule. BBHOST_FIVE_PLAYERS=0 or 1 overrides this setting.
 five_players = true
+
+# The death screen's YOU DIED reads SKILL ISSUE instead, in every language.
+# The one enhancement off by default. BBHOST_SKILL_ISSUE=0 or 1 overrides.
+skill_issue = false
 
 # [plugins]
 # Gameplay plugins (docs/plugins.md): randomizer, boss_rush, mutators - each
