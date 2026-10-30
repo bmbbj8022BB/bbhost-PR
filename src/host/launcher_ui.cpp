@@ -676,17 +676,29 @@ void draw_icon(ImDrawList* dl, Icon icon, ImVec2 at, float size, ImU32 col) {
     }
 }
 
+// The bytes of the UTF-8 character at `ch` (Hangul takes three). Letter-spaced
+// text steps by whole characters, so a translation draws as itself.
+static int utf8_len(const char* ch) {
+    const unsigned char c0 = static_cast<unsigned char>(*ch);
+    const int n = c0 < 0xC0 ? 1 : c0 < 0xE0 ? 2 : c0 < 0xF0 ? 3 : 4;
+    for (int i = 1; i < n; ++i) {
+        if ((static_cast<unsigned char>(ch[i]) & 0xC0) != 0x80) return i;
+    }
+    return n;
+}
+
 float spaced_width(ImFont* font, float size, const char* text, float tracking) {
     float w = 0;
     int n = 0;
-    for (const char* ch = text; *ch; ++ch, ++n) w += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, ch + 1).x;
+    for (const char* ch = text; *ch; ch += utf8_len(ch), ++n) w += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, ch + utf8_len(ch)).x;
     return n ? w + tracking * static_cast<float>(n - 1) : 0.0f;
 }
 
 void spaced_text(ImDrawList* dl, ImFont* font, float size, ImVec2 pos, ImU32 col, const char* text, float tracking) {
-    for (const char* ch = text; *ch; ++ch) {
-        dl->AddText(font, size, pos, col, ch, ch + 1);
-        pos.x += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, ch + 1).x + tracking;
+    for (const char* ch = text; *ch; ch += utf8_len(ch)) {
+        const char* end = ch + utf8_len(ch);
+        dl->AddText(font, size, pos, col, ch, end);
+        pos.x += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, end).x + tracking;
     }
 }
 
@@ -891,6 +903,7 @@ bool combo(const char* id, int* v, const char* const* items, int n, const char* 
 std::string fit_left(const std::string& text, float width) {
     if (ImGui::CalcTextSize(text.c_str()).x <= width) return text;
     for (std::size_t cut = 1; cut < text.size(); ++cut) {
+        if ((static_cast<unsigned char>(text[cut]) & 0xC0) == 0x80) continue;  // whole UTF-8 characters
         const std::string t = "..." + text.substr(cut);
         if (ImGui::CalcTextSize(t.c_str()).x <= width) return t;
     }
@@ -959,11 +972,13 @@ void avatar(const std::string& name, float size) {
     dl->AddCircleFilled(mid, r, c(IM_COL32_WHITE));
     ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, v0, dl->VtxBuffer.Size, p, p + ImVec2(size, size), kBlue, kViolet);
     dl->AddCircle(mid, r, c(alpha(kIce, 110)), 0, 1.0f);
-    const char initial[2] = {static_cast<char>(std::toupper(static_cast<unsigned char>(name[0]))), 0};
+    // The name's first character: upper-cased when it is plain ASCII, whole when it is Hangul or the like.
+    std::string initial = name.substr(0, static_cast<std::size_t>(utf8_len(name.c_str())));
+    if (initial.size() == 1) initial[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(initial[0])));
     ImFont* f = font_strong();
     const float fs = size * 0.48f;
-    const ImVec2 ts = f->CalcTextSizeA(fs, FLT_MAX, 0.0f, initial);
-    dl->AddText(f, fs, mid - ts * 0.5f, c(kText), initial);
+    const ImVec2 ts = f->CalcTextSizeA(fs, FLT_MAX, 0.0f, initial.c_str());
+    dl->AddText(f, fs, mid - ts * 0.5f, c(kText), initial.c_str());
 }
 
 bool nav_item(const char* label, Icon icon, bool selected, ImU32 dot, const char* badge) {
