@@ -4,6 +4,7 @@
 //   lohit = true
 //   [lohit]
 //   pass = "3e/25"      # the scene pass it is drawn ahead of: category/sub-category (BBHOST_SCENE_CATEGORIES=1)
+//   whole_map = false   # every loaded part's lo-hit, not only the part stood on and its neighbours
 //
 // What it draws. The world's hit manager (WorldHitMan) has a debug draw of
 // the parts the player last stood on (its two slots at +0x2de8/+0x2df0): each
@@ -22,7 +23,8 @@
 // +0x94 mask shares a group with the one the player stands on (the
 // first slot), and takes the flag off those it flagged the frame before: the
 // part stood on and its neighbours, one step out. A part whose lo-hit is not
-// loaded is not drawn (sub_1c832e0 needs +0xd8 = 6).
+// loaded is not drawn (sub_1c832e0 needs +0xd8 = 6). With `whole_map` every
+// part is flagged: all the lo-hit the map has loaded.
 //
 // Where it draws. The draw step (sub_22d82d0) plays RendMan's draw lists after
 // the scene (sub_135d780 at 0x22d85e7, the lo-hit's list first), into the
@@ -42,7 +44,10 @@
 // they are (46, 0, 76). In the scene they go through the tone-mapping with
 // the rest and came out 2.7x brighter (124, 11, 163), so the plugin writes
 // colours there that come out as the late ones do (kEarlyColour; [lohit]
-// early_colour = "r,g,b,r,g,b" replaces them).
+// early_colour = "r,g,b,r,g,b" replaces them). The colours are the
+// launcher's, dark: the walls its deep violet (46, 20, 108), the floors its
+// blue at half (32, 56, 128), in place of the game's purple and brown; the
+// game's alpha, 0.5, kept.
 //
 // The post-effects (Giga Performance Patch's) are the host's Performance mode
 // now (the setup window's main page, F10 > STARTUP).
@@ -61,7 +66,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN,
     "lohit",
     "Lo-Hit",
-    "0.3.1",
+    "0.3.9",
     "Kyo",
     "The map's lo-hit collision drawn in place of the map, with the effects showing over it.",
 };
@@ -69,6 +74,9 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
 extern "C" BB_PLUGIN_EXPORT const BbOption bb_plugin_options[] = {
     {BB_OPT_TEXT | BB_OPT_LIVE, "pass", "Scene pass",
      "The scene's draw pass the lo-hit goes ahead of, as category/sub-category in hex (3e/25: the effects).", "3e/25"},
+    {BB_OPT_BOOL | BB_OPT_LIVE, "whole_map", "Whole map",
+     "The lo-hit of every part of the map that is loaded. Off: the part you stand on and the parts connected to it.",
+     "false"},
     {0}};
 
 namespace {
@@ -156,7 +164,8 @@ constexpr std::uint64_t kHitDraw = 0x1c8a150;  // WorldHitMan's debug draw (Worl
 constexpr std::uint32_t kPartSize = 0x138, kFlags = 0x130, kDrawLo = 0x10;
 constexpr std::uint32_t kMaskOffset = 0x94;  // the mask that says which parts connect (+0x74: none at Central Yharnam)
 
-std::uint64_t g_flagged[256];
+std::atomic<bool> g_whole_map{false};  // every part flagged, not only the neighbours
+std::uint64_t g_flagged[4096];
 std::size_t g_n_flagged = 0;
 int g_diag = -1;  // LOHIT_DIAG=1: the three masks' counts, every 120 frames
 unsigned g_diag_calls = 0;
@@ -187,7 +196,7 @@ void set_draw(std::uint64_t part, bool on) {
 }
 
 // sub_1c8a150's entry (the main thread): last frame's neighbours unflagged,
-// this frame's flagged.
+// this frame's flagged (with `whole_map`, every part).
 int on_hit_draw(BbHookCtx* ctx, void*) {
     const std::uint64_t whm = ctx->arg[0];
     const std::uint64_t standing = whm ? at<std::uint64_t>(whm + 0x2de8) : 0;
@@ -206,9 +215,10 @@ int on_hit_draw(BbHookCtx* ctx, void*) {
         api->log("lohit diag: %d parts, %d with lo-hit loaded; sharing a group with the one stood on: +0x74 %d, +0x94 %d, "
                  "across %d", total, loaded, n74, n94, cross);
     }
+    const bool whole = g_whole_map.load(std::memory_order_relaxed);
     each_part(whm, [&](std::uint64_t part) {
         if (part == standing || g_n_flagged == sizeof g_flagged / sizeof g_flagged[0]) return;
-        if (!overlaps(part + kMaskOffset, standing + kMaskOffset)) return;
+        if (!whole && !overlaps(part + kMaskOffset, standing + kMaskOffset)) return;
         if (at<std::uint8_t>(part + kFlags) & kDrawLo) return;  // flagged by the game (its other slot)
         set_draw(part, true);
         g_flagged[g_n_flagged++] = part;
@@ -262,11 +272,15 @@ template <std::size_t N> int apply(const Site (&sites)[N]) {
 
 constexpr std::uint64_t kColours = 0x4d00840;  // two vec4s, read by the lo-hit draw sub_1c06490 alone
 constexpr float kGameColour[8] = {0.18f, 0.0f, 0.3f, 0.5f, 0.18f, 0.15f, 0.0f, 0.5f};
+constexpr float kAlpha = 0.5f;  // the game's
+// The launcher's deep violet and its blue at half (launcher_ui.cpp kRamp): walls, then floors.
+constexpr float kLateColour[8] = {0.180f, 0.078f, 0.424f, kAlpha, 0.125f, 0.220f, 0.502f, kAlpha};
 // Measured at Central Yharnam's lamp: the scene's curve there is about 1.88 x^1.3
 // (linear light) before the display's gamma, so (0.0405, 0, 0.0817) comes out
 // at 44-46, 3, 76 as the late play's (0.18, 0, 0.3) does at 46, 0, 76. Black
-// keeps a lift of 3-4.
-float kEarlyColour[8] = {0.0405f, 0.0f, 0.0817f, 0.5f, 0.0405f, 0.027f, 0.0f, 0.5f};
+// keeps a lift of 3-4. Brighter colours come out brighter than that curve
+// says: the launcher's, measured at the same place and corrected once.
+float kEarlyColour[8] = {0.0258f, 0.0033f, 0.0778f, kAlpha, 0.0126f, 0.0287f, 0.1657f, kAlpha};
 
 void read_early_colour(const char* v) {
     if (!v || !*v) return;
@@ -284,12 +298,12 @@ void read_early_colour(const char* v) {
         api->log("lohit: early_colour '%s' is not six numbers; kept", v);
         return;
     }
-    const float out[8] = {c[0], c[1], c[2], 0.5f, c[3], c[4], c[5], 0.5f};
+    const float out[8] = {c[0], c[1], c[2], kAlpha, c[3], c[4], c[5], kAlpha};
     std::memcpy(kEarlyColour, out, sizeof out);
 }
 
-void early_colours() {
-    const int r = api->patch(kColours, kGameColour, kEarlyColour, sizeof kGameColour);
+void write_colours() {
+    const int r = api->patch(kColours, kGameColour, g_early ? kEarlyColour : kLateColour, sizeof kGameColour);
     if (r != 0) api->log("lohit: 0x4d00840 is not the lo-hit's colours (%d); kept as they are", r);
 }
 
@@ -316,8 +330,13 @@ void set_pass(const char* v) {
     if (g_early) api->on_scene_category(g_pass, &play_early, nullptr);
 }
 
+bool truthy(const char* v) {
+    return v && (std::strcmp(v, "true") == 0 || std::strcmp(v, "1") == 0 || std::strcmp(v, "on") == 0);
+}
+
 void on_option(const char* key, const char* value, void*) {
     if (std::strcmp(key, "pass") == 0) set_pass(value);
+    else if (std::strcmp(key, "whole_map") == 0) g_whole_map.store(truthy(value), std::memory_order_relaxed);
 }
 
 }  // namespace
@@ -352,18 +371,20 @@ extern "C" BB_PLUGIN_EXPORT int bb_plugin_image(const BbHostApi* host) {
     host->on_option("lohit", &on_option, nullptr);
     const int shown = apply(kLoHit);
     if (const char* d = std::getenv("LOHIT_DIAG")) g_diag = std::atoi(d);
+    g_whole_map.store(truthy(host->config("lohit.whole_map")), std::memory_order_relaxed);
     // push rbp; mov rbp, rsp; push r15; push r14; push r13; push r12; push rbx; sub rsp, 0x48
     static const std::uint8_t hit_draw_entry[17] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41,
                                                     0x55, 0x41, 0x54, 0x53, 0x48, 0x83, 0xec, 0x48};
     if (host->hook2(kHitDraw, hit_draw_entry, sizeof hit_draw_entry, &on_hit_draw, nullptr) != 0)
         host->log("lohit: 0x1c8a150 is not WorldHitMan's debug draw; the connected parts are not drawn");
+    if (g_early) read_early_colour(host->config("lohit.early_colour"));
+    write_colours();
     if (g_early) {
-        read_early_colour(host->config("lohit.early_colour"));
-        early_colours();
         const char* c = host->config("lohit.pass");
         set_pass(c && *c ? c : "3e/25");
     }
-    host->log("lohit: the lo-hit shown in place of the map (%d of 2 sites), %s (ahead of the scene's %02x/%02x)", shown,
-              g_early ? "under the effects" : "over everything", g_pass >> 6, g_pass & 0x3f);
+    host->log("lohit: the lo-hit shown in place of the map (%d of 2 sites), %s (ahead of the scene's %02x/%02x), %s", shown,
+              g_early ? "under the effects" : "over everything", g_pass >> 6, g_pass & 0x3f,
+              g_whole_map.load() ? "the whole map" : "the part stood on and its neighbours");
     return 0;
 }

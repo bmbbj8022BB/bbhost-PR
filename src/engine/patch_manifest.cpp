@@ -357,17 +357,16 @@ std::string old_hunters_missing() {
 // +0x296e (imm at 0x26c2538) - each 0. The directional shadow (+0x296c, the
 // sun's and the moon's: the buildings' shadows) stays. YEBIS's apply (sub_25d5f80) jumps past
 // every depth-of-field pass (0x25d7bbc) and reads GlareShape as 0, no bloom
-// (0x25d72f0). The scene's fog (sub_2651f10) scales each of its terms by the
-// fog parameter's alpha (+0x2c): those multiplies become zeroes, with one fog
-// id (three) and two blended (the alpha's load). Chromatic aberration is its
-// own setting's mask (engine/graphics_patch.cpp), cleared while this is on.
+// (0x25d72f0). The map's fog is left as the game draws it (the Fog setting
+// still scales it). Chromatic aberration is its own setting's mask
+// (engine/graphics_patch.cpp), cleared while this is on.
 Manifest performance_mode_manifest() {
     Manifest m;
     m.name = "performance-mode";
     m.title = "Performance mode";
     m.eboot = kEboot109Sha256;
     m.description = "every post-effect and YEBIS pass off: SSAO, motion blur, anti-aliasing, depth of field, chromatic "
-                    "aberration, bloom, the dynamic lights' shadows and fog";
+                    "aberration, bloom and the dynamic lights' shadows";
     m.option = "startup.performance_mode";
     m.order = 11;
     const std::vector<std::uint8_t> one = {0x01}, zero = {0x00};
@@ -377,11 +376,6 @@ Manifest performance_mode_manifest() {
     m.sites.push_back(Site{"dynamic-light-shadow", 0x026c2538, one, zero, true, {}});
     m.sites.push_back(Site{"dof", 0x025d7bbc, {0x0f, 0x84, 0xde, 0x00, 0x00, 0x00}, {0xe9, 0xdf, 0x00, 0x00, 0x00, 0x90}, true, {}});
     m.sites.push_back(Site{"bloom", 0x025d72f0, {0x8b, 0xb3, 0xd8, 0x00, 0x00, 0x00}, {0x31, 0xf6, 0x0f, 0x1f, 0x40, 0x00}, true, {}});
-    m.sites.push_back(Site{"fog-a1", 0x02652170, {0xc4, 0xc1, 0x6a, 0x59, 0x55, 0x2c}, {0xc5, 0xe8, 0x57, 0xd2, 0x66, 0x90}, true, {}});
-    m.sites.push_back(Site{"fog-a2", 0x026521e1, {0xc4, 0xc1, 0x7a, 0x59, 0x45, 0x2c}, {0xc5, 0xf8, 0x57, 0xc0, 0x66, 0x90}, true, {}});
-    m.sites.push_back(Site{"fog-a3", 0x02652208, {0xc4, 0xc1, 0x7a, 0x59, 0x45, 0x2c}, {0xc5, 0xf8, 0x57, 0xc0, 0x66, 0x90}, true, {}});
-    m.sites.push_back(Site{"fog-b", 0x02652569, {0xc5, 0xfa, 0x10, 0xad, 0x40, 0xfd, 0xff, 0xff},
-                           {0xc5, 0xd0, 0x57, 0xed, 0x0f, 0x1f, 0x40, 0x00}, true, {}});
     return m;
 }
 

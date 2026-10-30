@@ -22,7 +22,10 @@
 // when its owner lets it go, so its fade-out is not seen; the window behind
 // it, or the next one, fades in as before and takes input while it does.
 // Windows that end without Close never waited (the quantity and Yes/No box:
-// 2 frames either way).
+// 2 frames either way). The loading screen's window (vtable 0x579c460) keeps
+// the wait: it closes on the world's first frame, and its fade-out hides the
+// frames the world takes to settle - cut, the player's model showed white and
+// the scene ungraded for a moment after every load.
 //
 // BBHOST_MENU_FADE_WAIT=1 keeps the game's wait. BBHOST_MENU_LOG=1 logs each
 // Close and the frame its answer lands.

@@ -269,7 +269,7 @@ Setting g_set[kSettingCount] = {
     // Kyo's Giga Performance Patch's post-effects (engine/patch_manifest.cpp's
     // performance-mode), and chromatic aberration through its own setting's mask.
     {"performance_mode", "Performance mode", {"Off", "On"}, 0,
-     "Requires a restart. Every post-effect and YEBIS pass off for frame rate: SSAO, motion blur, anti-aliasing, depth of field, chromatic aberration, bloom, the dynamic lights' shadows (lamps, torches, the lantern; the sun's and the moon's stay) and the map's fog.", true},
+     "Requires a restart. Every post-effect and YEBIS pass off for frame rate: SSAO, motion blur, anti-aliasing, depth of field, chromatic aberration, bloom, and the dynamic lights' shadows (lamps, torches, the lantern; the sun's and the moon's stay). The map's fog stays.", true},
     // The old switch for the developers' debug menu, which the Debug Menu
     // plugin replaced (engine/debug_menu.h): no row shows it, and an "On" an
     // older bbhost saved turns the plugin on once (main.cpp).

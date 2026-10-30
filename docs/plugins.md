@@ -199,6 +199,13 @@ gives the Binary Ninja address.
   scene's targets before that pass does. One pass for all plugins; -1 takes it
   away. The Lo-Hit plugin plays the game's collision debug draw there, under
   the effects.
+- `draw_style(style)` (v16): inside an `on_scene_category` fn, the draws the
+  game's code records on that thread from then on restyled, until set back to
+  `BB_DRAW_AS_IS` before fn returns: `BB_DRAW_LINES` (each triangle's edges a
+  pixel wide, pulled toward the viewer, no depth written;
+  `BBHOST_WIREFRAME_BIAS` -512 and `BBHOST_WIREFRAME_SLOPE` -1 by default),
+  `BB_DRAW_BLACK` (zero written), `BB_DRAW_SUBTRACT` (the draw's colour less the
+  target's, once a pixel), or-ed.
 - `plugin_dir(name)` (v8): a data folder of the plugin's own.
 - `game_file(path, ...)` (v9): a game file by its `/app0` path, decompressed.
 - `overlay_file(name, path, data, size)` (v9): a file the game reads instead
@@ -277,7 +284,7 @@ setup window can download the latest signed plugins from the newest release.
 | `boss_rush` | Fights the 19 story bosses back to back, optionally with the ten chalice-dungeon bosses, starting each round outside the boss's fog wall. Tracks time and deaths. |
 | `mutators` | Switchable rules: gravity, game speed, bullet time at low HP, one-hit deaths, blood drain, enemy HP, echo rate, random effects. |
 | `quake` | Off until turned on. First person with Quake 3's movement and view: strafe jumping, bunny hopping (hold jump to keep hopping), crouching, the walls only characters meet (the invisible ones along ledges) as solid as the rest, creatures as solid as Quake 3's players, and a choice of physics - Quake 3 (VQ3, the default), CPMA, Quake 1 + CPMA, QuakeWorld and DeFRaG's. Five guns made of Bloodborne's (Cannon, Church Cannon, Piercing Rifle, Blunderbuss, Gatling Gun), always +10, firing from the view with each gun's own flash and sound: rockets and grenades at Quake 3's speeds (the grenade bouncing until its fuse), the Blunderbuss's and the Gatling Gun's own bullets, and a plasma of A Call Beyond's star or Blacksky Eye's shard; their blasts throw the player (rocket and grenade jumps, plasma climbing), and the gun that is up is drawn at the lower right with Quake 3's bob and kick. Field of view, mouse sensitivity, gravity and knockback are settings. |
-| `lohit` | Off until turned on. The map's lo-hit collision drawn in place of the map's own geometry (the game's own WorldHitMan debug draw, with GROUP MASK > Map off): the part you stand on and the parts connected to it, one step out. It is drawn inside the scene ahead of its effects so fire, sparks, blood and mist show over it, in the colours the game's own draw gives it. Pair it with Performance mode (the setup window's main page) for the post-effects off. |
+| `lohit` | Off until turned on. The map's lo-hit collision drawn in place of the map's own geometry (the game's own WorldHitMan debug draw, with GROUP MASK > Map off): the part you stand on and the parts connected to it, one step out (Whole map: every part loaded). It is drawn inside the scene ahead of its effects so fire, sparks, blood and mist show over it, in the launcher's deep violet (walls) and dark blue (floors). Pair it with Performance mode (the setup window's main page) for the post-effects off. |
 | `debug_menu` | Restores the developers' debug menu (`` ` `` opens it), in English or the developers' Japanese, and makes the debug font it draws with from the public-domain X11 fonts k14 and 7x14, so nothing has to be downloaded. Cheating against other players with it gets an account banned; trying it out online with friends is fine. |
 
 The gameplay plugins - all five - announce themselves in the session's

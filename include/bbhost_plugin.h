@@ -38,7 +38,7 @@
 extern "C" {
 #endif
 
-#define BB_PLUGIN_API_VERSION 15
+#define BB_PLUGIN_API_VERSION 16
 
 #if defined(_WIN32)
 #define BB_PLUGIN_EXPORT __declspec(dllexport)
@@ -471,7 +471,26 @@ typedef struct BbHostApi {
      * all plugins - a later call replaces it; -1 takes it away. 0 on success;
      * 1 for another eboot. */
     int (*on_scene_category)(int32_t pass, void (*fn)(uint64_t cc, void* user), void* user);
+
+    /* Version 16. */
+    /* Inside an on_scene_category fn: the draws the game's code records on
+     * this thread from then on, restyled until set back to BB_DRAW_AS_IS,
+     * which fn must do before it returns. The or of: BB_DRAW_LINES - each
+     * triangle's edges, a pixel wide, pulled toward the viewer so they show
+     * over the faces they outline (BBHOST_WIREFRAME_BIAS), the depth not
+     * written; BB_DRAW_BLACK - zero written to every target; BB_DRAW_SUBTRACT -
+     * the draw's colour less the target's, once a pixel (the nearest face
+     * there; pulled toward the viewer a little, its depth written). A shader
+     * that shades from the triangle's slope on screen draws its lines dark:
+     * white lines are drawn as black ones over white faces, then the faces
+     * again subtracting. No plugin uses it today. */
+    void (*draw_style)(int style);
 } BbHostApi;
+
+#define BB_DRAW_AS_IS 0
+#define BB_DRAW_LINES 1
+#define BB_DRAW_BLACK 2
+#define BB_DRAW_SUBTRACT 4
 
 #define BB_TEXT_LEFT 0u
 #define BB_TEXT_CENTRE 1u

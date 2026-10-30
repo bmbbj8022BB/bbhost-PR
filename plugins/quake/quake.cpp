@@ -85,7 +85,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN | BB_PLUGIN_GAMEPLAY,
     "quake",
     "Quake",
-    "0.3.9",
+    "0.3.10",
     "Kyo",
     "First person with Quake 3's movement and view: strafe jumping, bunny hopping, crouching, and the bob, roll and "
     "landing dip of Quake 3's camera.",
@@ -558,6 +558,7 @@ struct Pm {
     // none, 1 a footstep's, 2 EV_FALL_SHORT, 3 EV_FALL_MEDIUM, 4 EV_FALL_FAR).
     bool jumped = false;
     int land = 0;
+    bool footstep = false;  // EV_FOOTSTEP: the bob cycle passed a half while running
     // PMF_TIME_KNOCKBACK's pm_time: thrown by a blast, the ground neither
     // brakes nor steers (no friction, the air's acceleration) for this long.
     double knock_time = 0.0;
@@ -861,7 +862,12 @@ void footsteps(const Cmd& cmd, float dt) {
         return;
     }
     const float bobmove = pm.ducked ? 0.5f : 0.4f;
+    const int old = static_cast<int>(pm.bob_cycle);
     pm.bob_cycle = std::fmod(pm.bob_cycle + bobmove * dt * 1000.0f, 256.0f);
+    // A step each time the cycle crosses a half; crouched, no sound.
+    if (((old + 64) ^ (static_cast<int>(pm.bob_cycle) + 64)) & 128) {
+        if (!pm.ducked) pm.footstep = true;
+    }
 }
 
 // One step of Quake 3's PmoveSingle, the yaw the view had.
@@ -1759,15 +1765,16 @@ void named_sound(const char* name, V3 where) {
 // Quake 3's jump1 and land1, in the hunter's own sounds (player TAE a00):
 // a jump is a roll's push-off (x2001) with the attire's swish (b400); a landing
 // a fall's - a short one (a8200) x3001 and b100, a hard one (a8202) x6000 on
-// top; a drop of a step or two just a footstep (x1001). At the feet.
+// top; a drop of a step or two just a footstep (x1001), as is each of
+// PM_Footsteps' steps while running. At the feet.
 void body_sounds(std::uint8_t* chr) {
     const int land = pm.land;
-    const bool jumped = pm.jumped;
+    const bool jumped = pm.jumped, footstep = pm.footstep;
     pm.land = 0;
-    pm.jumped = false;
+    pm.jumped = pm.footstep = false;
     if (!s.sounds || !chr) return;
     const V3 feet = pm.origin;
-    if (land == 1) sound_at(chr, feet, 8, 1001);
+    if (land == 1 || (footstep && land == 0)) sound_at(chr, feet, 8, 1001);
     if (land >= 2) {
         sound_at(chr, feet, 8, 3001);
         sound_at(chr, feet, 9, 100);

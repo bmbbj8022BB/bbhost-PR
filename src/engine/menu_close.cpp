@@ -18,6 +18,9 @@ namespace {
 constexpr std::uint64_t kStillFading = 0x1ed7580;
 constexpr std::uint8_t kStillFadingPrologue[] = {0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56,
                                                  0x41, 0x54, 0x53, 0x48, 0x83, 0xec, 0x70};
+// The loading screen's window class: it closes (answer 2) on the flip of the
+// first in-game frame. The functor's window is at +8.
+constexpr unsigned long long kLoadingScreenVtable = 0x579c460;
 // BBHOST_MENU_LOG: Close (window, answer) and the task that writes the answer
 // (functor {window, answer}: window+0x1c0 = answer).
 constexpr std::uint64_t kClose = 0x1ed6820;
@@ -41,6 +44,10 @@ unsigned long long vtable_of(std::uint64_t window) {
 }
 
 GUEST_ABI std::int64_t still_fading_hook(std::uint64_t, std::uint64_t* saved) {
+    // The loading screen's window keeps the game's wait: it closes on the
+    // world's first frame, and its fade-out covers the ~50 frames the world
+    // needs to settle (the player's model drawn white, no colour grading).
+    if (vtable_of(rd64(saved[5] + 8)) == kLoadingScreenVtable) return 0;
     saved[-1] = 0;  // not playing: the wait is over
     return 1;
 }

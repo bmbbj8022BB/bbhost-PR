@@ -10,6 +10,7 @@
 #include "engine/addr.h"
 #include "engine/frame_rate.h"
 #include "engine/graphics_patch.h"
+#include "engine/gx_state.h"
 #include "engine/image_text.h"
 #include "decomp/events/flag_store.h"
 #include "decomp/gx/render_queue.h"
@@ -1134,6 +1135,8 @@ int api_key_bound(std::uint16_t scancode) {
     return 0;
 }
 
+void api_draw_style(int style) { gx_draw_style(style & (kGxDrawLines | kGxDrawBlack | kGxDrawSubtract)); }
+
 int api_on_scene_category(std::int32_t pass, void (*fn)(std::uint64_t, void*), void* user) {
     if (!g_image || !api_eboot_is_109()) return 1;
     render_queue_scene_insert(pass, fn, user);
@@ -1156,6 +1159,7 @@ const BbHostApi g_api = {
     &api_input, &api_input_take, &api_on_camera, &api_key_bound,
     &api_show_text,
     &api_on_scene_category,
+    &api_draw_style,
 };
 
 std::string read_file(const std::string& path) {
