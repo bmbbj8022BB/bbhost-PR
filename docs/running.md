@@ -142,7 +142,9 @@ out of the inventory or the pause menu, an item's command menu, Continue on
 the title - holds the choice back until its fade-out has played (a tenth of a
 second, a fifth in some) and drops any press made meanwhile; bbhost passes the
 choice on as the press lands, and the menu behind takes input while it fades
-back in. `BBHOST_MENU_FADE_WAIT=1` keeps the game's wait.
+back in. The message, Yes/No and quantity boxes take OK as soon as they are up
+(the game ignores it for their first half second). The loading screen keeps
+its fade-out. `BBHOST_MENU_FADE_WAIT=1` keeps the game's waits.
 
 The mouse turns the camera the way Dark Souls III's PC version does: by an
 angle for each count the mouse reports, 0.25 degrees at the default

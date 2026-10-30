@@ -21,14 +21,21 @@
 // one, and that second Circle closes the pause grid. The closing window goes
 // when its owner lets it go, so its fade-out is not seen; the window behind
 // it, or the next one, fades in as before and takes input while it does.
-// Windows that end without Close never waited (the quantity and Yes/No box:
-// 2 frames either way). The loading screen's window (vtable 0x579c460) keeps
+// The message, Yes/No and quantity boxes (vtable 0x579cc10: "Cannot discard
+// currently equipped items", quitting to the title, Hunter's Mark, buying,
+// selling, fortifying) end without Close, but their OK (sub_1feaad0, slot 11,
+// which the item command menu and three other dialogs call too) does nothing
+// until the box has been up its minimum (+0xde0, 0.5 s; the time up, +0x1f10,
+// is what their update adds the frame's seconds to). An OK sooner was lost,
+// and the press had to be made again. The time up is raised to the minimum
+// when OK is pressed, so OK takes at once; Circle never waited.
+// The loading screen's window (vtable 0x579c460) keeps
 // the wait: it closes on the world's first frame, and its fade-out hides the
 // frames the world takes to settle - cut, the player's model showed white and
 // the scene ungraded for a moment after every load.
 //
-// BBHOST_MENU_FADE_WAIT=1 keeps the game's wait. BBHOST_MENU_LOG=1 logs each
-// Close and the frame its answer lands.
+// BBHOST_MENU_FADE_WAIT=1 keeps the game's waits, both. BBHOST_MENU_LOG=1
+// logs each Close and the frame its answer lands, and each box's OK.
 
 struct ElfImage;
 
