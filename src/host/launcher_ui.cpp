@@ -1,5 +1,11 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "host/launcher_ui.h"
+#include "core/config.h"
+#include "host/i18n.h"
+
+#include <fstream>
+#include <iterator>
+#include <vector>
 
 #include "log.h"
 
@@ -122,6 +128,27 @@ void draw_switch(ImDrawList* dl, ImVec2 p, float k, bool hovered) {
     dl->AddCircleFilled(ImVec2(x, p.y + r), kr, c(mix(kTextDim, IM_COL32(250, 251, 255, 255), 0.4f + 0.6f * k)));
 }
 
+// The Korean interface: the language is set once from [ui] language, and its
+// Hangul font (ui.font, else the system's) is merged into each font just
+// added. 1.92 draws glyphs from it as they are needed. The file is read once
+// and shared by every merge.
+void merge_hangul() {
+    if (!i18n::active()) return;
+    static std::vector<char> data;
+    static bool tried = false;
+    if (!tried) {
+        tried = true;
+        const std::string path = i18n::find_font(config().ui_font);
+        std::ifstream in(path, std::ios::binary);
+        if (!path.empty() && in) data.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+    if (data.empty()) return;
+    ImFontConfig cfg;
+    cfg.MergeMode = true;
+    cfg.FontDataOwnedByAtlas = false;
+    ImGui::GetIO().Fonts->AddFontFromMemoryTTF(data.data(), static_cast<int>(data.size()), 0.0f, &cfg);
+}
+
 // Fonts: the first of `names` that exists - under %WINDIR%\Fonts on
 // Windows, whole paths elsewhere.
 ImFont* add_font(std::initializer_list<const char*> names) {
@@ -135,15 +162,22 @@ ImFont* add_font(std::initializer_list<const char*> names) {
         std::error_code ec;
         if (!std::filesystem::is_regular_file(path, ec)) continue;
         // 1.92's atlas adds glyphs as they are drawn: no ranges.
-        if (ImFont* f = ImGui::GetIO().Fonts->AddFontFromFileTTF(path.c_str())) return f;
+        if (ImFont* f = ImGui::GetIO().Fonts->AddFontFromFileTTF(path.c_str())) {
+            merge_hangul();
+            return f;
+        }
     }
     return nullptr;
 }
 
 void load_fonts() {
+    if (i18n::language() != config().ui_language) i18n::set_language(config().ui_language);
 #if defined(_WIN32)
     g_body = add_font({"segoeui.ttf"});
-    if (!g_body) g_body = ImGui::GetIO().Fonts->AddFontDefault();
+    if (!g_body) {
+        g_body = ImGui::GetIO().Fonts->AddFontDefault();
+        merge_hangul();
+    }
     g_strong = add_font({"seguisb.ttf", "segoeuib.ttf"});
     g_title = add_font({"pala.ttf", "georgia.ttf", "constan.ttf"});
 #else
@@ -153,7 +187,10 @@ void load_fonts() {
                        "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
                        "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"});
-    if (!g_body) g_body = ImGui::GetIO().Fonts->AddFontDefault();
+    if (!g_body) {
+        g_body = ImGui::GetIO().Fonts->AddFontDefault();
+        merge_hangul();
+    }
     g_strong = add_font({"/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf", "/usr/share/fonts/noto/NotoSans-SemiBold.ttf",
                          "/usr/share/fonts/google-noto/NotoSans-SemiBold.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
                          "/usr/share/fonts/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
