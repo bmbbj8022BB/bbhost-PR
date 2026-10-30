@@ -7,6 +7,7 @@
 #include "engine/patch_manifest.h"
 #include "hle/fs.h"
 #include "host/gpu.h"
+#include "host/i18n.h"
 #include "host/launcher_ui.h"
 #include "host/options.h"
 #include "host/plugin_ui.h"
@@ -215,6 +216,7 @@ bool shell(const char* id, const char* caption, const Page* pages, int n, int* p
     dl->AddRectFilled(pos, pos + ImVec2(side_w, size.y), ImGui::GetColorU32(IM_COL32(7, 6, 20, 150)), r, ImDrawFlags_RoundCornersBottomLeft);
     dl->AddLine(pos + ImVec2(side_w - 0.5f, r), pos + ImVec2(side_w - 0.5f, size.y - r), ImGui::GetColorU32(ui::alpha(ui::kViolet, 64)));
     bool close = false;
+    const char* cap = i18n::tr(caption);
     ImGui::SetCursorScreenPos(pos + ImVec2(16 * s, 18 * s));
     ImGui::BeginChild("##side", ImVec2(side_w - 32 * s, size.y - 34 * s), 0,
                       ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
@@ -222,24 +224,24 @@ bool shell(const char* id, const char* caption, const Page* pages, int n, int* p
         const float w = ImGui::GetContentRegionAvail().x;
         ui::logo("BBHOST", BBHOST_VERSION, w, true);
         const float cfs = 11.5f * s, ctr = 1.7f * s;
-        ImGui::SetCursorPosX(std::max(0.0f, (w - ui::spaced_width(ui::font_strong(), cfs, caption, ctr)) * 0.5f));
-        ui::caption(caption);
+        ImGui::SetCursorPosX(std::max(0.0f, (w - ui::spaced_width(ui::font_strong(), cfs, cap, ctr)) * 0.5f));
+        ui::caption(cap);
         ImGui::Dummy(ImVec2(0, 8 * s));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 3 * s));
         for (int i = 0; i < n; ++i) {
-            if (ui::nav_item(pages[i].name, pages[i].icon, *page == i)) go(i);
+            if (ui::nav_item(i18n::tr(pages[i].name), pages[i].icon, *page == i)) go(i);
         }
         ImGui::PopStyleVar();
         const float hint_h = std::round(ImGui::GetFontSize() * 0.78f + 8 * s);
         const float foot = 3 * (hint_h + 6 * s) + 10 * s + ImGui::GetFrameHeight();
         ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY() + 14 * s, ImGui::GetWindowHeight() - foot));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 6 * s));
-        ui::key_hint("F9", "Patches & plugins");
-        ui::key_hint("F10", "Settings");
-        ui::key_hint("Esc", "Close");
+        ui::key_hint("F9", i18n::tr("Patches & plugins"));
+        ui::key_hint("F10", i18n::tr("Settings"));
+        ui::key_hint("Esc", i18n::tr("Close"));
         ImGui::PopStyleVar();
         ImGui::Dummy(ImVec2(0, 4 * s));
-        close = ui::ghost_button("Close", ImVec2(w, 0));
+        close = ui::ghost_button(i18n::tr("Close"), ImVec2(w, 0));
     }
     ImGui::EndChild();
 
@@ -250,11 +252,11 @@ bool shell(const char* id, const char* caption, const Page* pages, int n, int* p
                       ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
     ImGui::PushFont(ui::font_strong(), 27.0f);
-    ImGui::TextUnformatted(pages[*page].name);
+    ImGui::TextUnformatted(i18n::tr(pages[*page].name));
     ImGui::PopFont();
     ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
     ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextUnformatted(pages[*page].blurb);
+    ImGui::TextUnformatted(i18n::tr(pages[*page].blurb));
     ImGui::PopTextWrapPos();
     ImGui::PopStyleColor();
     ImGui::Dummy(ImVec2(0, 6 * s));
@@ -305,9 +307,13 @@ struct PatchMenu {
 PatchMenu g_patches;
 
 std::string capitalised(std::string s) {
-    if (!s.empty()) s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
+    // Only an ASCII first letter: a translation starts with a UTF-8 lead byte.
+    if (!s.empty() && static_cast<unsigned char>(s[0]) < 0x80) s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
     return s;
 }
+
+// A patch's name as the language shows it (the table has the manifest's title).
+std::string shown_name(const PatchListing& p) { return i18n::trs(patch_display_name(p)); }
 
 bool contains_nocase(const std::string& hay, const char* needle) {
     if (!*needle) return true;
@@ -382,7 +388,10 @@ void set_patch(PatchMenu& m, PatchRow& r, bool on) {
     save_switch(r);
     std::string why;
     const bool now = patch_manifest_set_live(r.p.name, on, &why);
-    m.note = patch_display_name(r.p) + (now ? (on ? " is on." : " is off.") : (on ? " turns on" : " turns off") + std::string(" at the next start: ") + why + ".");
+    const std::string nm = shown_name(r.p);
+    if (now) m.note = on ? i18n::tf("%s is on.", nm.c_str()) : i18n::tf("%s is off.", nm.c_str());
+    else if (on) m.note = i18n::tf("%s turns on at the next start: %s.", nm.c_str(), why.c_str());
+    else m.note = i18n::tf("%s turns off at the next start: %s.", nm.c_str(), why.c_str());
     m.note_ok = now;
     m.note_at = ImGui::GetTime();
 }
@@ -418,22 +427,20 @@ void patches_page(PatchMenu& m) {
         const ImVec2 fp = ImGui::GetCursorScreenPos();
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(30 * s, st.FramePadding.y));
         ImGui::SetNextItemWidth(find_w);
-        ImGui::InputTextWithHint("##find", "Search", m.find, sizeof(m.find));
+        ImGui::InputTextWithHint("##find", i18n::tr("Search"), m.find, sizeof(m.find));
         ImGui::PopStyleVar();
         ui::draw_icon(ImGui::GetWindowDrawList(), ui::Icon::Search, fp + ImVec2(15 * s, ImGui::GetFrameHeight() * 0.5f), 14 * s, ui::kTextDim);
         ImGui::SameLine(0, 16 * s);
-        char counts[96];
-        std::snprintf(counts, sizeof(counts), "%d of %zu on", on, m.rows.size());
+        const std::string counts = i18n::tf("%d of %zu on", on, m.rows.size());
         ImGui::AlignTextToFramePadding();
         ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
-        ImGui::TextUnformatted(counts);
+        ImGui::TextUnformatted(counts.c_str());
         ImGui::PopStyleColor();
         if (waiting) {
             ImGui::SameLine();
-            char w[64];
-            std::snprintf(w, sizeof(w), "%d at the next start", waiting);
-            ui::pill(w, ui::kWarn, ui::alpha(ui::kWarn, 38));
-            ui::tooltip_for_item(nullptr, "Switches that take effect when the game starts again.");
+            const std::string w = i18n::tf("%d at the next start", waiting);
+            ui::pill(w.c_str(), ui::kWarn, ui::alpha(ui::kWarn, 38));
+            ui::tooltip_for_item(nullptr, i18n::tr("Switches that take effect when the game starts again."));
         }
     }
     // What the last click did, for a few seconds.
@@ -452,8 +459,8 @@ void patches_page(PatchMenu& m) {
     const float row_h = std::round(ImGui::GetFontSize() + 2 * 3 * s + 10 * s);
     const float fit = 2 * 14 * s + std::max<float>(1.0f, static_cast<float>(per_col)) * row_h + 4 * s;
     ui::card_begin("##patchlist", ImVec2(ImGui::GetContentRegionAvail().x, std::min(fit, std::max(ImGui::GetContentRegionAvail().y, 160 * s))));
-    if (m.rows.empty()) ImGui::TextDisabled("No patches found.");
-    else if (shown.empty()) ImGui::TextDisabled("No patch matches.");
+    if (m.rows.empty()) ImGui::TextDisabled("%s", i18n::tr("No patches found."));
+    else if (shown.empty()) ImGui::TextDisabled("%s", i18n::tr("No patch matches."));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4 * s, 3 * s));
     const float col_gap = 22 * s;
     const float col_w = (ImGui::GetContentRegionAvail().x - col_gap) * 0.5f;
@@ -486,11 +493,11 @@ void patches_page(PatchMenu& m) {
             ui::draw_icon(dl, ui::Icon::Warning, ImVec2(right - fh * 0.32f, (a.y + b.y) * 0.5f), fh * 0.6f, ImGui::GetColorU32(ui::kWarn));
             right -= fh * 0.7f + 6 * s;
         } else if (lv.applied != r.on) {
-            tag(r.on ? "next start" : "until restart", ui::kWarn);
+            tag(r.on ? i18n::tr("next start") : i18n::tr("until restart"), ui::kWarn);
         }
         // Its name up to the marks, cut short in a narrow menu.
         const float name_w = right - a.x - fh - ImGui::GetStyle().ItemInnerSpacing.x;
-        const std::string name = ui::fit_text(patch_display_name(r.p), name_w) + "###patch";
+        const std::string name = ui::fit_text(shown_name(r.p), name_w) + "###patch";
         ImGui::SetCursorScreenPos(ImVec2(a.x, a.y + (b.y - a.y - fh) * 0.5f));
         ImGui::PushID(static_cast<int>(i));
         bool box = r.on, off = false;
@@ -505,11 +512,11 @@ void patches_page(PatchMenu& m) {
                 if (!note.empty()) note += "\n";
                 note += t;
             };
-            if (!r.p.error.empty()) add("Not read: " + r.p.error + ".");
-            else if (!lv.known) add("Not read for this game's eboot as it started.");
-            else if (unknown_option) add("Follows " + r.p.option + ", which this bbhost does not know.");
+            if (!r.p.error.empty()) add(i18n::tf("Not read: %s.", r.p.error.c_str()));
+            else if (!lv.known) add(i18n::tr("Not read for this game's eboot as it started."));
+            else if (unknown_option) add(i18n::tf("Follows %s, which this bbhost does not know.", r.p.option.c_str()));
             // The patch's name and what it does; a note only for one that cannot be switched.
-            ui::tooltip(patch_display_name(r.p).c_str(), capitalised(r.p.description.empty() ? std::string("No description.") : r.p.description), note);
+            ui::tooltip(shown_name(r.p).c_str(), capitalised(r.p.description.empty() ? std::string(i18n::tr("No description.")) : i18n::trs(r.p.description)), note);
         }
     }
     ImGui::PopStyleVar();

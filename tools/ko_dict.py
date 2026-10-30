@@ -275,3 +275,33 @@ KO = {
 "Enable Screen Space Reflections (enable only, keeps res) - Kyo's patch": "스크린 스페이스 리플렉션 켜기(켜기만 하고 해상도 유지) - Kyo의 패치",
 "the three company logos and the Exit Game warning are skipped at startup": "시작할 때 회사 로고 세 개와 게임 종료 경고를 건너뜁니다",
 }
+
+# ingame_menu.cpp (kyo/rework-2026-10-29)
+KO.update({
+    "Patches & plugins": "패치 및 플러그인",
+    "PATCHES & PLUGINS": "패치 및 플러그인",
+    "Settings": "설정",
+    "SETTINGS": "설정",
+    "Close": "닫기",
+    "Search": "검색",
+    "No patch matches.": "일치하는 패치가 없습니다.",
+    "next start": "다음 시작 때",
+    "until restart": "재시작 전까지",
+    "No description.": "설명이 없습니다.",
+    "%d of %zu on": "%d / %zu개 켜짐",
+    "%d at the next start": "다음 시작 때 %d개",
+    "Switches that take effect when the game starts again.": "게임을 다시 시작할 때 적용되는 스위치입니다.",
+    "Changes to the game's code. Most turn on or off at once; the rest when the game starts again.": "게임 코드를 바꿉니다. 대부분 바로 켜고 끌 수 있고, 나머지는 게임을 다시 시작할 때 적용됩니다.",
+    "Each plugin's settings and actions. Those marked change at once; the rest at the next start.": "플러그인별 설정과 동작입니다. 표시된 항목은 바로 바뀌고, 나머지는 다음 시작 때 바뀝니다.",
+    "%s is on.": "%s 켜짐.",
+    "%s is off.": "%s 꺼짐.",
+    "%s turns on at the next start: %s.": "%s: 다음 시작 때 켜집니다 (%s).",
+    "%s turns off at the next start: %s.": "%s: 다음 시작 때 꺼집니다 (%s).",
+    "Not read for this game's eboot as it started.": "이 게임의 eboot에 대해서는 시작할 때 읽지 못했습니다.",
+    "Follows %s, which this bbhost does not know.": "%s을(를) 따르지만, 이 bbhost는 그 설정을 알지 못합니다.",
+    "Display": "화면",
+    "Input": "입력",
+    "Graphics": "그래픽",
+    "PC Enhancements": "PC 추가 기능",
+    "Startup": "시작",
+})

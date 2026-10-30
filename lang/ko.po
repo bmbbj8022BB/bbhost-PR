@@ -796,3 +796,81 @@ msgstr "스크린 스페이스 리플렉션 켜기(켜기만 하고 해상도 �
 msgid "the three company logos and the Exit Game warning are skipped at startup"
 msgstr "시작할 때 회사 로고 세 개와 게임 종료 경고를 건너뜁니다"
 
+msgid "Patches & plugins"
+msgstr "패치 및 플러그인"
+
+msgid "PATCHES & PLUGINS"
+msgstr "패치 및 플러그인"
+
+msgid "Settings"
+msgstr "설정"
+
+msgid "SETTINGS"
+msgstr "설정"
+
+msgid "Close"
+msgstr "닫기"
+
+msgid "Search"
+msgstr "검색"
+
+msgid "No patch matches."
+msgstr "일치하는 패치가 없습니다."
+
+msgid "next start"
+msgstr "다음 시작 때"
+
+msgid "until restart"
+msgstr "재시작 전까지"
+
+msgid "No description."
+msgstr "설명이 없습니다."
+
+msgid "%d of %zu on"
+msgstr "%d / %zu개 켜짐"
+
+msgid "%d at the next start"
+msgstr "다음 시작 때 %d개"
+
+msgid "Switches that take effect when the game starts again."
+msgstr "게임을 다시 시작할 때 적용되는 스위치입니다."
+
+msgid "Changes to the game's code. Most turn on or off at once; the rest when the game starts again."
+msgstr "게임 코드를 바꿉니다. 대부분 바로 켜고 끌 수 있고, 나머지는 게임을 다시 시작할 때 적용됩니다."
+
+msgid "Each plugin's settings and actions. Those marked change at once; the rest at the next start."
+msgstr "플러그인별 설정과 동작입니다. 표시된 항목은 바로 바뀌고, 나머지는 다음 시작 때 바뀝니다."
+
+msgid "%s is on."
+msgstr "%s 켜짐."
+
+msgid "%s is off."
+msgstr "%s 꺼짐."
+
+msgid "%s turns on at the next start: %s."
+msgstr "%s: 다음 시작 때 켜집니다 (%s)."
+
+msgid "%s turns off at the next start: %s."
+msgstr "%s: 다음 시작 때 꺼집니다 (%s)."
+
+msgid "Not read for this game's eboot as it started."
+msgstr "이 게임의 eboot에 대해서는 시작할 때 읽지 못했습니다."
+
+msgid "Follows %s, which this bbhost does not know."
+msgstr "%s을(를) 따르지만, 이 bbhost는 그 설정을 알지 못합니다."
+
+msgid "Display"
+msgstr "화면"
+
+msgid "Input"
+msgstr "입력"
+
+msgid "Graphics"
+msgstr "그래픽"
+
+msgid "PC Enhancements"
+msgstr "PC 추가 기능"
+
+msgid "Startup"
+msgstr "시작"
+
