@@ -874,8 +874,6 @@ msgstr "PC 추가 기능"
 msgid "Startup"
 msgstr "시작"
 
-# launcher.cpp: the Setup window (append to lang/ko.po)
-
 msgid "Display-Limited"
 msgstr "디스플레이 한도"
 
@@ -1226,7 +1224,6 @@ msgstr "dvdroot_ps4가 들어 있는 폴더"
 
 msgid "Only while the releases are private"
 msgstr "릴리스가 비공개인 동안에만"
-# plugin_ui.cpp: the Plugins page (append to lang/ko.po)
 
 msgid "Get the official plugins"
 msgstr "공식 플러그인 받기"
@@ -1254,3 +1251,154 @@ msgstr "플러그인을 켜고 다시 시작하세요."
 
 msgid "In the game: the plugin menu."
 msgstr "게임 안의 플러그인 메뉴에서 하세요."
+
+msgid "Anti-Gravity Physics"
+msgstr "반중력 물리"
+
+msgid "Havok's gravity reversed: objects and corpses fall upward."
+msgstr "하복의 중력이 반전됩니다: 물체와 시체가 위로 떨어집니다."
+
+msgid "Auto-Refill From Storage on Any Area Refresh/Reload"
+msgstr "지역 새로고침/재로드 시 보관함에서 자동 보충"
+
+msgid "Eligible consumables refill from your storage whenever an area is refreshed or reloaded, taking from storage as the game does, without dying or going back to the Hunter's Dream. The game's own auto-refill; no free items."
+msgstr "지역을 새로 고치거나 다시 불러올 때마다, 죽거나 사냥꾼의 꿈으로 돌아가지 않아도 보충 대상 소모품이 보관함에서 채워집니다. 게임 자체의 자동 보충 방식이며 공짜 아이템은 없습니다."
+
+msgid "Deflate level 1"
+msgstr "Deflate 1단계"
+
+msgid "Disable Camera Auto Rotation via Movement"
+msgstr "이동 시 카메라 자동 회전 끄기"
+
+msgid "The camera no longer turns by itself as the character moves; turning it by hand and lock-on still work."
+msgstr "캐릭터가 움직여도 카메라가 저절로 돌지 않습니다. 직접 돌리기와 락온은 그대로 작동합니다."
+
+msgid "Disable Dynamic Light Shadows (Perf Increase)"
+msgstr "동적 조명 그림자 끄기 (성능 향상)"
+
+msgid "Disable Misc. Renders"
+msgstr "기타 렌더 끄기"
+
+msgid "DS1-like physics"
+msgstr "다크 소울 1 방식 물리"
+
+msgid "Corpses and objects can be flung around, as in Dark Souls."
+msgstr "다크 소울처럼 시체와 물체가 날아갈 수 있습니다."
+
+msgid "Easier run range"
+msgstr "달리기 범위 완화"
+
+msgid "The stick runs from less of its travel: about two-thirds of the way out instead of 90%."
+msgstr "스틱을 끝까지 밀지 않아도 달립니다: 90%가 아니라 약 3분의 2 지점부터 달립니다."
+
+msgid "Uncapped field of view"
+msgstr "시야각 제한 해제"
+
+msgid "Better AA"
+msgstr "더 나은 안티앨리어싱"
+
+msgid "Glow: force on + Blur"
+msgstr "글로우: 강제 켜기 + 블러"
+
+msgid "HD Motion Blur 1080p (1920x1080)"
+msgstr "HD 모션 블러 1080p (1920x1080)"
+
+msgid "Motion blur's velocity map is half the render resolution by default; this makes it 1080p. Uses more video memory."
+msgstr "모션 블러의 속도 맵은 기본적으로 렌더 해상도의 절반입니다. 이를 1080p로 만듭니다. 비디오 메모리를 더 사용합니다."
+
+msgid "HD Motion Blur 1440p (2560x1440)"
+msgstr "HD 모션 블러 1440p (2560x1440)"
+
+msgid "Motion blur's velocity map is half the render resolution by default; this makes it 1440p. Uses more video memory."
+msgstr "모션 블러의 속도 맵은 기본적으로 렌더 해상도의 절반입니다. 이를 1440p로 만듭니다. 비디오 메모리를 더 사용합니다."
+
+msgid "HD Motion Blur 360p (640x360)"
+msgstr "HD 모션 블러 360p (640x360)"
+
+msgid "HD Motion Blur 4K (3840x2160)"
+msgstr "HD 모션 블러 4K (3840x2160)"
+
+msgid "All post-processors in play"
+msgstr "플레이 중 모든 후처리기 실행"
+
+msgid "Intel Black Tonemap Fix"
+msgstr "인텔 검은 톤맵 수정"
+
+msgid "Fixes the black tonemap colours, most noticeable in the DLC's areas, when using an Intel CPU."
+msgstr "인텔 CPU 사용 시 톤맵 색이 검게 나오는 문제를 고칩니다. DLC 지역에서 가장 두드러집니다."
+
+msgid "L3 run-jump"
+msgstr "L3 달리기 점프"
+
+msgid "While running (holding Circle), L3 jumps too: the run-jump a second press of Circle makes. Circle still jumps."
+msgstr "달리는 중(동그라미 버튼을 누른 상태)에 L3로도 점프합니다: 동그라미를 한 번 더 눌렀을 때의 달리기 점프와 같습니다. 동그라미로도 여전히 점프합니다."
+
+msgid "Lower object/corpse physics"
+msgstr "물체/시체 물리 낮춤"
+
+msgid "Corpses resist being moved by the player or anything else."
+msgstr "시체가 플레이어나 다른 무엇에도 잘 밀리지 않습니다."
+
+msgid "Lower specific renders (Perf Increase)"
+msgstr "일부 렌더 해상도 낮춤 (성능 향상)"
+
+msgid "Lowers the resolution of some renders (the velocity map, glow, the scaled depth): faster, with no visual difference unless Enable Screen Space Reflections is on."
+msgstr "일부 렌더(속도 맵, 글로우, 축소 깊이)의 해상도를 낮춥니다: 더 빠르며, '스크린 스페이스 리플렉션 켜기'가 켜져 있지 않다면 화질 차이는 없습니다."
+
+msgid "The Old Hunters"
+msgstr "올드 헌터스"
+
+msgid "Performance Patch (Perf Increase)"
+msgstr "성능 패치 (성능 향상)"
+
+msgid "Modifies some of the game's debug parameters for better performance without affecting visuals (Kyo)."
+msgstr "화질에 영향을 주지 않고 성능을 높이도록 게임의 일부 디버그 매개변수를 수정합니다 (Kyo)."
+
+msgid "Performance Patch v3 (Velomap + Camera Blur)"
+msgstr "성능 패치 v3 (속도 맵 + 카메라 블러)"
+
+msgid "Quick re-entry"
+msgstr "빠른 재진입"
+
+msgid "rgba8f color space (Perf Increase)"
+msgstr "rgba8f 색 공간 (성능 향상)"
+
+msgid "Affects visuals: the rgba16f colour targets become rgba8f. Less GPU use, for older or weaker hardware."
+msgstr "화질에 영향이 있습니다: rgba16f 색상 타깃이 rgba8f가 됩니다. GPU 사용량이 줄어 구형·저사양 하드웨어에 좋습니다."
+
+msgid "Enable Screen Space Reflections"
+msgstr "스크린 스페이스 리플렉션 켜기"
+
+msgid "Screen space reflections on, with the depth renders back at the game's default resolutions. It loads last, so other patches' render changes give way to it."
+msgstr "스크린 스페이스 리플렉션을 켜고, 깊이 렌더는 게임 기본 해상도로 되돌립니다. 가장 마지막에 로드되므로 다른 패치의 렌더 변경은 이 패치에 양보합니다."
+
+msgid "Smaller Hunter"
+msgstr "더 작은 사냥꾼"
+
+msgid "A smaller hunter (smol)."
+msgstr "더 작은 사냥꾼입니다 (smol)."
+
+msgid "Smallest Hunter"
+msgstr "가장 작은 사냥꾼"
+
+msgid "The smallest hunter (teeny)."
+msgstr "가장 작은 사냥꾼입니다 (teeny)."
+
+msgid "50% Text scale"
+msgstr "글자 크기 50%"
+
+msgid "Smaller text, which looks good at higher resolutions."
+msgstr "글자가 작아지며, 높은 해상도에서 보기 좋습니다."
+
+msgid "Unlock Game Region (DISABLES ONLINE PLAY)"
+msgstr "게임 지역 잠금 해제 (온라인 플레이 불가)"
+
+msgid "Unlocks the game's region for more language options. Online play does not work while it is on. The Cross and Circle buttons are not swapped."
+msgstr "더 많은 언어 옵션을 위해 게임 지역을 해제합니다. 켜져 있는 동안은 온라인 플레이가 작동하지 않습니다. 십자(X)와 동그라미(O) 버튼은 서로 바뀌지 않습니다."
+
+msgid "Zero-Gravity Physics"
+msgstr "무중력 물리"
+
+msgid "Havok's gravity at zero: objects and corpses float."
+msgstr "하복의 중력이 0이 됩니다: 물체와 시체가 떠다닙니다."
+
