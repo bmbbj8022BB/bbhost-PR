@@ -1,0 +1,107 @@
+# Screen Space Reflections at quarter size: the Enable Screen Space
+# Reflections patch (screen-space-reflections.toml, every site of it, the
+# reflection's tuning left as the game has it), with
+# its two targets - the reflection pass's colour and the one it is fed from,
+# made at 0x26c4286 and 0x26c42a9 - a quarter of the render size each way
+# rather than the game's half: 480x270 at 1080p, a quarter of the pixels the
+# ray march has to trace. The depth renders it reads stay at the game's sizes.
+#
+# The game halves the size with `shr esi, 1; shr edx, 1` (2 bytes each);
+# `shr r32, 2` is 3, so each block is rewritten whole in its own bytes: the
+# first loads `mov r8d, 20` as `push 20; pop r8`, the second takes
+# Screen Space Reflections' own size-b (mov r8d, 10) and loads `mov r9d, 20`
+# the same way. No branch lands inside either block.
+#
+# One of the two Screen Space Reflections patches is on at a time.
+[patch]
+name = "screen-space-reflections-quarter"
+title = "Enable Screen Space Reflections (quarter res)"
+eboot = "941f887a562aae054fac35af8cc8f27cf075f3d4cc2e029fb5ae2a663aaa5ae7"
+description = "Screen space reflections on at a quarter of the render size (the game's is half): cheaper on the GPU, softer reflections. The depth renders it reads are back at the game's sizes. It loads last, so other patches' render changes give way to it."
+enabled = false
+order = 9001
+group = "screen-space-reflections"
+live = false
+
+[site.enable-a]
+address = "0x026c4fd7"
+expect = "01"
+bytes = "01"
+
+# ja -> je
+[site.enable-b]
+address = "0x026c4fd3"
+expect = "77"
+bytes = "74"
+
+# je 0x26c3d84 -> nop nop
+[site.enable-c]
+address = "0x026c3d2f"
+expect = "74 53"
+bytes = "90 90"
+
+[site.enable-d]
+address = "0x026c3d7d"
+expect = "01"
+bytes = "01"
+
+# the game's own: width / 2
+[site.depth-half-width]
+address = "0x0125b1a3"
+expect = "8b 03 d1 e8 89 04 24"
+bytes = "8b 03 d1 e8 89 04 24"
+
+# height / 2
+[site.depth-half-height]
+address = "0x0125b1aa"
+expect = "8b 43 04 d1 e8 89 44 24 04"
+bytes = "8b 43 04 d1 e8 89 44 24 04"
+
+# width / 4
+[site.depth-quarter-width]
+address = "0x0125b1d6"
+expect = "8b 03 c1 e8 02 89 04 24"
+bytes = "8b 03 c1 e8 02 89 04 24"
+
+# height / 4
+[site.depth-quarter-height]
+address = "0x0125b1de"
+expect = "8b 43 04 c1 e8 02 89 44 24 04"
+bytes = "8b 43 04 c1 e8 02 89 44 24 04"
+
+# the depth render's format 0x14 -> 0x28 (D32_FLOAT)
+[site.depth-format]
+address = "0x0125b1bf"
+expect = "14"
+bytes = "28"
+
+# call 0x268f180, as shipped
+[site.call-a]
+address = "0x026a10c0"
+expect = "e8 bb e0 fe ff"
+bytes = "e8 bb e0 fe ff"
+
+# call 0x268f180, as shipped
+[site.call-b]
+address = "0x026a2829"
+expect = "e8 52 c9 fe ff"
+bytes = "e8 52 c9 fe ff"
+
+# mov ecx, r12d -> push 10; pop rcx
+[site.size-a]
+address = "0x026c429a"
+expect = "44 89 e1"
+bytes = "6a 0a 59"
+
+# the reflection target: render size / 4 (the game's / 2); mov r8d, 20 as push/pop
+[site.quarter-a]
+address = "0x026c4286"
+expect = "41 8b 37 41 8b 57 04 d1 ee d1 ea 41 b8 14 00 00 00"
+bytes = "41 8b 37 41 8b 57 04 c1 ee 02 c1 ea 02 6a 14 41 58"
+
+# the target it is fed from: render size / 4, then Screen Space Reflections'
+# size-b (mov dword [rsp], 0 as and; mov r8d, 10) with mov r9d, 20 as push/pop
+[site.quarter-b]
+address = "0x026c42a9"
+expect = "41 8b 37 41 8b 57 04 d1 ee d1 ea c7 04 24 00 00 00 00 31 c9 41 b9 14 00 00 00 45 89 e0"
+bytes = "41 8b 37 41 8b 57 04 c1 ee 02 c1 ea 02 83 24 24 00 31 c9 6a 14 41 59 41 b8 0a 00 00 00"

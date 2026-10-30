@@ -26,6 +26,7 @@ eboot = "941f887a562aae054fac35af8cc8f27cf075f3d4cc2e029fb5ae2a663aaa5ae7"
 description = "Screen space reflections on, with the depth renders back at the game's default resolutions. It loads last, so other patches' render changes give way to it."
 enabled = false
 order = 9000
+group = "screen-space-reflections"
 live = false
 
 [site.enable-a]
