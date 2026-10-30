@@ -41,6 +41,7 @@ namespace fs = std::filesystem;
 namespace ui = launcher_ui;
 using i18n::tf;
 using i18n::tr;
+using i18n::trs;
 using i18n::trl;
 
 // The name the sidebar shows.
@@ -157,7 +158,8 @@ std::string toml_string(const std::string& s) {
 }
 
 std::string capitalised(std::string s) {
-    if (!s.empty()) s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
+    // Only an ASCII first letter: a translation starts with a UTF-8 lead byte.
+    if (!s.empty() && static_cast<unsigned char>(s[0]) < 0x80) s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
     return s;
 }
 
@@ -1036,7 +1038,8 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             std::vector<std::size_t> shown;
             for (std::size_t i = 0; i < patch_rows.size(); ++i) {
                 if (contains_nocase(patch_rows[i].p.name, patch_find) || contains_nocase(patch_rows[i].p.title, patch_find) ||
-                    contains_nocase(patch_rows[i].p.description, patch_find))
+                    contains_nocase(patch_rows[i].p.description, patch_find) || contains_nocase(trs(patch_display_name(patch_rows[i].p)), patch_find) ||
+                    contains_nocase(trs(patch_rows[i].p.description), patch_find))
                     shown.push_back(i);
             }
             // One line each, in two columns; the bubble has the rest. The
@@ -1085,7 +1088,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 }
                 // Its name up to the marks, cut short in a narrow window.
                 const float name_w = right - a.x - fh - ImGui::GetStyle().ItemInnerSpacing.x;
-                const std::string name = ui::fit_text(patch_display_name(r.p), name_w) + "###patch";
+                const std::string name = ui::fit_text(trs(patch_display_name(r.p)), name_w) + "###patch";
                 ImGui::SetCursorScreenPos(ImVec2(a.x, a.y + (b.y - a.y - fh) * 0.5f));
                 ImGui::PushID(static_cast<int>(i));
                 ImGui::BeginDisabled(fixed);
@@ -1110,7 +1113,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     else if (unknown_option) add(tf("Follows %s, which this bbhost does not know: not applied.", r.p.option.c_str()));
                     else if (r.p.option.empty() && !bare_key(r.p.name)) add(tr("Its name cannot be a bbhost.toml key, so it is always on."));
                     // The patch's name and what it does; a note only for one that cannot be switched.
-                    ui::tooltip(patch_display_name(r.p).c_str(), capitalised(r.p.description.empty() ? std::string(tr("No description.")) : r.p.description), note);
+                    ui::tooltip(trs(patch_display_name(r.p)).c_str(), capitalised(r.p.description.empty() ? std::string(tr("No description.")) : trs(r.p.description)), note);
                 }
             }
             ImGui::PopStyleVar();
