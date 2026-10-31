@@ -85,7 +85,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN | BB_PLUGIN_GAMEPLAY,
     "quake",
     "Quake",
-    "0.3.15",
+    "0.3.16",
     "Kyo",
     "First person with Quake 3's movement and view: strafe jumping, bunny hopping, crouching, and the bob, roll and "
     "landing dip of Quake 3's camera.",
@@ -129,13 +129,15 @@ extern "C" BB_PLUGIN_EXPORT const BbOption bb_plugin_options[] = {
      "Quake 3's cg_fov: degrees across a 4:3 picture; a wider screen sees more at the sides.", "90", 50.0, 140.0},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "bob", "View bob",
      "Quake 3's bob, roll and landing dip, times this (1 is Quake 3's own, 0 none).", "1.0", 0.0, 2.0},
+    {BB_OPT_HEADING, nullptr, "Crosshair"},
     {BB_OPT_BOOL | BB_OPT_LIVE, "crosshair", "Crosshair",
      "A dot in a ring at the middle of the view, as Quake 3's cg_drawCrosshair: drawn over the world and under the "
      "game's own HUD and menus.",
      "true"},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_size", "Crosshair size",
      "Quake 3's cg_crosshairSize: across, in its 640x480 screen's pixels (24 is Quake 3's own).", "24", 8.0, 64.0},
-    {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_alpha", "Crosshair opacity", "1 is solid, 0 none.", "0.5", 0.0, 1.0},
+    {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_transparency", "Crosshair transparency",
+     "Percent: 0 is solid, 100 gone (50 by default).", "50", 0.0, 100.0},
     {BB_OPT_HEADING, nullptr, "Gun"},
     {BB_OPT_BOOL | BB_OPT_LIVE, "draw_gun", "Draw the gun",
      "The gun in your hand at the lower right of the view, as Quake 3's cg_drawGun.", "true"},
@@ -153,6 +155,10 @@ extern "C" BB_PLUGIN_EXPORT const BbOption bb_plugin_options[] = {
      "0", -40.0, 40.0},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "gun_y", "Gun left", "Quake 3's cg_gun_y: units to the left.", "0", -40.0, 40.0},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "gun_z", "Gun up", "Quake 3's cg_gun_z: units up.", "0", -40.0, 40.0},
+    {BB_OPT_FLOAT | BB_OPT_LIVE, "shotgun_spread", "Shotgun spread",
+     "Quake 3's DEFAULT_SHOTGUN_SPREAD: each pellet lands at a random point of a square this many units either way at "
+     "8192 in front (700 is Quake 3's own, about 5 degrees; 2000 is about the Blunderbuss's own width).",
+     "700", 100.0, 2000.0},
     {BB_OPT_CHOICE | BB_OPT_LIVE, "plasma", "Plasma",
      "What the plasma gun fires: one of A Call Beyond's small stars, flying straight and seeking nothing, or Blacksky "
      "Eye's shard.",
@@ -246,6 +252,7 @@ struct Settings {
     float gun_bob = 1.0f;
     float gun_fov = 90.0f;
     float gun_x = 0.0f, gun_y = 0.0f, gun_z = 0.0f;
+    float shotgun_spread = 700.0f;  // DEFAULT_SHOTGUN_SPREAD, units either way at 8192
     int plasma = 0;  // kPlasmaLooks: A Call Beyond's star, Blacksky Eye's shard
 } s;
 
@@ -271,7 +278,7 @@ void read_options() {
     s.bob = std::clamp(static_cast<float>(g.config_number("quake.bob", 1.0)), 0.0f, 2.0f);
     s.crosshair = g.config_bool("quake.crosshair", true);
     s.crosshair_size = std::clamp(static_cast<float>(g.config_number("quake.crosshair_size", 24.0)), 8.0f, 64.0f);
-    s.crosshair_alpha = std::clamp(static_cast<float>(g.config_number("quake.crosshair_alpha", 0.5)), 0.0f, 1.0f);
+    s.crosshair_alpha = 1.0f - std::clamp(static_cast<float>(g.config_number("quake.crosshair_transparency", 50.0)), 0.0f, 100.0f) / 100.0f;
     s.draw_gun = g.config_bool("quake.draw_gun", true);
     s.muzzle_flash = g.config_bool("quake.muzzle_flash", false);
     s.gun_bob = std::clamp(static_cast<float>(g.config_number("quake.gun_bob", 1.0)), 0.0f, 2.0f);
@@ -280,6 +287,7 @@ void read_options() {
     s.gun_y = std::clamp(static_cast<float>(g.config_number("quake.gun_y", 0.0)), -40.0f, 40.0f);
     s.gun_z = std::clamp(static_cast<float>(g.config_number("quake.gun_z", 0.0)), -40.0f, 40.0f);
     s.plasma = g.config("quake.plasma", "A Call Beyond") == "Blacksky Eye" ? 1 : 0;
+    s.shotgun_spread = std::clamp(static_cast<float>(g.config_number("quake.shotgun_spread", 700.0)), 100.0f, 2000.0f);
 }
 
 const char* physics_name() {
@@ -1574,7 +1582,6 @@ struct Shot {
     std::int32_t bullet;  // the BulletParam row it is made of
     V3 muzzle, dir, right, up;
     double ms;
-    int fanned = 0;  // the Blunderbuss's emitters turned so far
 };
 std::vector<Shot> g_fired;
 
@@ -1940,8 +1947,8 @@ void fire(std::uint8_t* chr, V3 eye, float yaw, float pitch, float game_yaw) {
 // +0x10 and the last frame's +0x20, orientation quaternion +0x30, velocity
 // +0x40 and +0x50) is taken, the frame it appears, to where a Quake 3 missile
 // would be by then and turned along the view at its own speed - the shotgun's
-// eleven pellets each to a random point of Quake 3's pattern (700 units either
-// way at 8192). And a rocket's or grenade's burst (its HitBulletID bullet) is
+// fifteen pellets each to a random point of Quake 3's pattern (700 units
+// either way at 8192, the shotgun_spread option). And a rocket's or grenade's burst (its HitBulletID bullet) is
 // where the blast that throws the player is.
 constexpr std::uint64_t kBulletNext = 0x868;
 constexpr std::size_t kBulletId = 0x2f4, kBulletOwner = 0x2fc;
@@ -1970,13 +1977,13 @@ V3 quat_z(const float* q) {
     return {2.0f * (q[0] * q[2] + q[3] * q[1]), 2.0f * (q[1] * q[2] - q[3] * q[0]), 1.0f - 2.0f * (q[0] * q[0] + q[1] * q[1])};
 }
 
-void aim_bullet(std::uint8_t* world, std::uint64_t b, const Shot& shot, V3 dir, double ms) {
+void aim_bullet(std::uint8_t* world, std::uint64_t b, const Shot& shot, V3 dir, double ms, bool own_turn = true) {
     auto* f = reinterpret_cast<float*>(static_cast<std::uintptr_t>(b));
     const float speed = std::sqrt(f[16] * f[16] + f[17] * f[17] + f[18] * f[18]);  // +0x40
-    // The bullet's own turn - none for most, a fan's for the Blunderbuss's
-    // five emitters - from the shot's straight ahead (the request's identity
-    // orientation) to the view's.
-    {
+    // The bullet's own turn - none for most - from the shot's straight ahead
+    // (the request's identity orientation) to the view's. A shotgun pellet's
+    // is its emitter's, in the world's frame: it has none of its own here.
+    if (own_turn) {
         const V3 local = quat_z(f + 12);  // +0x30
         V3 up = cross(dir, shot.right);
         normalize(up);
@@ -2102,31 +2109,37 @@ void flights_frame(std::uint8_t* world, std::uint32_t owner, double ms) {
                 if (id == 701 || id == 711) blast(world, at, 100.0f, 120.0f, "rocket");
                 else if (id == 722 || id == 731) blast(world, at, 100.0f, 150.0f, "grenade");
                 else if (id == kPlasmaLooks[s.plasma].burst) blast(world, at, 15.0f, 20.0f, "plasma");
-                // A shot of ours, newest first. The shotgun's pellets come out
-                // of its emitter bullet (600) along the way it was turned.
+                // The shotgun's pellets (601, three from each of the
+                // Blunderbuss's five emitters, its fixed 5 x 3 grid): each to
+                // a random point of Quake 3's pattern (CG_ShotgunPattern:
+                // crandom() * spread right and up at 8192), about the newest
+                // shotgun shot's view.
+                if (id == 601 || id == 611) {
+                    for (auto it = g_fired.rbegin(); it != g_fired.rend(); ++it) {
+                        if (it->bullet != 600) continue;
+                        const float r = (g_spread_rng.unit() * 2.0f - 1.0f) * s.shotgun_spread;
+                        const float u = (g_spread_rng.unit() * 2.0f - 1.0f) * s.shotgun_spread;
+                        V3 dir = it->dir * 8192.0f + it->right * r + it->up * u;
+                        normalize(dir);
+                        aim_bullet(world, b, *it, dir, ms, false);
+                        if (g_log)
+                            g.log("quake: pellet %d at %+.2f %+.2f degrees", id, static_cast<double>(std::atan2(r, 8192.0f) / kDeg),
+                                  static_cast<double>(std::atan2(u, 8192.0f) / kDeg));
+                        break;
+                    }
+                }
+                // A shot of ours, newest first.
                 for (auto it = g_fired.rbegin(); it != g_fired.rend(); ++it) {
                     if (it->bullet == id) {
                         V3 dir = it->dir;
-                        // The Blunderbuss's emitters fan out across the view,
-                        // the first at shootAngle and each next one
-                        // shootAngleInterval on (-12 to 12 degrees): the
-                        // launch without the hand's dummy poly leaves them
-                        // all straight.
-                        if (id == 600) {
-                            if (const auto* row = g.param<bb::params::Bullet>(600)) {
-                                const float a = static_cast<float>(row->shootAngle) +
-                                                static_cast<float>(it->fanned) * static_cast<float>(row->shootAngleInterval);
-                                const float c = std::cos(a * kDeg), sn = std::sin(a * kDeg);
-                                dir = dir * c + it->right * sn;
-                                normalize(dir);
-                            }
-                            ++it->fanned;
-                        }
+                        // The Blunderbuss's five emitters go straight along the
+                        // view (the game fans them -12 to 12 degrees): the
+                        // spread is their pellets' (601, above).
                         if (id == 720) {  // the grenade launcher aims a little up (forward[2] += 0.2)
                             dir.y += 0.2f;
                             normalize(dir);
                         }
-                        aim_bullet(world, b, *it, dir, ms);
+                        aim_bullet(world, b, *it, dir, ms, id != 600);
                         if (id == 720) {
                             const auto* f = reinterpret_cast<const float*>(static_cast<std::uintptr_t>(b));
                             g_grenades.push_back({b, V3{f[4], f[5], f[6]}, dir * kGrenadeSpeed, false, ms});
