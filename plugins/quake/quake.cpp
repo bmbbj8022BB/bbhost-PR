@@ -85,7 +85,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN | BB_PLUGIN_GAMEPLAY,
     "quake",
     "Quake",
-    "0.3.14",
+    "0.3.15",
     "Kyo",
     "First person with Quake 3's movement and view: strafe jumping, bunny hopping, crouching, and the bob, roll and "
     "landing dip of Quake 3's camera.",
@@ -1128,6 +1128,14 @@ void place_view(BbCamera& cam, bool dead, V3 origin, float& out_yaw, float& out_
 // Piercing Rifle's place. Damage stays the game's. Off, every row is as the
 // game loaded it.
 constexpr std::uint32_t kGuns[] = {15000000, 35000000, 36000000, 6000000, 33000000};
+// The shotgun as if it carried Kyo's one-circle blood gem: Blood ATK UP +28.7%
+// and Add blood ATK +7.3 (SpEffects 22519 and 13119 - blood is the game's
+// neutral attack, which the weapon rows have no field for). Approximated on
+// the row: its physical attack x1.287 + 7.3 and its bloodtinge scaling
+// (correctMagic, 100 on the Blunderbuss) x1.287. The gem's third effect, WPN
+// durability DOWN -65.3, does nothing to a gun and is left out.
+constexpr std::uint32_t kShotgunGun = 6000000;
+constexpr float kGemRate = 1.287f, kGemAdd = 7.3f;
 constexpr float kGrenadeSpeed = 700.0f;  // units a second
 constexpr float kRocket = 900.0f * kUnit, kGrenade = kGrenadeSpeed * kUnit;
 struct BulletRule {
@@ -1191,9 +1199,12 @@ void guns_apply() {
     }
     int weapons = 0, bullets = 0;
     for (const std::uint32_t base : kGuns) {
-        const auto* top = g.param<bb::params::EquipParamWeapon>(base + 1000);
-        if (!top) continue;
-        for (std::uint32_t level = 0; level < 10; ++level) {
+        const auto* top_row = g.param<bb::params::EquipParamWeapon>(base + 1000);
+        if (!top_row) continue;
+        const bb::EQUIP_PARAM_WEAPON_ST top_copy = *top_row;
+        const auto* top = &top_copy;
+        // Up to +10 itself: the shotgun's gem goes on the row the shot names too.
+        for (std::uint32_t level = 0; level <= (base == kShotgunGun ? 10u : 9u); ++level) {
             auto* w = g.param<bb::params::EquipParamWeapon>(base + level * 100);
             if (!w) continue;
             g_saved_weapons.emplace_back(base + level * 100, *w);
@@ -1210,6 +1221,13 @@ void guns_apply() {
             w->correctMagic = top->correctMagic;
             w->correctFaith = top->correctFaith;
             w->correctType = top->correctType;
+            if (base == kShotgunGun) {
+                w->attackBasePhysics = static_cast<std::uint16_t>(std::lround(top->attackBasePhysics * kGemRate + kGemAdd));
+                w->correctStrength = top->correctStrength * kGemRate;
+                w->correctAgility = top->correctAgility * kGemRate;
+                w->correctMagic = top->correctMagic * kGemRate;
+                w->correctFaith = top->correctFaith * kGemRate;
+            }
             ++weapons;
         }
     }
@@ -1292,6 +1310,9 @@ void guns_apply() {
     g_guns_table = probe;
     g_guns_quake = true;
     g.log("quake: the guns at +10 whatever their level (%d rows), %d bullets flying as Quake 3's", weapons, bullets);
+    if (const auto* sg = g.param<bb::params::EquipParamWeapon>(kShotgunGun + 1000))
+        g.log("quake: the shotgun's blood gem: physical %u, bloodtinge scaling %.1f", sg->attackBasePhysics,
+              static_cast<double>(sg->correctMagic));
 }
 
 // ---- input -------------------------------------------------------------------------
