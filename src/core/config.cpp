@@ -4,6 +4,7 @@
 #include "bbhost_version.h"
 
 #include <cctype>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -834,6 +835,7 @@ bool config_load(int argc, char** argv, HostConfig* out, std::string* error) {
 }
 
 const HostConfig& config() { return g_cfg; }
+HostConfig& config_mutable() { return g_cfg; }
 
 std::string config_setup_help(const HostConfig& c) {
     std::string out;
@@ -1049,50 +1051,6 @@ bool config_write_template(const std::string& path) {
            "\n[ui]\n"
            "# The setup window's language: \"en\" (default) or \"ko\" (Korean).\n"
            "language = \"en\"\n"
-           "\n[input]\n"
-           "# true: the pad's A and B (Cross and Circle) are exchanged; false: never.\n"
-           "# auto: exchanged only for the Asian release (CUSA03023, CUSA01363), whose A and B are\n"
-           "# the other way round; other releases keep the default.\n"
-           "swap_ab = \"auto\"\n"
-           "# Back / Select / Share split by how long it is held: released before\n"
-           "# back_long_ms it presses \"personal_effects\" (or \"gestures\"); held past it,\n"
-           "# it gives the default, Gestures (the other one when this is \"gestures\").\n"
-           "# Empty: Back is just Gestures, as before.\n"
-           "back_short = \"\"\n"
-           "back_long_ms = 450\n"
-           "\n[input.pad]\n"
-           "# All optional: remove the # to use one. Names are written as shown (case is\n"
-           "# ignored); a wrong one is logged and ignored.\n"
-           "# Remaps the controller's buttons. The names are SDL's layout, the same on\n"
-           "# every pad: south east west north (Cross Circle Square Triangle on a\n"
-           "# DualShock, A B X Y on an Xbox pad), l1 r1 l3 r3 start back touchpad,\n"
-           "# dpad_up dpad_down dpad_left dpad_right. L2 and R2, and the sticks, are not\n"
-           "# remapped.\n"
-           "# The value is what the button presses: cross circle square triangle l1 r1 l3\n"
-           "# r3 options touchpad up down left right, gestures or personal_effects (the\n"
-           "# touchpad's left or right side), none (the button does nothing).\n"
-           "# A button that is not listed keeps its own behaviour: to leave one alone, do\n"
-           "# not list it (none is not \"leave it alone\"). south and east then follow\n"
-           "# swap_ab above; listing either fixes it as written, and swap_ab no longer\n"
-           "# touches it (south = \"cross\" with east = \"circle\" turns the swap off).\n"
-           "# \"<name>_long\" splits a button by how long it is held: let go inside long_ms\n"
-           "# (milliseconds) it gives its own value, held past it gives the _long one.\n"
-           "# back, back_long and long_ms here win over back_short and back_long_ms above,\n"
-           "# the older way of splitting Back.\n"
-           "# The DualShock 4 / DualSense touchpad: leave touchpad alone, and its click\n"
-           "# goes to the game together with where the finger is; the game takes the left\n"
-           "# (Gestures) or right (Personal Effects) side from that. touchpad = \"none\"\n"
-           "# turns the click off; another button sent to \"touchpad\" is a click with no\n"
-           "# finger, so give it gestures or personal_effects to name a side.\n"
-           "# touchpad_left and touchpad_right split the click by the half the finger is\n"
-           "# on, each with its own value (and _long): touchpad_left = \"personal_effects\"\n"
-           "# makes the left half give Personal Effects. A side that is not listed keeps\n"
-           "# the default; a listed side no longer gives its default click.\n"
-           "# south = \"circle\"\n"
-           "# east = \"cross\"\n"
-           "# l3 = \"personal_effects\"\n"
-           "# l3_long = \"gestures\"\n"
-           "# long_ms = 450\n"
            "\n[video]\n"
            "width = 1920\n"
            "height = 1080\n"
@@ -1201,6 +1159,42 @@ bool config_set_values(const std::string& path, const std::vector<ConfigEdit>& e
     if (!make_dirs(dir_of(path))) return false;
     std::ofstream out(path, std::ios::trunc);
     for (const std::string& l : lines) out << l << "\n";
+    return static_cast<bool>(out);
+}
+
+bool config_remove_sections(const std::string& path, const std::vector<std::string>& sections) {
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(path);
+        if (!in) return true;
+        for (std::string l; std::getline(in, l);) {
+            if (!l.empty() && l.back() == '\r') l.pop_back();
+            lines.push_back(l);
+        }
+    }
+    std::vector<std::string> kept;
+    bool skipping = false, removed = false, gap = false;
+    for (const std::string& l : lines) {
+        const std::string t = trim(l);
+        if (t.size() >= 2 && t.front() == '[' && t.back() == ']') {
+            const std::string name = trim(t.substr(1, t.size() - 2));
+            skipping = std::find(sections.begin(), sections.end(), name) != sections.end();
+            if (skipping) {
+                removed = true;
+                // The blank line that set the section off goes with it.
+                while (!kept.empty() && trim(kept.back()).empty()) kept.pop_back();
+                gap = true;
+                continue;
+            }
+            // The section after a removed one: one blank line back in front of it.
+            if (gap && !kept.empty()) kept.push_back("");
+            gap = false;
+        }
+        if (!skipping) kept.push_back(l);
+    }
+    if (!removed) return true;
+    std::ofstream out(path, std::ios::trunc);
+    for (const std::string& l : kept) out << l << "\n";
     return static_cast<bool>(out);
 }
 
