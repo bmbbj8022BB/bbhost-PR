@@ -85,7 +85,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN | BB_PLUGIN_GAMEPLAY,
     "quake",
     "Quake",
-    "0.3.13",
+    "0.3.14",
     "Kyo",
     "First person with Quake 3's movement and view: strafe jumping, bunny hopping, crouching, and the bob, roll and "
     "landing dip of Quake 3's camera.",
@@ -135,7 +135,7 @@ extern "C" BB_PLUGIN_EXPORT const BbOption bb_plugin_options[] = {
      "true"},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_size", "Crosshair size",
      "Quake 3's cg_crosshairSize: across, in its 640x480 screen's pixels (24 is Quake 3's own).", "24", 8.0, 64.0},
-    {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_alpha", "Crosshair opacity", "1 is solid, 0 none.", "1.0", 0.0, 1.0},
+    {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_alpha", "Crosshair opacity", "1 is solid, 0 none.", "0.5", 0.0, 1.0},
     {BB_OPT_HEADING, nullptr, "Gun"},
     {BB_OPT_BOOL | BB_OPT_LIVE, "draw_gun", "Draw the gun",
      "The gun in your hand at the lower right of the view, as Quake 3's cg_drawGun.", "true"},
@@ -240,7 +240,7 @@ struct Settings {
     float fov = 90.0f;
     float bob = 1.0f;
     bool crosshair = true;
-    float crosshair_size = 24.0f, crosshair_alpha = 1.0f;
+    float crosshair_size = 24.0f, crosshair_alpha = 0.5f;
     bool draw_gun = true;
     bool muzzle_flash = false;
     float gun_bob = 1.0f;
@@ -271,7 +271,7 @@ void read_options() {
     s.bob = std::clamp(static_cast<float>(g.config_number("quake.bob", 1.0)), 0.0f, 2.0f);
     s.crosshair = g.config_bool("quake.crosshair", true);
     s.crosshair_size = std::clamp(static_cast<float>(g.config_number("quake.crosshair_size", 24.0)), 8.0f, 64.0f);
-    s.crosshair_alpha = std::clamp(static_cast<float>(g.config_number("quake.crosshair_alpha", 1.0)), 0.0f, 1.0f);
+    s.crosshair_alpha = std::clamp(static_cast<float>(g.config_number("quake.crosshair_alpha", 0.5)), 0.0f, 1.0f);
     s.draw_gun = g.config_bool("quake.draw_gun", true);
     s.muzzle_flash = g.config_bool("quake.muzzle_flash", false);
     s.gun_bob = std::clamp(static_cast<float>(g.config_number("quake.gun_bob", 1.0)), 0.0f, 2.0f);
@@ -2721,7 +2721,7 @@ void draw_crosshair(const BbCamera& cam) {
     const V3 c = eye + forward * kCrosshairAhead;
     // Metres at that distance a 480-line screen's pixel spans.
     const float pixel = kCrosshairAhead * std::tan(cam.fov_y * 0.5f) / 240.0f;
-    const float ring = s.crosshair_size * 0.5f * pixel * 0.75f, dot_r = s.crosshair_size * pixel * 0.06f;
+    const float ring = s.crosshair_size * 0.5f * pixel * 0.75f, dot_r = s.crosshair_size * pixel * 0.03f;
     const float a = s.crosshair_alpha;
     // The ring: a halo of fainter circles round a solid one.
     constexpr int kSegments = 32;
