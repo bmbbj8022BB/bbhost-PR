@@ -6,6 +6,7 @@
 #include "engine/addr.h"
 #include "engine/patch_manifest.h"
 #include "host/launcher_ui.h"
+#include "host/i18n.h"
 #include "host/options.h"
 #include "net/account.h"
 #include "host/plugin_ui.h"
@@ -38,6 +39,10 @@ namespace {
 
 namespace fs = std::filesystem;
 namespace ui = launcher_ui;
+using i18n::tf;
+using i18n::tr;
+using i18n::trs;
+using i18n::trl;
 
 // The name the sidebar shows.
 constexpr const char kName[] = "BBHOST";
@@ -157,7 +162,8 @@ std::string toml_string(const std::string& s) {
 }
 
 std::string capitalised(std::string s) {
-    if (!s.empty()) s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
+    // Only an ASCII first letter: a translation starts with a UTF-8 lead byte.
+    if (!s.empty() && static_cast<unsigned char>(s[0]) < 0x80) s[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(s[0])));
     return s;
 }
 
@@ -280,6 +286,12 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     char scheme[8] = {};
     std::snprintf(scheme, sizeof(scheme), "%s", cfg.online_scheme.empty() ? "http" : cfg.online_scheme.c_str());
     bool verify_tls = cfg.online_verify_tls, require_account = cfg.online_require_account;
+    // The interface language, 0 English and 1 Korean ([ui] language). The
+    // fonts and the language are read once, at the start, so a change here is
+    // saved at once and the window starts again (relaunch_setup_window). Korean
+    // needs a font with Hangul: without one the choice is shut.
+    int language = cfg.ui_language == "ko" ? 1 : 0;
+    const bool have_hangul = !i18n::find_font(cfg.ui_font).empty();
 #if defined(BBHOST_RELEASE_BUILD)
     bool check_updates = cfg.update_check != 0;
 #else
@@ -309,13 +321,13 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     static const int kCaps[] = {30, 60, 90, 120, 150, 180, 240, 360, 480, 960, 0};
     constexpr int kCapCount = static_cast<int>(sizeof(kCaps) / sizeof(kCaps[0]));
     static const char* const kCapLabels[] = {"30 fps",  "60 fps",  "90 fps",  "120 fps", "150 fps", "180 fps",
-                                             "240 fps", "360 fps", "480 fps", "960 fps", "Display-Limited"};
+                                             "240 fps", "360 fps", "480 fps", "960 fps", tr("Display-Limited")};
     static_assert(sizeof(kCapLabels) / sizeof(kCapLabels[0]) == sizeof(kCaps) / sizeof(kCaps[0]), "a label for every rate");
     // The bubble the open list shows over a rate: Display-Limited says what it is.
     static const char* const kCapTips[] = {
         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-        "Caps the frame rate at your monitor's refresh rate, read when the game starts: 180 fps on a 180 Hz monitor, 144 on a "
-        "144 Hz one."};
+        tr("Caps the frame rate at your monitor's refresh rate, read when the game starts: 180 fps on a 180 Hz monitor, 144 on a "
+        "144 Hz one.")};
     static_assert(sizeof(kCapTips) / sizeof(kCapTips[0]) == sizeof(kCaps) / sizeof(kCaps[0]), "a bubble, or none, for every rate");
     int cap_choice = kCapCount - 1;
     for (int k = 0; k < kCapCount; ++k) {
@@ -466,6 +478,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         e.push_back({"startup", "setup_window", show_every_start ? "true" : "false"});
         e.push_back({"startup", "setup_animations", animations ? "true" : "false"});
         e.push_back({"debug", "tooling", tooling ? "true" : "false"});
+        e.push_back({"ui", "language", language == 1 ? "\"ko\"" : "\"en\""});
         // What this bbhost's file looks like (core/config.h): a value saved
         // from here is a choice.
         e.push_back({"bbhost", "config_version", std::to_string(kUserConfigVersion)});
@@ -479,7 +492,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         const std::string file = config_user_file();
         saved_at = ImGui::GetTime();
         if (!config_set_values(file, e)) {
-            saved_note = "Could not write " + file;
+            saved_note = tf("Could not write %s", file.c_str());
             saved_ok = false;
             return false;
         }
@@ -496,7 +509,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         host_opt_set_resolution_index(resolution);
         for (const Enhancement& x : enhancements) host_opt_set(x.key, x.on);
         host_options_save_now();
-        saved_note = "Saved";
+        saved_note = tr("Saved");
         saved_ok = true;
         host_log("setup: saved %s", file.c_str());
         return true;
@@ -616,7 +629,8 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             const float hint_h = std::round(std::round(ImGui::GetFontSize() * 0.78f) + 8 * scale);
             const float hints = 2 * (hint_h + 6 * scale) + 6 * scale + st.ItemSpacing.y;  // the two keys, the gap and the spacing under it
             const float side_h = vp->WorkSize.y - 38 * scale;
-            float foot = play_h + 4 * scale + ImGui::GetFrameHeight() + note_h + 3 * st.ItemSpacing.y;
+            const float lang_h = ImGui::GetFrameHeight() + 4 * scale + st.ItemSpacing.y;  // the language, over Play
+            float foot = lang_h + play_h + 4 * scale + ImGui::GetFrameHeight() + note_h + 3 * st.ItemSpacing.y;
             // The keys where the name and the pages (last frame's height) leave room.
             static float nav_h = 0.0f;
             const bool keys = side_h - foot - hints - 8 * scale >= nav_h;
@@ -628,13 +642,13 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ui::logo(kName, BBHOST_VERSION, w, vp->WorkSize.y < 700 * scale);
             if (check_updates && updater::update_available()) {
                 // A newer release: its tag, a click away from its page.
-                const std::string tag = updater::latest_tag() + " is out";
+                const std::string tag = tf("%s is out", updater::latest_tag().c_str());
                 const float bw = ImGui::CalcTextSize(tag.c_str()).x + st.FramePadding.x * 2;
                 ImGui::SetCursorPosX((w - bw) * 0.5f);
                 ImGui::PushStyleColor(ImGuiCol_Text, ui::kWarn);
                 if (ui::ghost_button(tag.c_str())) updater::open_release_page();
                 ImGui::PopStyleColor();
-                ui::tooltip_for_item(nullptr, "Open the release page");
+                ui::tooltip_for_item(nullptr, tr("Open the release page"));
             }
             ImGui::Dummy(ImVec2(0, 8 * scale));
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(st.ItemSpacing.x, 3 * scale));
@@ -647,7 +661,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     if (cv.running && cv.total) std::snprintf(badge, sizeof(badge), "%d%%", static_cast<int>(100 * cv.done / cv.total));
                     else if (recommend_compile) dot = ui::kWarn;
                 }
-                if (ui::nav_item(kPages[i].name, kPages[i].icon, page == i, dot, badge[0] ? badge : nullptr)) go(i);
+                if (ui::nav_item(tr(kPages[i].name), kPages[i].icon, page == i, dot, badge[0] ? badge : nullptr)) go(i);
             }
             ImGui::PopStyleVar();
             nav_h = ImGui::GetCursorPosY();
@@ -656,22 +670,60 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ImGui::BeginChild("##foot", ImVec2(w, foot), 0, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
             if (keys) {
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(st.ItemSpacing.x, 6 * scale));
-                ui::key_hint("F9", "In-game patches & plugins");
-                ui::key_hint("F10", "In-game settings");
+                ui::key_hint("F9", tr("In-game patches & plugins"));
+                ui::key_hint("F10", tr("In-game settings"));
                 ImGui::PopStyleVar();
                 ImGui::Dummy(ImVec2(0, 4 * scale));
             }
-            play = ui::play_button("PLAY", ImVec2(w, play_h), can_play) || (test && !std::strcmp(test, "play") && ++frames > 30);
+            // The language, over Play: a new one saves everything and starts
+            // the window again in it. The list opens upward when there is no
+            // room below.
+            {
+                const char* const langs[2] = {tr("English"), tr("Korean")};
+                int chosen = language;
+                ImGui::SetNextItemWidth(w);
+                ImGui::BeginDisabled(compiling || !have_hangul);
+                const bool picked = ui::combo("##language", &chosen, langs, 2);
+                // A shut item shows no bubble of its own: ask for it, and draw it
+                // outside the shut part (it would be dimmed inside).
+                const bool lang_hover = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled);
+                ImGui::EndDisabled();
+                if (lang_hover) {
+                    if (compiling)
+                        ui::tooltip(tr("Language"), tr("Can't change the language while shaders are compiling. Wait for it to finish or cancel it."));
+                    else if (!have_hangul)
+                        ui::tooltip(tr("Language"), tr("No font with Korean letters was found. Set [ui] font in bbhost.toml to one."));
+                    else
+                        ui::tooltip(tr("Language"), tr("Saves your settings and starts the launcher again in the language you pick."));
+                }
+                if (picked && chosen != language) {
+                    const int before = language;
+                    language = chosen;
+                    std::string why;
+                    if (!save()) {
+                        language = before;  // saved_note says why it could not
+                    } else if (relaunch_setup_window(why)) {
+                        result = LauncherResult::Restart;
+                        done = true;
+                    } else {
+                        saved_note = tf("Saved, but it could not start again (%s). Close bbhost and open it again.", why.c_str());
+                        saved_ok = false;
+                    }
+                }
+                ImGui::Dummy(ImVec2(0, 4 * scale));
+            }
+            play = ui::play_button(tr("PLAY"), ImVec2(w, play_h), can_play) || (test && !std::strcmp(test, "play") && ++frames > 30);
             if (!can_play && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                ui::tooltip(nullptr, compiling ? "Play waits for the shader compile (Shaders)." : "Play needs the game folder and the 1.09 eboot (Game).");
+                ui::tooltip(nullptr, compiling ? tr("Play waits for the shader compile (Shaders).") : tr("Play needs the game folder and the 1.09 eboot (Game)."));
             ImGui::Dummy(ImVec2(0, 4 * scale));
             const float half = (w - st.ItemSpacing.x) * 0.5f;
-            if (ui::ghost_button("Save", ImVec2(half, 0))) save();
-            ui::tooltip_for_item(nullptr, "Save to " + config_user_file() +
-                                              (config_saves_locally() ? ", beside bbhost: it has the last word over " + config_user_dir() + "/bbhost.toml."
-                                                                      : ", which every copy of bbhost reads."));
+            if (ui::ghost_button(tr("Save"), ImVec2(half, 0))) save();
+            ui::tooltip_for_item(nullptr, config_saves_locally()
+                                              ? tf("Save to %s, beside bbhost: it has the last word over %s/bbhost.toml.", config_user_file().c_str(),
+                                                   config_user_dir().c_str())
+                                              : tf("Save to %s, which every copy of bbhost reads.", config_user_file().c_str()));
             ImGui::SameLine();
-            if (ui::ghost_button("Quit", ImVec2(half, 0)) || (test && !std::strcmp(test, "quit") && ++frames > 30)) done = true;
+            if (ui::ghost_button(tr("Quit"), ImVec2(half, 0)) || (test && !std::strcmp(test, "quit") && ++frames > 30)) done = true;
             // One line under them: why Play waits, or what Save did.
             std::string note;
             ImU32 note_col = ui::kTextDim;
@@ -679,9 +731,9 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 note = saved_note;
                 note_col = saved_ok ? ui::kGood : ui::kBad;
             } else if (compiling) {
-                note = "Waiting for the shader compile";
+                note = tr("Waiting for the shader compile");
             } else if (!can_play) {
-                note = "Needs the game folder and 1.09 eboot";
+                note = tr("Needs the game folder and 1.09 eboot");
                 note_col = ui::kWarn;
             }
             if (!note.empty()) {
@@ -728,7 +780,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         const ImVec2 head = ImGui::GetCursorScreenPos();
         const float head_right = head.x + ImGui::GetContentRegionAvail().x;
         ImGui::PushFont(ui::font_strong(), 27.0f);
-        ImGui::TextUnformatted(kPages[page].name);
+        ImGui::TextUnformatted(tr(kPages[page].name));
         const float title_h = ImGui::GetTextLineHeight();
         ImGui::PopFont();
         ImGui::Dummy(ImVec2(0, 6 * scale));
@@ -756,12 +808,12 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ui::status_icon(state == 1, tip.empty() ? nullptr : tip.c_str());
                 ImGui::SameLine(0, 8 * scale);
             }
-            ui::row_label(label, label_w);
+            ui::row_label(tr(label), label_w);
             if (!label_tip.empty()) ui::tooltip_for_item(nullptr, label_tip);  // the label is still the last item
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::GetFrameHeight() - st.ItemSpacing.x);
-            const bool changed = ImGui::InputTextWithHint("##p", hint, f[field].text, sizeof(f[field].text));
+            const bool changed = ImGui::InputTextWithHint("##p", tr(hint), f[field].text, sizeof(f[field].text));
             ImGui::SameLine();
-            if (ui::icon_button("##browse", folder ? ui::Icon::Folder : ui::Icon::File, 0.0f, folder ? "Choose a folder" : "Choose a file")) {
+            if (ui::icon_button("##browse", folder ? ui::Icon::Folder : ui::Icon::File, 0.0f, folder ? tr("Choose a folder") : tr("Choose a file"))) {
                 void* ud = reinterpret_cast<void*>(static_cast<std::intptr_t>(field));
                 const std::string at = f[field].str();
                 if (folder) {
@@ -789,79 +841,79 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             // when nothing is set yet.
             if (!reason.empty() && !(app0_ok && eboot.ok)) {
                 if (cfg.app0.empty() && cfg.eboot.empty())
-                    ui::banner(ui::Icon::Moon, ui::kIce, "Welcome, hunter. Choose the game folder and the 1.09 eboot below, then press Play.");
+                    ui::banner(ui::Icon::Moon, ui::kIce, tr("Welcome, hunter. Choose the game folder and the 1.09 eboot below, then press Play."));
                 else
                     ui::banner(ui::Icon::Warning, ui::kWarn, capitalised(reason));
                 ImGui::Dummy(ImVec2(0, 2 * scale));
             }
-            ui::card_begin("##files", ImVec2(w, 0), "GAME FILES");
+            ui::card_begin("##files", ImVec2(w, 0), tr("GAME FILES"));
             {
                 std::string bad;
                 if (app0.empty()) bad = "";
-                else if (!is_dir(app0)) bad = "That folder does not exist.";
+                else if (!is_dir(app0)) bad = tr("That folder does not exist.");
                 else if (!app0_ok && (is_dir(app0 + "/../dvdroot_ps4") || fs::path(app0).filename() == "dvdroot_ps4"))
-                    bad = "Pick the folder above dvdroot_ps4, not dvdroot_ps4 itself.";
-                else if (!app0_ok) bad = "No dvdroot_ps4 in it.";
-                else if (app0_ver.app_ver.empty()) bad = "No sce_sys/param.sfo in it: is it the whole game folder?";
+                    bad = tr("Pick the folder above dvdroot_ps4, not dvdroot_ps4 itself.");
+                else if (!app0_ok) bad = tr("No dvdroot_ps4 in it.");
+                else if (app0_ver.app_ver.empty()) bad = tr("No sce_sys/param.sfo in it: is it the whole game folder?");
                 else if (app0_ver.app_ver != "01.09")
-                    bad = "Version " + app0_ver.app_ver +
-                          (app0_ver.update.empty() ? std::string() : " (in " + fs::path(app0_ver.update).filename().string() + ")") +
-                          ": copy the 1.09 update's files over this folder, or the game stops while loading.";
+                    bad = tf("Version %s%s: copy the 1.09 update's files over this folder, or the game stops while loading.",
+                             app0_ver.app_ver.c_str(),
+                             app0_ver.update.empty() ? "" : tf(" (in %s)", fs::path(app0_ver.update).filename().string().c_str()).c_str());
                 const bool good = app0_ok && app0_ver.app_ver == "01.09";
-                const std::string tip = good ? (app0_ver.update.empty() ? std::string("Has dvdroot_ps4, version 01.09.")
-                                                                        : "Has dvdroot_ps4, version 01.09 (the update read from " +
-                                                                              fs::path(app0_ver.update).filename().string() + ").")
-                                             : app0.empty() ? std::string("Not set: the folder that contains dvdroot_ps4.") : bad;
+                const std::string tip = good ? (app0_ver.update.empty() ? std::string(tr("Has dvdroot_ps4, version 01.09."))
+                                                                        : tf("Has dvdroot_ps4, version 01.09 (the update read from %s).",
+                                                                             fs::path(app0_ver.update).filename().string().c_str()))
+                                             : app0.empty() ? std::string(tr("Not set: the folder that contains dvdroot_ps4.")) : bad;
                 path_row("Game folder", kApp0, true, "The folder that contains dvdroot_ps4", good ? 1 : 0, tip);
                 if (!bad.empty()) problem(bad);
             }
             {
-                if (path_row("Eboot", kEboot, false, "The 1.09 update's eboot.bin, decrypted", eboot.ok ? 1 : 0,
-                             eboot.ok ? "The 1.09 eboot."
-                             : f[kEboot].str().empty() ? "Not set: the 1.09 update's eboot.bin, decrypted."
-                                                       : "Not the 1.09 eboot.") ||
+                if (path_row("Eboot", kEboot, false, tr("The 1.09 update's eboot.bin, decrypted"), eboot.ok ? 1 : 0,
+                             eboot.ok ? tr("The 1.09 eboot.")
+                             : f[kEboot].str().empty() ? tr("Not set: the 1.09 update's eboot.bin, decrypted.")
+                                                       : tr("Not the 1.09 eboot.")) ||
                     (eboot.path != f[kEboot].str() && !ImGui::IsAnyItemActive())) {
                     eboot = check_eboot(f[kEboot].str());
                 }
                 if (!f[kEboot].str().empty() && !eboot.ok)
-                    problem(!is_file(f[kEboot].str()) ? std::string("That file does not exist.")
-                                                      : "Not the 1.09 eboot (SHA-256 " + eboot.sha.substr(0, 16) + "...).");
+                    problem(!is_file(f[kEboot].str()) ? std::string(tr("That file does not exist."))
+                                                      : tf("Not the 1.09 eboot (SHA-256 %s...).", eboot.sha.substr(0, 16).c_str()));
             }
             ui::card_end();
             ImGui::Dummy(ImVec2(0, gap - st.ItemSpacing.y));
 
             // The display, and online at a glance, side by side.
             const float row_lw = std::min(104 * scale, (w - gap) * 0.19f);  // a third of the card at most
-            ui::card_begin("##display", ImVec2(std::round((w - gap) * 0.56f), card_h(5)), "DISPLAY");
+            ui::card_begin("##display", ImVec2(std::round((w - gap) * 0.56f), card_h(5)), tr("DISPLAY"));
             {
-                ui::row_label("Window", row_lw);
-                static const char* const kModes[] = {"Windowed", "Fullscreen"};
+                ui::row_label(tr("Window"), row_lw);
+                static const char* const kModes[] = {tr("Windowed"), tr("Fullscreen")};
                 int mode = fullscreen ? 1 : 0;
                 if (ui::segmented("##mode", &mode, kModes, 2, ImGui::GetContentRegionAvail().x)) fullscreen = mode == 1;
-                ui::row_label("Frame rate", row_lw);
+                ui::row_label(tr("Frame rate"), row_lw);
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ui::combo("##cap", &cap_choice, kCapLabels, kCapCount, kCapTips);
-                ui::tooltip_for_item("Frame rate",
-                                     "The game's own speed. Display-Limited caps it at your monitor's refresh rate when the game starts (180 fps on a "
-                                     "180 Hz monitor).");
-                ui::row_label("Resolution", row_lw);
+                ui::tooltip_for_item(tr("Frame rate"),
+                                     tr("The game's own speed. Display-Limited caps it at your monitor's refresh rate when the game starts (180 fps on a "
+                                        "180 Hz monitor)."));
+                ui::row_label(tr("Resolution"), row_lw);
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ui::combo("##res", &resolution, kResolutions, static_cast<int>(sizeof(kResolutions) / sizeof(kResolutions[0])));
-                ui::tooltip_for_item("Render resolution", "The size the game draws at. F10 in the game has every other setting.");
-                ui::toggle_row("Skip company logos", nullptr, &skip_logos,
-                               "The three company logos and the Exit Game warning are skipped as the game starts.");
-                ui::toggle_row("Performance mode", nullptr, &performance_mode,
-                               "Requires a restart. Every post-effect and YEBIS pass off for frame rate: SSAO, motion blur, anti-aliasing, depth of field, chromatic aberration, bloom, and the dynamic lights' shadows (lamps, torches, the lantern; the sun's and the moon's stay). The map's fog stays.");
+                ui::tooltip_for_item(tr("Render resolution"), tr("The size the game draws at. F10 in the game has every other setting."));
+                ui::toggle_row(tr("Skip company logos"), nullptr, &skip_logos,
+                               tr("The three company logos and the Exit Game warning are skipped as the game starts."));
+                ui::toggle_row(tr("Performance mode"), nullptr, &performance_mode,
+                               tr("Requires a restart. Every post-effect and YEBIS pass off for frame rate: SSAO, motion blur, anti-aliasing, depth of field, chromatic aberration, bloom, and the dynamic lights' shadows (lamps, torches, the lantern; the sun's and the moon's stay). The map's fog stays."));
             }
             ui::card_end();
             ImGui::SameLine(0, gap);
-            ui::card_begin("##online", ImVec2(0, card_h(5)), "ONLINE");
+            ui::card_begin("##online", ImVec2(0, card_h(5)), tr("ONLINE"));
             {
-                ui::row_label("Server", 72 * scale);
-                static const char* const kShort[] = {"Live", "Playtest", "Custom"};
+                ui::row_label(tr("Server"), 72 * scale);
+                static const char* const kShort[] = {tr("Live"), tr("Playtest"), tr("Custom")};
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ui::combo("##server", &server, kShort, 3);
-                ui::tooltip_for_item(nullptr, server == 2 ? (f[kHost].str().empty() ? std::string("A server of your own: set it on the Online page.")
+                ui::tooltip_for_item(nullptr, server == 2 ? (f[kHost].str().empty() ? std::string(tr("A server of your own: set it on the Online page."))
                                                                                     : f[kHost].str())
                                                           : std::string(kServers[server].host));
                 ImGui::Dummy(ImVec2(0, 4 * scale));
@@ -869,7 +921,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 const float av = std::round(ImGui::GetFrameHeight() * 1.5f);
                 const ImVec2 at = ImGui::GetCursorScreenPos();
                 const float right = at.x + ImGui::GetContentRegionAvail().x;
-                const char* go_label = in ? "Manage" : "Sign in";
+                const char* go_label = in ? tr("Manage") : tr("Sign in");
                 const float bw = ImGui::CalcTextSize(go_label).x + st.FramePadding.x * 3;
                 ui::avatar(in ? net::account_name() : std::string(), av);
                 ImGui::SameLine(0, 12 * scale);
@@ -878,11 +930,11 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 // The words stop short of the button.
                 ImGui::PushTextWrapPos(right - bw - 10 * scale - ImGui::GetWindowPos().x);
                 ImGui::PushFont(ui::font_strong(), 0.0f);
-                ImGui::TextUnformatted(in ? net::account_name().c_str() : "Not signed in");
+                ImGui::TextUnformatted(in ? net::account_name().c_str() : tr("Not signed in"));
                 ImGui::PopFont();
                 ImGui::PushFont(nullptr, 14.0f);
                 ImGui::PushStyleColor(ImGuiCol_Text, in ? ui::kGood : ui::kTextDim);
-                ImGui::TextUnformatted(in ? "Signed in" : "Sign in to play online");
+                ImGui::TextUnformatted(in ? tr("Signed in") : tr("Sign in to play online"));
                 ImGui::PopStyleColor();
                 ImGui::PopFont();
                 ImGui::PopTextWrapPos();
@@ -904,13 +956,13 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ImGui::Dummy(ImVec2(fh * 0.8f, fh));
                 ui::draw_icon(ImGui::GetWindowDrawList(), ui::Icon::Shaders, at + ImVec2(fh * 0.4f, fh * 0.5f), fh * 0.62f, ui::kWarn);
                 ImGui::SameLine(0, 8 * scale);
-                const char* btn = "Compile now";
+                const char* btn = tr("Compile now");
                 const float bw = ImGui::CalcTextSize(btn).x + st.FramePadding.x * 3;
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextUnformatted((advice.why + ".").c_str());
                 ImGui::SameLine();
                 ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
-                ImGui::TextUnformatted((capitalised(advice.time) + ", optional").c_str());
+                ImGui::TextUnformatted((capitalised(advice.time) + tr(", optional")).c_str());
                 ImGui::PopStyleColor();
                 ImGui::SameLine();
                 ImGui::SetCursorScreenPos(ImVec2(head_right - 18 * scale - bw, at.y));
@@ -918,28 +970,28 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     start_compile();
                     go(kPageShaders);
                 }
-                ui::tooltip_for_item(nullptr, "Builds every shader up front, so the first start does not. Otherwise the game builds them while you play.");
+                ui::tooltip_for_item(nullptr, tr("Builds every shader up front, so the first start does not. Otherwise the game builds them while you play."));
                 ui::card_end();
             }
         } else if (page == kPageOnline) {
             const float w = ImGui::GetContentRegionAvail().x;
-            ui::card_begin("##server", ImVec2(w, 0), "SERVER");
+            ui::card_begin("##server", ImVec2(w, 0), tr("SERVER"));
             {
-                ui::row_label("Server", label_w);
-                static const char* const kServerLabels[] = {kServers[0].label, kServers[1].label, "Custom"};
+                ui::row_label(tr("Server"), label_w);
+                static const char* const kServerLabels[] = {kServers[0].label, kServers[1].label, tr("Custom")};
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ui::combo("##server", &server, kServerLabels, 3);
                 if (server == 2) {
-                    ui::row_label("Host", label_w);
+                    ui::row_label(tr("Host"), label_w);
                     ImGui::SetNextItemWidth(-FLT_MIN);
                     ImGui::InputTextWithHint("##host", "server.example.com", f[kHost].text, sizeof(f[kHost].text));
-                    ui::row_label("Scheme", label_w);
+                    ui::row_label(tr("Scheme"), label_w);
                     ImGui::SetNextItemWidth(120 * scale);
                     ImGui::InputText("##scheme", scheme, sizeof(scheme));
-                    ui::toggle_row("Check the server's certificate", nullptr, &verify_tls);
-                    ui::toggle_row("Require an account", nullptr, &require_account, "Players sign in (here, or F10 > Account) to play online.");
+                    ui::toggle_row(tr("Check the server's certificate"), nullptr, &verify_tls);
+                    ui::toggle_row(tr("Require an account"), nullptr, &require_account, tr("Players sign in (here, or F10 > Account) to play online."));
                 }
-                if (!cfg.profile.empty()) dim_text("This run uses " + cfg.profile_config + ", whose own settings may choose another server.");
+                if (!cfg.profile.empty()) dim_text(tf("This run uses %s, whose own settings may choose another server.", cfg.profile_config.c_str()));
             }
             ui::card_end();
             ImGui::Dummy(ImVec2(0, gap - st.ItemSpacing.y));
@@ -947,7 +999,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             // it: no password - this PC linked to the account signed into on
             // the website with Discord, or an account held by this PC with a
             // recovery code. The calls go to the server chosen above.
-            ui::card_begin("##account", ImVec2(w, 0), "ACCOUNT");
+            ui::card_begin("##account", ImVec2(w, 0), tr("ACCOUNT"));
             {
                 const bool busy = host_account_busy();
                 const bool in = net::account_logged_in();
@@ -956,12 +1008,12 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ImGui::SameLine(0, 12 * scale);
                 ImGui::BeginGroup();
                 ImGui::PushFont(ui::font_strong(), 18.0f);
-                ImGui::TextUnformatted(in ? net::account_name().c_str() : "Not signed in");
+                ImGui::TextUnformatted(in ? net::account_name().c_str() : tr("Not signed in"));
                 ImGui::PopFont();
                 const std::string outcome = host_account_outcome();
                 dim_text(!outcome.empty() && outcome != host_account_signed_in() ? outcome
-                         : in                                                    ? std::string("Signed in")
-                                                                                 : std::string("Log in with Discord, or keep an account on this PC."),
+                         : in                                                    ? std::string(tr("Signed in"))
+                                                                                 : std::string(tr("Log in with Discord, or keep an account on this PC.")),
                          in && (outcome.empty() || outcome == host_account_signed_in()) ? ui::kGood : ui::kTextDim);
                 ImGui::EndGroup();
                 const std::string detail = host_account_detail();
@@ -974,7 +1026,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     ImGui::PopStyleColor();
                     ImGui::PopFont();
                     ImGui::SameLine();
-                    if (ui::icon_button("##copy", ui::Icon::Copy, 0.0f, "Copy the code")) {
+                    if (ui::icon_button("##copy", ui::Icon::Copy, 0.0f, tr("Copy the code"))) {
                         // The code alone: the word after "Code" or "code".
                         std::string code = detail;
                         for (const char* lead : {"Code ", "Recovery code ", "Website code "}) {
@@ -987,45 +1039,45 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ImGui::Dummy(ImVec2(0, 4 * scale));
                 ImGui::BeginDisabled(busy);
                 // The way in for most players: lit until someone is signed in.
-                if (in ? ImGui::Button("Log in with Discord") : ui::primary_button("Log in with Discord", ImVec2(0, 0))) {
+                if (in ? ImGui::Button(trl("Log in with Discord")) : ui::primary_button(tr("Log in with Discord"), ImVec2(0, 0))) {
                     apply_server();
                     host_account_action(0, "", "");
                 }
                 ImGui::EndDisabled();
-                ui::tooltip_for_item(nullptr, "Opens the website: sign in there with Discord and approve the code.");
+                ui::tooltip_for_item(nullptr, tr("Opens the website: sign in there with Discord and approve the code."));
                 ImGui::Dummy(ImVec2(0, 2 * scale));
-                ui::caption("OR AN ACCOUNT KEPT ON THIS PC");
+                ui::caption(tr("OR AN ACCOUNT KEPT ON THIS PC"));
                 const float field_w = std::round(240 * scale);
                 ImGui::BeginDisabled(busy);
                 ImGui::SetNextItemWidth(field_w);
-                ImGui::InputTextWithHint("##acct_name", "Name", acct_name, sizeof(acct_name));
+                ImGui::InputTextWithHint("##acct_name", tr("Name"), acct_name, sizeof(acct_name));
                 ImGui::SameLine();
-                if (ImGui::Button("Create account")) {
+                if (ImGui::Button(trl("Create account"))) {
                     apply_server();
                     host_account_action(1, acct_name, "");
                 }
-                ui::tooltip_for_item(nullptr, "An account held by this PC, under that name. Keep the recovery code it shows.");
+                ui::tooltip_for_item(nullptr, tr("An account held by this PC, under that name. Keep the recovery code it shows."));
                 ImGui::SetNextItemWidth(field_w);
-                ImGui::InputTextWithHint("##acct_code", "Recovery code", acct_code, sizeof(acct_code));
+                ImGui::InputTextWithHint("##acct_code", tr("Recovery code"), acct_code, sizeof(acct_code));
                 ImGui::SameLine();
-                if (ImGui::Button("Recover")) {
+                if (ImGui::Button(trl("Recover"))) {
                     apply_server();
                     host_account_action(2, acct_name, acct_code);
                     acct_code[0] = 0;
                 }
-                ui::tooltip_for_item(nullptr, "The account of that name, back on this PC with its recovery code.");
+                ui::tooltip_for_item(nullptr, tr("The account of that name, back on this PC with its recovery code."));
                 ImGui::BeginDisabled(!in);
-                if (ImGui::Button("Website sign-in code")) {
+                if (ImGui::Button(trl("Website sign-in code"))) {
                     apply_server();
                     host_account_action(3, "", "");
                 }
                 ImGui::EndDisabled();
-                ui::tooltip_for_item(nullptr, "A code to sign in to the website as this account.");
+                ui::tooltip_for_item(nullptr, tr("A code to sign in to the website as this account."));
                 ImGui::EndDisabled();
                 ImGui::SameLine();
                 // Also stops a Discord link that is waiting for approval.
                 ImGui::BeginDisabled(!busy && !in);
-                if (ImGui::Button(busy ? "Cancel" : "Sign out")) {
+                if (ImGui::Button(busy ? trl("Cancel") : trl("Sign out"))) {
                     apply_server();
                     host_account_action(4, "", "");
                 }
@@ -1043,7 +1095,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                                                         ui::alpha(ui::kViolet, 40));
                     ImGui::Dummy(ImVec2(0, 2 * scale));
                 }
-                ui::toggle_row(e.label, e.sub, &e.on, e.text);
+                ui::toggle_row(tr(e.label), tr(e.sub), &e.on, tr(e.text));
                 ImGui::Dummy(ImVec2(0, 2 * scale));
             }
             ui::card_end();
@@ -1065,29 +1117,30 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             };
             {
                 const float find_w = std::round(200 * scale);
-                const float b1 = ImGui::CalcTextSize("Defaults").x + st.FramePadding.x * 2, b2 = ImGui::CalcTextSize("All off").x + st.FramePadding.x * 2;
+                const float b1 = ImGui::CalcTextSize(tr("Defaults")).x + st.FramePadding.x * 2, b2 = ImGui::CalcTextSize(tr("All off")).x + st.FramePadding.x * 2;
                 const ImVec2 back = head_actions(find_w + b1 + b2 + st.ItemSpacing.x * 2);
                 const ImVec2 fp = ImGui::GetCursorScreenPos();
                 ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(30 * scale, st.FramePadding.y));
                 ImGui::SetNextItemWidth(find_w);
-                ImGui::InputTextWithHint("##find", "Search", patch_find, sizeof(patch_find));
+                ImGui::InputTextWithHint("##find", tr("Search"), patch_find, sizeof(patch_find));
                 ImGui::PopStyleVar();
                 ui::draw_icon(ImGui::GetWindowDrawList(), ui::Icon::Search, fp + ImVec2(15 * scale, ImGui::GetFrameHeight() * 0.5f),
                               14 * scale, ui::kTextDim);
                 ImGui::SameLine();
                 ImGui::BeginDisabled(patch_rows.empty());
-                if (ui::ghost_button("Defaults")) set_all(true);
-                ui::tooltip_for_item(nullptr, "Each patch as its own file has it.");
+                if (ui::ghost_button(tr("Defaults"))) set_all(true);
+                ui::tooltip_for_item(nullptr, tr("Each patch as its own file has it."));
                 ImGui::SameLine();
-                if (ui::ghost_button("All off")) set_all(false);
-                ui::tooltip_for_item(nullptr, "The game's code as it shipped.");
+                if (ui::ghost_button(tr("All off"))) set_all(false);
+                ui::tooltip_for_item(nullptr, tr("The game's code as it shipped."));
                 ImGui::EndDisabled();
                 ImGui::SetCursorScreenPos(back);
             }
             std::vector<std::size_t> shown;
             for (std::size_t i = 0; i < patch_rows.size(); ++i) {
                 if (contains_nocase(patch_rows[i].p.name, patch_find) || contains_nocase(patch_rows[i].p.title, patch_find) ||
-                    contains_nocase(patch_rows[i].p.description, patch_find))
+                    contains_nocase(patch_rows[i].p.description, patch_find) || contains_nocase(trs(patch_display_name(patch_rows[i].p)), patch_find) ||
+                    contains_nocase(trs(patch_rows[i].p.description), patch_find))
                     shown.push_back(i);
             }
             // One line each, in two columns; the bubble has the rest. The
@@ -1096,8 +1149,8 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             const float row_h = std::round(ImGui::GetFontSize() + 2 * 3 * scale + 9 * scale);  // a box with the list's padding, and air
             const float fit = 2 * 14 * scale + std::max<float>(1.0f, static_cast<float>(per_col)) * row_h + 4 * scale;
             ui::card_begin("##patchlist", ImVec2(ImGui::GetContentRegionAvail().x, std::min(fit, std::max(ImGui::GetContentRegionAvail().y, 160 * scale))));
-            if (patch_rows.empty()) dim_text("No patches found.");
-            else if (shown.empty()) dim_text("No patch matches.");
+            if (patch_rows.empty()) dim_text(tr("No patches found."));
+            else if (shown.empty()) dim_text(tr("No patch matches."));
             ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4 * scale, 3 * scale));
             const float col_gap = 22 * scale;
             const float col_w = (ImGui::GetContentRegionAvail().x - col_gap) * 0.5f;
@@ -1125,7 +1178,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     right -= fh * 0.7f + 6 * scale;
                 }
                 if (r.p.gameplay) {
-                    const char* tag = "gameplay";
+                    const char* tag = tr("gameplay");
                     const float tfs = std::round(ImGui::GetFontSize() * 0.74f);
                     const ImVec2 ts = ui::font_strong()->CalcTextSizeA(tfs, FLT_MAX, 0.0f, tag);
                     const ImVec2 pa(right - ts.x - 14 * scale, (a.y + b.y) * 0.5f - ts.y * 0.5f - 2 * scale);
@@ -1136,7 +1189,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 }
                 // Its name up to the marks, cut short in a narrow window.
                 const float name_w = right - a.x - fh - ImGui::GetStyle().ItemInnerSpacing.x;
-                const std::string name = ui::fit_text(patch_display_name(r.p), name_w) + "###patch";
+                const std::string name = ui::fit_text(trs(patch_display_name(r.p)), name_w) + "###patch";
                 ImGui::SetCursorScreenPos(ImVec2(a.x, a.y + (b.y - a.y - fh) * 0.5f));
                 ImGui::PushID(static_cast<int>(i));
                 ImGui::BeginDisabled(fixed);
@@ -1156,12 +1209,12 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                         if (!note.empty()) note += "\n";
                         note += s;
                     };
-                    if (!r.p.error.empty()) add("Not read: " + r.p.error + ".");
-                    else if (other_eboot) add("Made for another eboot: not applied.");
-                    else if (unknown_option) add("Follows " + r.p.option + ", which this bbhost does not know: not applied.");
-                    else if (r.p.option.empty() && !bare_key(r.p.name)) add("Its name cannot be a bbhost.toml key, so it is always on.");
+                    if (!r.p.error.empty()) add(tf("Not read: %s.", r.p.error.c_str()));
+                    else if (other_eboot) add(tr("Made for another eboot: not applied."));
+                    else if (unknown_option) add(tf("Follows %s, which this bbhost does not know: not applied.", r.p.option.c_str()));
+                    else if (r.p.option.empty() && !bare_key(r.p.name)) add(tr("Its name cannot be a bbhost.toml key, so it is always on."));
                     // The patch's name and what it does; a note only for one that cannot be switched.
-                    ui::tooltip(patch_display_name(r.p).c_str(), capitalised(r.p.description.empty() ? std::string("No description.") : r.p.description), note);
+                    ui::tooltip(trs(patch_display_name(r.p)).c_str(), capitalised(r.p.description.empty() ? std::string(tr("No description.")) : trs(r.p.description)), note);
                 }
             }
             ImGui::PopStyleVar();
@@ -1171,7 +1224,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         } else if (page == kPageShaders) {
             const float w = ImGui::GetContentRegionAvail().x;
             // The caches at a glance, and the Shaders setting beside them.
-            ui::card_begin("##state", ImVec2(w, 0), "SHADER CACHES");
+            ui::card_begin("##state", ImVec2(w, 0), tr("SHADER CACHES"));
             {
                 // What the caches are: a mark, a headline and a line under it.
                 struct State {
@@ -1179,17 +1232,17 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     ImU32 col;
                     std::string head, sub;
                 };
-                State state{ui::Icon::Check, ui::kGood, "Ready", "Made by this bbhost, for this graphics driver."};
-                if (cv.running) state = {ui::Icon::Refresh, ui::kBlue, "Compiling", cv.phase};
-                else if (!cache_state.have_caches) state = {ui::Icon::Warning, ui::kWarn, "No shader caches yet", "The first start compiles everything."};
+                State state{ui::Icon::Check, ui::kGood, tr("Ready"), tr("Made by this bbhost, for this graphics driver.")};
+                if (cv.running) state = {ui::Icon::Refresh, ui::kBlue, tr("Compiling"), cv.phase};
+                else if (!cache_state.have_caches) state = {ui::Icon::Warning, ui::kWarn, tr("No shader caches yet"), tr("The first start compiles everything.")};
                 else if (!cache_state.translator_current)
-                    state = {ui::Icon::Warning, ui::kWarn, "Made by another bbhost version", "The next start compiles everything again."};
+                    state = {ui::Icon::Warning, ui::kWarn, tr("Made by another bbhost version"), tr("The next start compiles everything again.")};
                 else if (cache_state.device_current == 0)
-                    state = {ui::Icon::Warning, ui::kWarn, "Made for another GPU or driver", "The driver compiles its part again."};
-                else if (cache_state.device_current != 1) state = {ui::Icon::Info, ui::kIce, "Checking the graphics driver", "Made by this bbhost."};
+                    state = {ui::Icon::Warning, ui::kWarn, tr("Made for another GPU or driver"), tr("The driver compiles its part again.")};
+                else if (cache_state.device_current != 1) state = {ui::Icon::Info, ui::kIce, tr("Checking the graphics driver"), tr("Made by this bbhost.")};
                 if (recommend_compile)
-                    state = {ui::Icon::Warning, ui::kWarn, "Compile recommended",
-                             advice.why + ". Compiling now takes " + advice.time + "; otherwise the game compiles them while you play."};
+                    state = {ui::Icon::Warning, ui::kWarn, tr("Compile recommended"),
+                             tf("%s. Compiling now takes %s; otherwise the game compiles them while you play.", advice.why.c_str(), advice.time.c_str())};
                 const ui::Icon icon = state.icon;
                 const ImU32 col = state.col;
                 const std::string& head_line = state.head;
@@ -1216,13 +1269,13 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 static const char* const kShaderModes[] = {"HLSL", "Lifted"};
                 ImGui::BeginDisabled(cv.running);
                 ui::segmented("##shaders", &shaders, kShaderModes, 2, seg_w, kHostShaderModeTips,
-                              "Saved with Save or Play; the game reads it at its start.");
+                              tr("Saved with Save or Play; the game reads it at its start."));
                 ImGui::EndDisabled();
                 ImGui::SetCursorScreenPos(after);
                 ImGui::Dummy(ImVec2(0, 0));
                 if (cache_state.have_caches) {
                     char sizes[256];
-                    std::snprintf(sizes, sizeof(sizes), "Translations and modules %.0f MiB  |  pipelines %.0f MiB  |  drawn %.1f + %.1f MiB",
+                    std::snprintf(sizes, sizeof(sizes), tr("Translations and modules %.0f MiB  |  pipelines %.0f MiB  |  drawn %.1f + %.1f MiB"),
                                   cache_state.translation_bytes / 1048576.0, cache_state.pipeline_bytes / 1048576.0,
                                   cache_state.stage_manifest_bytes / 1048576.0, cache_state.pipeline_manifest_bytes / 1048576.0);
                     dim_text(sizes, ui::kTextFaint);
@@ -1233,18 +1286,18 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             }
             ui::card_end();
             ImGui::Dummy(ImVec2(0, gap - st.ItemSpacing.y));
-            ui::card_begin("##compile", ImVec2(w, 0), "COMPILE NOW");
+            ui::card_begin("##compile", ImVec2(w, 0), tr("COMPILE NOW"));
             {
                 if (!cv.running) {
-                    if (ui::primary_button("Compile shaders now", ImVec2(0, 0), app0_ok && eboot.ok)) start_compile();
+                    if (ui::primary_button(tr("Compile shaders now"), ImVec2(0, 0), app0_ok && eboot.ok)) start_compile();
                     ImGui::SameLine();
                     ImGui::AlignTextToFramePadding();
                     ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
-                    ImGui::TextUnformatted(app0_ok && eboot.ok ? "Every shader the game uses, with this PC's driver. It can be cancelled."
-                                                               : "Needs the game folder and the 1.09 eboot.");
+                    ImGui::TextUnformatted(app0_ok && eboot.ok ? tr("Every shader the game uses, with this PC's driver. It can be cancelled.")
+                                                               : tr("Needs the game folder and the 1.09 eboot."));
                     ImGui::PopStyleColor();
                 } else {
-                    if (ui::ghost_button("Cancel")) compile_job.cancel();
+                    if (ui::ghost_button(tr("Cancel"))) compile_job.cancel();
                     ImGui::SameLine();
                     ImGui::AlignTextToFramePadding();
                     ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
@@ -1254,25 +1307,25 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 if (cv.running || cv.finished || cv.cancelled || !cv.error.empty()) {
                     const float frac = cv.total ? static_cast<float>(cv.done) / static_cast<float>(cv.total) : 0.0f;
                     char over[96];
-                    std::snprintf(over, sizeof(over), "%llu of %llu", static_cast<unsigned long long>(cv.done),
+                    std::snprintf(over, sizeof(over), tr("%llu of %llu"), static_cast<unsigned long long>(cv.done),
                                   static_cast<unsigned long long>(cv.total));
                     ImGui::Dummy(ImVec2(0, 2 * scale));
                     ui::progress(frac, over);
                     char line[256];
-                    if (cv.eta >= 0 && cv.running) std::snprintf(line, sizeof(line), "%.0f s so far, about %.0f s left", cv.seconds, cv.eta);
+                    if (cv.eta >= 0 && cv.running) std::snprintf(line, sizeof(line), tr("%.0f s so far, about %.0f s left"), cv.seconds, cv.eta);
                     else std::snprintf(line, sizeof(line), "%.0f s", cv.seconds);
                     std::string stats = line;
-                    std::snprintf(line, sizeof(line), "  |  %llu took DXC's module, %llu kept the lift, %llu failed",
+                    std::snprintf(line, sizeof(line), tr("  |  %llu took DXC's module, %llu kept the lift, %llu failed"),
                                   static_cast<unsigned long long>(cv.hlsl), static_cast<unsigned long long>(cv.lift),
                                   static_cast<unsigned long long>(cv.failed));
                     dim_text(stats + line);
                     if (cv.recipes_total) {
-                        std::snprintf(line, sizeof(line), "Pipelines from your earlier sessions and the shipped list: %llu of %llu",
+                        std::snprintf(line, sizeof(line), tr("Pipelines from your earlier sessions and the shipped list: %llu of %llu"),
                                       static_cast<unsigned long long>(cv.recipes_done), static_cast<unsigned long long>(cv.recipes_total));
                         dim_text(line);
                     }
-                    if (cv.finished) dim_text("Done: the next start takes these from the caches.", ui::kGood, false);
-                    if (cv.cancelled) dim_text("Cancelled: what was compiled is kept; the game compiles the rest.", ui::kWarn, false);
+                    if (cv.finished) dim_text(tr("Done: the next start takes these from the caches."), ui::kGood, false);
+                    if (cv.cancelled) dim_text(tr("Cancelled: what was compiled is kept; the game compiles the rest."), ui::kWarn, false);
                     if (!cv.error.empty()) dim_text(cv.error, ui::kWarn, false);
                     for (const std::string& r : cv.reasons) dim_text("- " + r);
                 }
@@ -1298,26 +1351,47 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     else if (k == "pipelines") pipelines = v;
                     else if (k == "lift") lift.push_back(v);
                 }
-                ui::card_begin("##last", ImVec2(w, 0), "THE LAST COMPILE");
-                std::string details = "On " + device + ": shaders " + stages + "; " + hlsl + ".";
-                if (!pipelines.empty() && pipelines.rfind("0 of 0", 0) != 0) details += "\nPipelines " + pipelines + ".";
+                ui::card_begin("##last", ImVec2(w, 0), tr("THE LAST COMPILE"));
+                // shader-compile.txt is written in English (shader_compile.cpp), so each
+                // line is taken apart and said again through tf(): the numbers stay, the
+                // words come from the translation table. A line in a shape not known
+                // here is shown as it is.
+                unsigned long long n1 = 0, n2 = 0, n3 = 0;
+                const std::string stages_t = std::sscanf(stages.c_str(), "%llu of %llu, %llu failed", &n1, &n2, &n3) == 3
+                                                 ? tf("%llu of %llu, %llu failed", n1, n2, n3)
+                                                 : stages;
+                const std::string hlsl_t =
+                    std::sscanf(hlsl.c_str(), "%llu with DXC's module (%llu compiled now), %llu kept the lift", &n1, &n2, &n3) == 3
+                        ? tf("%llu with DXC's module (%llu compiled now), %llu kept the lift", n1, n2, n3)
+                        : hlsl;
+                std::string details = tf("On %s: shaders %s; %s.", device.c_str(), stages_t.c_str(), hlsl_t.c_str());
+                if (!pipelines.empty()) {
+                    if (std::sscanf(pipelines.c_str(), "%llu of %llu", &n1, &n2) == 2) {
+                        if (n1 != 0 || n2 != 0)
+                            details += "\n" + tf("Pipelines from your earlier sessions and the shipped list: %llu of %llu", n1, n2);
+                    } else {
+                        details += "\nPipelines " + pipelines + ".";
+                    }
+                }
                 for (const std::string& r : failed) {
                     if (r.find("LDS use outside a compute shader") != std::string::npos)
-                        details += "\nNot compiled alone (" + r.substr(r.rfind(' ') + 1) +
-                                   "): vertex shaders that write LDS, which only run inside another stage (tessellation); they are "
-                                   "compiled when the game draws them.";
+                        details += "\n" + tf("Not compiled alone (%s): vertex shaders that write LDS, which only run inside another "
+                                              "stage (tessellation); they are compiled when the game draws them.",
+                                              r.substr(r.rfind(' ') + 1).c_str());
                     else
-                        details += "\nFailed: " + r;
+                        details += "\n" + tf("Failed: %s", r.c_str());
                 }
-                for (const std::string& r : lift) details += "\nKept the lift: " + r;
+                for (const std::string& r : lift) details += "\n" + tf("Kept the lift: %s", r.c_str());
+                const std::string result_t =
+                    res == "done" ? std::string(tr("Finished")) : res == "cancelled" ? std::string(tr("Cancelled")) : capitalised(res);
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted((capitalised(res == "done" ? "finished" : res) + ", " + when + "  |  " + seconds + " s  |  bbhost " + version).c_str());
+                ImGui::TextUnformatted(tf("%s, %s  |  %s s  |  bbhost %s", result_t.c_str(), when.c_str(), seconds.c_str(), version.c_str()).c_str());
                 ImGui::SameLine();
                 const ImVec2 ip = ImGui::GetCursorScreenPos();
                 const float fh = ImGui::GetFrameHeight();
                 ImGui::Dummy(ImVec2(fh * 0.7f, fh));
                 ui::draw_icon(ImGui::GetWindowDrawList(), ui::Icon::Info, ip + ImVec2(fh * 0.35f, fh * 0.5f), fh * 0.55f, ImGui::GetColorU32(ui::kTextDim));
-                ui::tooltip_for_item("The last compile", details);
+                ui::tooltip_for_item(tr("The last compile"), details);
                 ui::card_end();
             }
         } else if (page == kPagePlugins) {
@@ -1328,34 +1402,35 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             plugin_seen = true;
         } else if (page == kPageSettings) {
             const float w = ImGui::GetContentRegionAvail().x;
-            ui::card_begin("##folders", ImVec2(w, 0), "FOLDERS");
+            ui::card_begin("##folders", ImVec2(w, 0), tr("FOLDERS"));
             path_row("Data folder", kData, true, config_default_data_dir().c_str(), -1, "",
-                     "Saves and caches. Empty for the default: " + config_default_data_dir());
-            ui::row_label("Settings file", label_w);
+                     tf("Saves and caches. Empty for the default: %s", config_default_data_dir().c_str()));
+            ui::row_label(tr("Settings file"), label_w);
             {
                 const std::string file = config_user_file();
                 const float bw = ImGui::GetFrameHeight();
                 ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
                 ImGui::TextUnformatted(ui::fit_left(generic(file), head_right - 18 * scale - bw - st.ItemSpacing.x - ImGui::GetCursorScreenPos().x).c_str());
                 ImGui::PopStyleColor();
-                ui::tooltip_for_item(nullptr, generic(file) + (config_saves_locally() ? "\nBeside bbhost: this copy reads it after the per-user one, and saves here."
-                                                                                      : "\nEvery copy of bbhost reads it."));
+                ui::tooltip_for_item(nullptr, generic(file) + "\n" +
+                                              (config_saves_locally() ? tr("Beside bbhost: this copy reads it after the per-user one, and saves here.")
+                                                                      : tr("Every copy of bbhost reads it.")));
                 ImGui::SameLine(0, 0);
                 ImGui::SetCursorScreenPos(ImVec2(head_right - 18 * scale - bw, ImGui::GetCursorScreenPos().y));
-                if (ui::icon_button("##open", ui::Icon::Folder, 0.0f, "Open its folder")) {
+                if (ui::icon_button("##open", ui::Icon::Folder, 0.0f, tr("Open its folder"))) {
                     std::string url = "file:///" + generic(fs::path(file).parent_path().string());
                     SDL_OpenURL(url.c_str());
                 }
             }
             ui::card_end();
             ImGui::Dummy(ImVec2(0, gap - st.ItemSpacing.y));
-            ui::card_begin("##startup", ImVec2(w, 0), "START-UP");
-            ui::toggle_row("Show this window at every start", "Or start bbhost with --setup to open it once.", &show_every_start);
+            ui::card_begin("##startup", ImVec2(w, 0), tr("START-UP"));
+            ui::toggle_row(tr("Show this window at every start"), tr("Or start bbhost with --setup to open it once."), &show_every_start);
             ImGui::Dummy(ImVec2(0, 2 * scale));
-            ui::toggle_row("Menu animations", "The drifting background, its motes, the Play button's shine.", &animations,
-                           "The window's motion: the background's slow drift and the motes rising over it, the moon's glow, the Play "
+            ui::toggle_row(tr("Menu animations"), tr("The drifting background, its motes, the Play button's shine."), &animations,
+                           tr("The window's motion: the background's slow drift and the motes rising over it, the moon's glow, the Play "
                            "button's pulse and the light sweeping across it, the page fade and the sliding highlights. Off, the "
-                           "window stands still.");
+                           "window stands still."));
             ImGui::Dummy(ImVec2(0, 2 * scale));
             // As a switch's row: its label and a line under it, the control (`cw` wide) at the right.
             const auto choice_row = [&](const char* label, const char* sub, float cw, const auto& control) {
@@ -1375,13 +1450,13 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ImGui::SetCursorScreenPos(p);
                 ImGui::Dummy(ImVec2(w, h));
             };
-            choice_row("Menu text size", "This window, F9 and F10; the window grows with it.", 128 * scale, [&] {
+            choice_row(tr("Menu text size"), tr("This window, F9 and F10; the window grows with it."), 128 * scale, [&] {
                 ui::combo("##textsize", &text_choice, kTextSizeLabels, static_cast<int>(std::size(kTextSizeLabels)));
-                ui::tooltip_for_item("Menu text size",
-                                     "The text in bbhost's own menus - this window and the in-game F9 and F10 menus - and everything in "
+                ui::tooltip_for_item(tr("Menu text size"),
+                                     tr("The text in bbhost's own menus - this window and the in-game F9 and F10 menus - and everything in "
                                      "them with it, this window's own size included: 150% or 200% for a 1440p or 4K screen. 100% is the "
                                      "usual size (with Windows' display scaling). A window larger than the screen stops at the screen and "
-                                     "scrolls. Applies at once; F10 has the same setting.");
+                                     "scrolls. Applies at once; F10 has the same setting."));
             });
             // Menu hue and Menu vibrance: F10's sliders (a step each, its value shown),
             // saved at once; a double click puts one back to 0.
@@ -1398,34 +1473,34 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ui::tooltip_for_item(title, tip);
             };
             ImGui::Dummy(ImVec2(0, 2 * scale));
-            choice_row("Menu hue", "The colours of this window, F9 and F10.", 200 * scale, [&] {
-                colour_slider("##hue", "menu_hue", 24, -165, 15, "°", "Menu hue",
-                              "Turns the colours of bbhost's own menus - this window and the in-game F9 and F10 menus - round the "
+            choice_row(tr("Menu hue"), tr("The colours of this window, F9 and F10."), 200 * scale, [&] {
+                colour_slider("##hue", "menu_hue", 24, -165, 15, "°", tr("Menu hue"),
+                              tr("Turns the colours of bbhost's own menus - this window and the in-game F9 and F10 menus - round the "
                               "colour wheel: 0 is their own blue and violet. The green, amber and red that mean ok, a warning and a "
-                              "problem stay as they are. Double-click for 0; F10 has the same setting.");
+                              "problem stay as they are. Double-click for 0; F10 has the same setting."));
             });
             ImGui::Dummy(ImVec2(0, 2 * scale));
-            choice_row("Menu vibrance", "-100% is black and white.", 200 * scale, [&] {
-                colour_slider("##vibrance", "menu_vibrance", 21, -100, 10, "%%", "Menu vibrance",
-                              "How much colour bbhost's own menus have: -100% is black and white, 0 their own, +100% the most. "
-                              "Double-click for 0; F10 has the same setting.");
+            choice_row(tr("Menu vibrance"), tr("-100% is black and white."), 200 * scale, [&] {
+                colour_slider("##vibrance", "menu_vibrance", 21, -100, 10, "%%", tr("Menu vibrance"),
+                              tr("How much colour bbhost's own menus have: -100% is black and white, 0 their own, +100% the most. "
+                              "Double-click for 0; F10 has the same setting."));
             });
             ImGui::Dummy(ImVec2(0, 2 * scale));
             {
-                const std::string sub = check_updates ? updater::status() : std::string("A newer bbhost, from its GitHub releases.");
+                const std::string sub = check_updates ? updater::status() : std::string(tr("A newer bbhost, from its GitHub releases."));
                 const std::string tip = check_updates ? updater::detail() : std::string();
-                ui::toggle_row("Check for updates", sub.c_str(), &check_updates, tip.empty() ? nullptr : tip.c_str());
+                ui::toggle_row(tr("Check for updates"), sub.c_str(), &check_updates, tip.empty() ? nullptr : tip.c_str());
             }
             ImGui::Dummy(ImVec2(0, 2 * scale));
             path_row("GitHub token", kToken, false, "Only while the releases are private", -1, "",
-                     "A file holding a GitHub token, for update checks while the releases are private.");
+                     tr("A file holding a GitHub token, for update checks while the releases are private."));
             ui::card_end();
             ImGui::Dummy(ImVec2(0, gap - st.ItemSpacing.y));
-            ui::card_begin("##diagnostics", ImVec2(w, 0), "DIAGNOSTICS");
-            ui::toggle_row("Tooling and logging", "Leave it on when reporting a problem.", &tooling,
-                           "The log and its window, the periodic reports in it, the stall detector, the GPU busy meter (GPU % beside "
+            ui::card_begin("##diagnostics", ImVec2(w, 0), tr("DIAGNOSTICS"));
+            ui::toggle_row(tr("Tooling and logging"), tr("Leave it on when reporting a problem."), &tooling,
+                           tr("The log and its window, the periodic reports in it, the stall detector, the GPU busy meter (GPU % beside "
                            "the FPS counter) and the recent-draw history. Off gives the game that headroom: nothing is logged and no "
-                           "log window opens.");
+                           "log window opens."));
             ui::card_end();
         }
         ImGui::PopStyleVar();  // the fade

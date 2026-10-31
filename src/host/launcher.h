@@ -15,7 +15,9 @@
 
 #include <string>
 
-enum class LauncherResult { Play, Quit };
+// Restart: the window changed the interface language, saved, and started
+// bbhost again as a new process (with --setup); this one has nothing left to do.
+enum class LauncherResult { Play, Quit, Restart };
 
 // Runs the window until the player presses Play (the settings saved; the
 // caller reads the configuration again) or closes it. `reason` says why it

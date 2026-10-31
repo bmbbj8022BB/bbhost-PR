@@ -155,6 +155,7 @@ add_executable(bbhost
   src/host/overlay.cpp
   src/host/present_pass.cpp
   src/host/ingame_menu.cpp
+  src/host/i18n.cpp
   src/host/options.cpp
   src/host/updater.cpp
   src/host/update_verify.cpp
