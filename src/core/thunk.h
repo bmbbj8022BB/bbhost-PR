@@ -84,6 +84,11 @@ struct GuestCallRegs {
 };
 static_assert(sizeof(GuestCallRegs) == 168, "hle_call_guest_regs reads these offsets");
 GUEST_ABI void hle_call_guest_regs(GuestCallRegs* r);
+// The guest's return address of the outermost HLE call this thread is in,
+// and `depth` frames up the guest's rbp chain from it (0 before any call, or
+// past the chain's end): for logs naming the guest code that called an HLE
+// function.
+std::uint64_t hle_guest_return(int depth = 0);
 // Raw guest call with up to six integer/pointer args. Host FS on return.
 GUEST_ABI std::int64_t hle_call_guest6(void* fn, std::int64_t a0, std::int64_t a1, std::int64_t a2,
                                        std::int64_t a3, std::int64_t a4, std::int64_t a5);

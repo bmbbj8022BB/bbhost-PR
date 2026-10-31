@@ -20,14 +20,14 @@
 # edit at 0x216fc09 overrides PC Graphics' Model detail while it is on.
 # One variant on at a time (group performance-v3): they share 1,295 bytes.
 #
-# Off until turned on: the setup window's Patches tab, or `performance-v3-decals-on = true` under
-# [patches] in bbhost.toml, turns it on for the next start.
+# On by default: the setup window's Patches tab, or `performance-v3-decals-on = false` under
+# [patches] in bbhost.toml, turns it off for the next start.
 [patch]
 name = "performance-v3-decals-on"
 title = "Performance Patch (Perf Increase)"
 eboot = "941f887a562aae054fac35af8cc8f27cf075f3d4cc2e029fb5ae2a663aaa5ae7"
 description = "Modifies some of the game's debug parameters for better performance without affecting visuals (Kyo)."
-enabled = false
+enabled = true
 group = "performance-v3"
 order = 20
 live = false

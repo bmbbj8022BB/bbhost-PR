@@ -5,14 +5,14 @@
 # The float the stick's tilt is scaled by before the walk/run threshold
 # (0x4d27714): 1.0 -> 1.4.
 #
-# Off until turned on: the setup window's Patches tab, the patch menu in the
-# game (F9), or `easier-run-range = true` under [patches] in bbhost.toml.
+# On by default: the setup window's Patches tab, the patch menu in the game
+# (F9), or `easier-run-range = false` under [patches] in bbhost.toml turns it off.
 [patch]
 name = "easier-run-range"
 title = "Easier run range"
 eboot = "941f887a562aae054fac35af8cc8f27cf075f3d4cc2e029fb5ae2a663aaa5ae7"
 description = "The stick runs from less of its travel: about two-thirds of the way out instead of 90%."
-enabled = false
+enabled = true
 order = 400
 
 [site.s000]

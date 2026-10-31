@@ -133,4 +133,12 @@ void banner(Icon icon, ImU32 col, const std::string& text);
 // How far (0-1) an animation keyed by `id` has gone toward `on`.
 float ease(ImGuiID id, bool on, float speed = 10.0f);
 
+// The window's motion on or off (startup.setup_animations). Off: the
+// background, the moon and the Play button stand still, there are no motes,
+// and ease() jumps to where it is going.
+void set_animations(bool on);
+bool animations();
+// ImGui::GetTime() while the window moves; one fixed moment while it does not.
+float anim_time();
+
 }  // namespace launcher_ui

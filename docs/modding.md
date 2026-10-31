@@ -294,7 +294,7 @@ wants one keeps its file in their own patches folder.
 
 | File | Patch |
 |---|---|
-| `performance-v3-decals-on.toml` | **Performance Patch (Perf Increase)**: Modifies some of the game's debug parameters for better performance without affecting visuals (Kyo). (off by default; one of performance v3; at the next start) |
+| `performance-v3-decals-on.toml` | **Performance Patch (Perf Increase)**: Modifies some of the game's debug parameters for better performance without affecting visuals (Kyo). (on by default; one of performance v3; at the next start) |
 | `performance-v3-velomap.toml` | **Performance Patch v3 (Velomap + Camera Blur)**: Performance Patch v3 (Velomap + Camera Blur, Decals On) (Kyo) (off by default; one of performance v3; at the next start) |
 | `disable-misc-renders.toml` | **Disable Misc. Renders**: Disable Misc. Renders - Kyo's patch: four of the scene's extra targets are not made, nor their passes drawn (off by default; at the next start) |
 | `rgba8f-color-space.toml` | **rgba8f color space (Perf Increase)**: Affects visuals: the rgba16f colour targets become rgba8f. Less GPU use, for older or weaker hardware. (off by default; at the next start) |
@@ -306,7 +306,7 @@ wants one keeps its file in their own patches folder.
 | `ds1-physics.toml` | **DS1-like physics**: Corpses and objects can be flung around, as in Dark Souls. (off by default; one of object physics) |
 | `lower-object-physics.toml` | **Lower object/corpse physics**: Corpses resist being moved by the player or anything else. (off by default; one of object physics) |
 | `disable-camera-auto-rotation.toml` | **Disable Camera Auto Rotation via Movement**: The camera no longer turns by itself as the character moves; turning it by hand and lock-on still work. (off by default; at the next start) |
-| `easier-run-range.toml` | **Easier run range**: The stick runs from less of its travel: about two-thirds of the way out instead of 90%. (off by default) |
+| `easier-run-range.toml` | **Easier run range**: The stick runs from less of its travel: about two-thirds of the way out instead of 90%. (on by default) |
 | `l3-run-jump.toml` | **L3 run-jump**: While running (holding Circle), L3 jumps too: the run-jump a second press of Circle makes. Circle still jumps. (off by default) |
 | `auto-refill-from-storage.toml` | **Auto-Refill From Storage on Any Area Refresh/Reload**: Eligible consumables refill from your storage whenever an area is refreshed or reloaded, taking from storage as the game does, without dying or going back to the Hunter's Dream. The game's own auto-refill; no free items. (off by default) |
 | `smaller-hunter.toml` | **Smaller Hunter**: A smaller hunter (smol). (off by default; one of hunter size) |
@@ -319,8 +319,8 @@ wants one keeps its file in their own patches folder.
 | `hd-motion-blur-1440p.toml` | **HD Motion Blur 1440p (2560x1440)**: Motion blur's velocity map is half the render resolution by default; this makes it 1440p. Uses more video memory. (off by default; one of hd motion blur; at the next start) |
 | `hd-motion-blur-4k.toml` | **HD Motion Blur 4K (3840x2160)**: HD Motion Blur 4K (3840x2160) - Kyo's patch (off by default; one of hd motion blur; at the next start) |
 | `lower-specific-renders.toml` | **Lower specific renders (Perf Increase)**: Lowers the resolution of some renders (the velocity map, glow, the scaled depth): faster, with no visual difference unless Enable Screen Space Reflections is on. (off by default; one of low res renders; at the next start) |
-| `old-hunters.toml` | **The Old Hunters**: The Old Hunters is available: the game takes itself for the edition that includes it (off by default; at the next start) |
-| `quick-reentry.toml` | **Quick re-entry**: A load after a death or lamp travel ends when the area is ready, not after a 12-second minimum (follows `[loading] quick_reentry`, off by default) |
+| `old-hunters.toml` | **The Old Hunters**: The Old Hunters is available: the game takes itself for the edition that includes it (on by default; at the next start) |
+| `quick-reentry.toml` | **Quick re-entry**: A load after a death or lamp travel ends when the area is ready, not after a 12-second minimum (follows `[loading] quick_reentry`, on by default) |
 | `ingame-post-processors.toml` | **All post-processors in play**: All three resource post-processors run in play, not two (follows `[streaming] all_post_processors`, off by default) |
 | `deflate-level.toml` | **Deflate level 1**: The game's run-time deflate compresses at level 1, not 9 (a main-thread hitch every ~50 s) (off by default) |
 | `fov-uncap.toml` | **Uncapped field of view**: The field of view is no longer capped at 48 degrees (off by default) |

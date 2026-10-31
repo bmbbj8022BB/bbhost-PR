@@ -211,15 +211,24 @@ bool shell(const char* id, const char* caption, const Page* pages, int n, int* p
     size.y -= bar_h;
 
     // The sidebar: the name, the pages, the keys and Close.
-    const float side_w = std::round(236 * s);
+    // At most a third of the panel: a large Menu text size leaves the page room.
+    const float side_w = std::round(std::min(236 * s, size.x * 0.34f));
     dl->AddRectFilled(pos, pos + ImVec2(side_w, size.y), ImGui::GetColorU32(IM_COL32(7, 6, 20, 150)), r, ImDrawFlags_RoundCornersBottomLeft);
     dl->AddLine(pos + ImVec2(side_w - 0.5f, r), pos + ImVec2(side_w - 0.5f, size.y - r), ImGui::GetColorU32(ui::alpha(ui::kViolet, 64)));
     bool close = false;
+    // Close at the foot, always in view, with the keys over it where the
+    // name and the pages (last frame's height) leave room; those scroll when
+    // they are taller than the rest (a large Menu text size).
+    const float hint_h = std::round(ImGui::GetFontSize() * 0.78f + 8 * s);
+    const float side_h = size.y - 34 * s, hints = 3 * (hint_h + 6 * s) + 6 * s + ImGui::GetStyle().ItemSpacing.y;
+    float foot = ImGui::GetFrameHeight() + 4 * s;
+    static float nav_h = 0.0f;
+    const bool keys = side_h - foot - hints - 8 * s >= nav_h;
+    if (keys) foot += hints;
     ImGui::SetCursorScreenPos(pos + ImVec2(16 * s, 18 * s));
-    ImGui::BeginChild("##side", ImVec2(side_w - 32 * s, size.y - 34 * s), 0,
-                      ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    ImGui::BeginChild("##side", ImVec2(side_w - 32 * s, std::max(side_h - foot - 8 * s, 40 * s)), 0, ImGuiWindowFlags_NoBackground);
+    const float w = ImGui::GetContentRegionAvail().x;
     {
-        const float w = ImGui::GetContentRegionAvail().x;
         ui::logo("BBHOST", BBHOST_VERSION, w, true);
         const float cfs = 11.5f * s, ctr = 1.7f * s;
         ImGui::SetCursorPosX(std::max(0.0f, (w - ui::spaced_width(ui::font_strong(), cfs, caption, ctr)) * 0.5f));
@@ -230,17 +239,20 @@ bool shell(const char* id, const char* caption, const Page* pages, int n, int* p
             if (ui::nav_item(pages[i].name, pages[i].icon, *page == i)) go(i);
         }
         ImGui::PopStyleVar();
-        const float hint_h = std::round(ImGui::GetFontSize() * 0.78f + 8 * s);
-        const float foot = 3 * (hint_h + 6 * s) + 10 * s + ImGui::GetFrameHeight();
-        ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY() + 14 * s, ImGui::GetWindowHeight() - foot));
+        nav_h = ImGui::GetCursorPosY();
+    }
+    ImGui::EndChild();
+    ImGui::SetCursorScreenPos(pos + ImVec2(16 * s, 18 * s + side_h - foot));
+    ImGui::BeginChild("##foot", ImVec2(w, foot), 0, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    if (keys) {
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 6 * s));
         ui::key_hint("F9", "Patches & plugins");
         ui::key_hint("F10", "Settings");
         ui::key_hint("Esc", "Close");
         ImGui::PopStyleVar();
         ImGui::Dummy(ImVec2(0, 4 * s));
-        close = ui::ghost_button("Close", ImVec2(w, 0));
     }
+    close = ui::ghost_button("Close", ImVec2(w, 0));
     ImGui::EndChild();
 
     // The page: its heading, then itself, fading in.
@@ -249,21 +261,29 @@ bool shell(const char* id, const char* caption, const Page* pages, int n, int* p
     ImGui::BeginChild("##page", ImVec2(size.x - side_w, size.y), ImGuiChildFlags_AlwaysUseWindowPadding,
                       ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
-    ImGui::PushFont(ui::font_strong(), 27.0f);
-    ImGui::TextUnformatted(pages[*page].name);
-    ImGui::PopFont();
-    ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
-    ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextUnformatted(pages[*page].blurb);
-    ImGui::PopTextWrapPos();
-    ImGui::PopStyleColor();
-    ImGui::Dummy(ImVec2(0, 6 * s));
+    auto heading = [&] {
+        ImGui::PushFont(ui::font_strong(), 27.0f);
+        ImGui::TextUnformatted(pages[*page].name);
+        ImGui::PopFont();
+        ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextUnformatted(pages[*page].blurb);
+        ImGui::PopTextWrapPos();
+        ImGui::PopStyleColor();
+        ImGui::Dummy(ImVec2(0, 6 * s));
+    };
+    // The heading stays over the page, or scrolls with it where it would take
+    // more than a quarter of the panel (a large Menu text size).
+    const float head_h = 27.0f * s * 1.3f + ImGui::CalcTextSize(pages[*page].blurb, nullptr, false, ImGui::GetContentRegionAvail().x).y;
+    const bool head_scrolls = scrolls && head_h > size.y * 0.25f;  // a page that scrolls itself keeps it over it
+    if (!head_scrolls) heading();
     const float shown = static_cast<float>(ImGui::GetTime() - *page_at);
     const float fade = 1.0f - std::pow(1.0f - std::min(1.0f, shown / 0.22f), 3.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * std::max(0.02f, fade));
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (1.0f - fade) * 10 * s);
     ImGui::BeginChild("##body", ImVec2(0, 0), 0,
                       ImGuiWindowFlags_NoBackground | (scrolls ? 0 : ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse));
+    if (head_scrolls) heading();
     body();
     ImGui::EndChild();
     ImGui::PopStyleVar();
@@ -796,7 +816,8 @@ bool build_frame(VkExtent2D extent) {
     g_last = now;
     io.DisplaySize = ImVec2(static_cast<float>(extent.width), static_cast<float>(extent.height));
     // The setup window's sizes, for a 900-line screen: 1.2 at 1080p, 2.4 at 4K.
-    ui::set_scale(std::max(0.6f, static_cast<float>(extent.height) / 900.0f));
+    // Menu text size (F10, the setup window's Settings) on top: 100% to 400%.
+    ui::set_scale(std::max(0.6f, static_cast<float>(extent.height) / 900.0f) * host_opt_menu_text_scale());
     // The pointer over the menu: ImGui draws it last, on top. The host's own
     // (host_overlay_cursor) is drawn under the menu and stands down while it
     // is open; with "Draw the pointer" off the window system's shows instead.

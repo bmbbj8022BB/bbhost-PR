@@ -172,6 +172,11 @@ void apply_values(const std::map<std::string, std::string>& kv, HostConfig* c) {
         if (it != kv.end()) c->setup_always = it->second == "true" || it->second == "1";
     }
     {
+        auto it = kv.find("startup.setup_animations");
+        if (it != kv.end()) c->setup_animations = it->second == "true" || it->second == "1";
+    }
+    num("startup.setup_text_size", &c->setup_text_size);
+    {
         auto it = kv.find("debug.tooling");
         if (it != kv.end()) c->tooling = it->second == "true" || it->second == "1";
     }
@@ -1086,7 +1091,7 @@ bool config_write_template(const std::string& path) {
            "# back = \"Backspace\"               # menus: Return, the same bit as `interact`\n"
            "\n[startup]\n"
            "# Skip the three company logos and the Exit Game warning (Bloodborne 1.09 only).\n"
-           "skip_intro = false\n"
+           "skip_intro = true\n"
            "";
     return true;
 }

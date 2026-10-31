@@ -57,6 +57,10 @@ constexpr Server kServers[] = {
     {"Playtest server (dev.thehuntersdream.com)", "dev.thehuntersdream.com", "https", true, true, "https://dev.thehuntersdream.com"},
 };
 
+// Menu text size's values (menu_text_size in host/options.cpp, the same list).
+constexpr int kTextSizes[] = {100, 125, 150, 175, 200, 250, 300, 350, 400};
+const char* const kTextSizeLabels[] = {"100%", "125%", "150%", "175%", "200%", "250%", "300%", "350%", "400%"};
+
 // The window's pages, as the sidebar lists them.
 enum Page { kPageGame, kPageOnline, kPageEnhancements, kPagePatches, kPageShaders, kPagePlugins, kPageSettings, kPageCount };
 struct PageInfo {
@@ -208,14 +212,36 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         host_log("setup: no window (%s); edit %s instead", SDL_GetError(), config_user_file().c_str());
         return LauncherResult::Quit;
     }
-    const float scale = std::max(1.0f, SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay()));
+    // The text size, Menu text size (menu_text_size, the same setting as
+    // F10's): 100% is the window as it has always been, 1120x720 at Windows'
+    // display scaling, and every size in it - the window's own included -
+    // grows with the percent (a 1440p or 4K screen: 150% or 200%). A window
+    // larger than the screen stops at the screen; the pages then scroll over
+    // Play, Save and Quit, which stay in view.
+    host_options_load();
+    const SDL_DisplayID display = SDL_GetPrimaryDisplay();
+    const float screen_scale = std::max(1.0f, SDL_GetDisplayContentScale(display));
     // Its size, or less where the screen is smaller.
-    int win_w = static_cast<int>(1120 * scale), win_h = static_cast<int>(720 * scale);
     SDL_Rect usable{};
-    if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > 0) {
-        win_w = std::min(win_w, usable.w * 19 / 20);
-        win_h = std::min(win_h, usable.h * 9 / 10);
-    }
+    const bool have_usable = SDL_GetDisplayUsableBounds(display, &usable) && usable.w > 0 && usable.h > 0;
+    const auto scale_for = [&](int choice) {
+        const int i = std::clamp(choice, 0, static_cast<int>(std::size(kTextSizes)) - 1);
+        return screen_scale * static_cast<float>(kTextSizes[i]) / 100.0f;
+    };
+    int text_choice = std::max(0, host_opt_index("menu_text_size"));
+    float scale = scale_for(text_choice);
+    const auto window_size = [&](float s, int* w, int* h) {
+        *w = static_cast<int>(1120 * s);
+        *h = static_cast<int>(720 * s);
+        if (have_usable) {
+            *w = std::min(*w, usable.w * 19 / 20);
+            *h = std::min(*h, usable.h * 9 / 10);
+        }
+    };
+    int win_w = 0, win_h = 0;
+    window_size(scale, &win_w, &win_h);
+    host_log("setup: menu text size %s (x%.2f; the screen's own x%.2f)", kTextSizeLabels[text_choice], static_cast<double>(scale),
+             static_cast<double>(screen_scale));
     SDL_Window* win = SDL_CreateWindow("bbhost launcher", win_w, win_h, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     SDL_Renderer* ren = win ? SDL_CreateRenderer(win, nullptr) : nullptr;
     if (!win || !ren) {
@@ -257,6 +283,8 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     bool check_updates = cfg.update_check == 1;
 #endif
     bool show_every_start = cfg.setup_always;
+    bool animations = cfg.setup_animations;
+    int text_applied = text_choice;  // the size the window has; a new choice goes in before the next frame
     bool tooling = cfg.tooling;
     // The F10 screen's start-up settings, through the same calls it uses.
     host_options_load();
@@ -432,6 +460,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         e.push_back({"update", "check", check_updates ? "true" : "false"});
         if (!f[kToken].str().empty()) e.push_back({"update", "token_file", toml_string(saved_path(f[kToken].str()))});
         e.push_back({"startup", "setup_window", show_every_start ? "true" : "false"});
+        e.push_back({"startup", "setup_animations", animations ? "true" : "false"});
         e.push_back({"debug", "tooling", tooling ? "true" : "false"});
         // What this bbhost's file looks like (core/config.h): a value saved
         // from here is a choice.
@@ -489,6 +518,18 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 g_pick_for = -1;
             }
         }
+        // A new text size: the style and fonts take it, and the window
+        // grows or shrinks to what it opens at with that size.
+        if (text_choice != text_applied) {
+            text_applied = text_choice;
+            host_opt_set_index("menu_text_size", text_choice);  // saved at once, as F10 saves it
+            scale = scale_for(text_choice);
+            ui::set_scale(scale);
+            window_size(scale, &win_w, &win_h);
+            SDL_SetWindowMinimumSize(win, std::min(win_w, static_cast<int>(860 * scale)), std::min(win_h, static_cast<int>(580 * scale)));
+            if (!(SDL_GetWindowFlags(win) & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_FULLSCREEN))) SDL_SetWindowSize(win, win_w, win_h);
+            host_log("setup: menu text size %s (x%.2f)", kTextSizeLabels[text_choice], static_cast<double>(scale));
+        }
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         // A test's pictures: the pointer where the test puts it, not where the
@@ -497,7 +538,9 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         ImGui::NewFrame();
         const ImGuiViewport* vp = ImGui::GetMainViewport();
         const ImGuiStyle& st = ImGui::GetStyle();
-        const float side_w = std::round(236 * scale);
+        // At most a third of the window: a large Menu text size leaves the page room.
+        const float side_w = std::round(std::min(236 * scale, vp->WorkSize.x * 0.34f));
+        ui::set_animations(animations);
         ui::backdrop(side_w);
         ImGui::SetNextWindowPos(vp->WorkPos);
         ImGui::SetNextWindowSize(vp->WorkSize);
@@ -561,9 +604,22 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             const ImVec2 o = vp->WorkPos;
             ui::glass(dl, o, o + ImVec2(side_w, vp->WorkSize.y), 0.0f, IM_COL32(10, 8, 26, 160), 0);
             dl->AddLine(o + ImVec2(side_w - 0.5f, 0), o + ImVec2(side_w - 0.5f, vp->WorkSize.y), ui::alpha(ui::kViolet, 64));
+            // Play, Save and Quit at the foot, always in view; over them the
+            // name and the pages, which scroll when they are taller than the
+            // room left (a large Menu text size), and the keys of the menus in
+            // the game (host/ingame_menu.h) where there is room.
+            const float play_h = std::round(52 * scale), note_h = std::round(13.5f * scale * 1.35f);
+            const float hint_h = std::round(std::round(ImGui::GetFontSize() * 0.78f) + 8 * scale);
+            const float hints = 2 * (hint_h + 6 * scale) + 6 * scale + st.ItemSpacing.y;  // the two keys, the gap and the spacing under it
+            const float side_h = vp->WorkSize.y - 38 * scale;
+            float foot = play_h + 4 * scale + ImGui::GetFrameHeight() + note_h + 3 * st.ItemSpacing.y;
+            // The keys where the name and the pages (last frame's height) leave room.
+            static float nav_h = 0.0f;
+            const bool keys = side_h - foot - hints - 8 * scale >= nav_h;
+            if (keys) foot += hints;
             ImGui::SetCursorScreenPos(o + ImVec2(16 * scale, 20 * scale));
-            ImGui::BeginChild("##side", ImVec2(side_w - 32 * scale, vp->WorkSize.y - 38 * scale), 0,
-                              ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+            ImGui::BeginChild("##side", ImVec2(side_w - 32 * scale, std::max(side_h - foot - 8 * scale, 40 * scale)), 0,
+                              ImGuiWindowFlags_NoBackground);
             const float w = ImGui::GetContentRegionAvail().x;
             ui::logo(kName, BBHOST_VERSION, w, vp->WorkSize.y < 700 * scale);
             if (check_updates && updater::update_available()) {
@@ -590,14 +646,10 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 if (ui::nav_item(kPages[i].name, kPages[i].icon, page == i, dot, badge[0] ? badge : nullptr)) go(i);
             }
             ImGui::PopStyleVar();
-            // Play, Save and Quit at the foot, and over them the keys of the
-            // menus in the game (host/ingame_menu.h) where the window has room.
-            const float play_h = std::round(52 * scale), note_h = std::round(13.5f * scale * 1.35f);
-            const float foot = play_h + 4 * scale + ImGui::GetFrameHeight() + note_h + 3 * st.ItemSpacing.y;
-            const float hint_h = std::round(std::round(ImGui::GetFontSize() * 0.78f) + 8 * scale);
-            const float hints = 2 * hint_h + 16 * scale + st.ItemSpacing.y;
-            const bool keys = ImGui::GetWindowHeight() - ImGui::GetCursorPosY() - 14 * scale >= foot + hints;
-            ImGui::SetCursorPosY(std::max(ImGui::GetCursorPosY() + 14 * scale, ImGui::GetWindowHeight() - foot - (keys ? hints : 0.0f)));
+            nav_h = ImGui::GetCursorPosY();
+            ImGui::EndChild();
+            ImGui::SetCursorScreenPos(o + ImVec2(16 * scale, 20 * scale + side_h - foot));
+            ImGui::BeginChild("##foot", ImVec2(w, foot), 0, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
             if (keys) {
                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(st.ItemSpacing.x, 6 * scale));
                 ui::key_hint("F9", "In-game patches & plugins");
@@ -683,12 +735,12 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ImGui::SetCursorScreenPos(ImVec2(head_right - w, head.y + (title_h - ImGui::GetFrameHeight()) * 0.5f));
             return back;
         };
-        const float shown = static_cast<float>(ImGui::GetTime() - page_at);
+        const float shown = animations ? static_cast<float>(ImGui::GetTime() - page_at) : 1.0f;
         const float fade = 1.0f - std::pow(1.0f - std::min(1.0f, shown / 0.22f), 3.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, std::max(0.02f, fade));
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + (1.0f - fade) * 10 * scale);
         const float gap = 14 * scale;
-        const float label_w = 118 * scale;
+        const float label_w = std::min(118 * scale, (head_right - head.x) * 0.3f);  // a large Menu text size leaves the fields room
 
         // A path's row: its state (-1 none, 0 wrong, 1 right; `tip` says
         // which), its label (`label_tip` in its bubble), the field and the
@@ -775,7 +827,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ImGui::Dummy(ImVec2(0, gap - st.ItemSpacing.y));
 
             // The display, and online at a glance, side by side.
-            const float row_lw = 104 * scale;
+            const float row_lw = std::min(104 * scale, (w - gap) * 0.19f);  // a third of the card at most
             ui::card_begin("##display", ImVec2(std::round((w - gap) * 0.56f), card_h(5)), "DISPLAY");
             {
                 ui::row_label("Window", row_lw);
@@ -1296,6 +1348,37 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ui::card_begin("##startup", ImVec2(w, 0), "START-UP");
             ui::toggle_row("Show this window at every start", "Or start bbhost with --setup to open it once.", &show_every_start);
             ImGui::Dummy(ImVec2(0, 2 * scale));
+            ui::toggle_row("Menu animations", "The drifting background, its motes, the Play button's shine.", &animations,
+                           "The window's motion: the background's slow drift and the motes rising over it, the moon's glow, the Play "
+                           "button's pulse and the light sweeping across it, the page fade and the sliding highlights. Off, the "
+                           "window stands still.");
+            ImGui::Dummy(ImVec2(0, 2 * scale));
+            {
+                // As a switch's row: its label and a line under it, the choice at the right.
+                const char* label = "Menu text size";
+                const char* sub = "This window, F9 and F10; the window grows with it.";
+                const ImVec2 p = ImGui::GetCursorScreenPos();
+                const float w = ImGui::GetContentRegionAvail().x, cw = 128 * scale;
+                const float fs = ImGui::GetFontSize(), sub_fs = std::round(fs * 0.86f);
+                ImFont* font = ImGui::GetFont();
+                const float lh = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, label).y;
+                const float sub_h = font->CalcTextSizeA(sub_fs, FLT_MAX, w - cw - 16 * scale, sub).y + 2 * scale;
+                const float h = std::max(ImGui::GetFrameHeight(), lh + sub_h), ty = p.y + (h - lh - sub_h) * 0.5f;
+                ImDrawList* dl = ImGui::GetWindowDrawList();
+                dl->AddText(font, fs, ImVec2(p.x, ty), ImGui::GetColorU32(ui::kText), label);
+                dl->AddText(font, sub_fs, ImVec2(p.x, ty + lh + 2 * scale), ImGui::GetColorU32(ui::kTextDim), sub, nullptr, w - cw - 16 * scale);
+                ImGui::SetCursorScreenPos(ImVec2(p.x + w - cw, p.y + (h - ImGui::GetFrameHeight()) * 0.5f));
+                ImGui::SetNextItemWidth(cw);
+                ui::combo("##textsize", &text_choice, kTextSizeLabels, static_cast<int>(std::size(kTextSizeLabels)));
+                ui::tooltip_for_item("Menu text size",
+                                     "The text in bbhost's own menus - this window and the in-game F9 and F10 menus - and everything in "
+                                     "them with it, this window's own size included: 150% or 200% for a 1440p or 4K screen. 100% is the "
+                                     "usual size (with Windows' display scaling). A window larger than the screen stops at the screen and "
+                                     "scrolls. Applies at once; F10 has the same setting.");
+                ImGui::SetCursorScreenPos(p);
+                ImGui::Dummy(ImVec2(w, h));
+            }
+            ImGui::Dummy(ImVec2(0, 2 * scale));
             {
                 const std::string sub = check_updates ? updater::status() : std::string("A newer bbhost, from its GitHub releases.");
                 const std::string tip = check_updates ? updater::detail() : std::string();
@@ -1357,6 +1440,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     if (devices_thread.joinable()) devices_thread.join();
     if (plugin_seen && test_shot.empty()) plugin_ui_mark_seen(plugin_ui);
     ui::shutdown();
+    ui::set_animations(true);  // the switch is the setup window's; the in-game screens keep theirs
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();

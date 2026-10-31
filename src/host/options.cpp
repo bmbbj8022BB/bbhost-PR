@@ -100,6 +100,7 @@ enum SettingId {
     kRebirth,
     kFivePlayers,
     kSkillIssue,
+    kMenuTextSize,
     kSettingCount,
 };
 
@@ -264,7 +265,7 @@ Setting g_set[kSettingCount] = {
      "Requires a restart. HLSL (recommended) also builds an optimized version of each of the game's shaders in the background "
      "while you play, used from the next start. Lifted uses bbhost's direct translation only. The picture is the same either way.",
      true},
-    {"skip_logos", "Skip company logos", {"Off", "On"}, 0,
+    {"skip_logos", "Skip company logos", {"Off", "On"}, 1,
      "The three logos before the title screen, and the warning that the last session did not end with Exit Game.", true},
     // Kyo's Giga Performance Patch's post-effects (engine/patch_manifest.cpp's
     // performance-mode), and chromatic aberration through its own setting's mask.
@@ -292,6 +293,14 @@ Setting g_set[kSettingCount] = {
     // Off unless bbhost.toml's [world] turns it on: a joke, not an addition.
     {"skill_issue", "SKILL ISSUE", {"On", "Off"}, 0, "Requires a restart. The death message says SKILL ISSUE instead of YOU DIED.",
      true},
+    // bbhost's own menus - the setup window, F9 and F10 - and everything in
+    // them grow with it (launcher_ui set_scale). 100% is their usual size: the
+    // in-game menus' follows the game's resolution (height / 900), the setup
+    // window's is 1120x720 at Windows' scaling, and grows (host/launcher.cpp).
+    {"menu_text_size", "Menu text size", {"100%", "125%", "150%", "175%", "200%", "250%", "300%", "350%", "400%"}, 0,
+     "The text in bbhost's own menus (this one, F9 and the setup window), and the menus with it. 100% is the usual size; "
+     "the setup window grows with it too. A menu larger than the screen scrolls.",
+     false},
 };
 
 const Row g_rows[] = {
@@ -302,6 +311,7 @@ const Row g_rows[] = {
     {Row::Option, nullptr, kFpsCounter},
     {Row::Option, nullptr, kMemoryCounter},
     {Row::Option, nullptr, kPerfOverlay},
+    {Row::Option, nullptr, kMenuTextSize},
     {Row::Option, nullptr, kFov},
     {Row::Option, nullptr, kCameraDistance},
     {Row::Option, nullptr, kCameraHeight},
@@ -675,6 +685,8 @@ void apply(int id) {
         case kFivePlayers:
         case kSkillIssue:
             break;  // read by the loader before any of this exists
+        case kMenuTextSize:
+            break;  // the menus read it every frame (host_opt_menu_text_scale)
         default: break;
     }
 }
@@ -899,6 +911,7 @@ void host_options_load() {
     seed(kWindowMode, config().window_mode);
     seed(kModelDetail, config().model_detail);
     seed(kShaders, config().shaders);
+    if (config().setup_text_size > 0) seed(kMenuTextSize, std::to_string(config().setup_text_size) + "%");
     for (const int id : {static_cast<int>(kSkipLogos), static_cast<int>(kFrameCap), static_cast<int>(kResolution), static_cast<int>(kWindowMode),
                          static_cast<int>(kModelDetail), static_cast<int>(kShaders), static_cast<int>(kChangeAppearance),
                          static_cast<int>(kRebirth), static_cast<int>(kFivePlayers), static_cast<int>(kSkillIssue)})
@@ -1511,6 +1524,12 @@ void host_opt_set(const char* key, bool on) {
         save();
         return;
     }
+}
+
+float host_opt_menu_text_scale() {
+    const Setting& s = g_set[kMenuTextSize];
+    const int i = std::clamp(s.index, 0, static_cast<int>(s.values.size()) - 1);
+    return static_cast<float>(std::atoi(s.values[static_cast<std::size_t>(i)])) / 100.0f;
 }
 
 int host_opt_index(const char* key) {

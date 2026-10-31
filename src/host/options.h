@@ -67,6 +67,8 @@ void host_opt_set(const char* key, bool on);
 // A setting as the index of its value (mouse_sens: 0..10), and setting it;
 // -1 for an unknown name. Saved at once, like host_opt_set.
 int host_opt_index(const char* key);
+// Menu text size (menu_text_size) as a factor: 1.0 at 100%, 4.0 at 400%.
+float host_opt_menu_text_scale();
 void host_opt_set_index(const char* key, int index);
 // Writes the options file now: the key bindings changed (host/bindings.h).
 void host_options_save_now();

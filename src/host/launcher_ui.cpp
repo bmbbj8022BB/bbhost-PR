@@ -412,10 +412,17 @@ float scale() { return g_scale; }
 ImFont* font_strong() { return g_strong ? g_strong : ImGui::GetFont(); }
 ImFont* font_title() { return g_title ? g_title : font_strong(); }
 
+static bool g_animations = true;
+void set_animations(bool on) { g_animations = on; }
+bool animations() { return g_animations; }
+// Still: a moment when the moon's glow is at its fullest and the Play
+// button's shine is off the button.
+float anim_time() { return g_animations ? static_cast<float>(ImGui::GetTime()) : 2.0f; }
+
 float ease(ImGuiID id, bool on, float speed) {
     const float target = on ? 1.0f : 0.0f;
     float* v = ImGui::GetStateStorage()->GetFloatRef(id ^ 0x5bd1e995u, target);
-    *v += (target - *v) * std::min(1.0f, ImGui::GetIO().DeltaTime * speed);
+    *v += g_animations ? (target - *v) * std::min(1.0f, ImGui::GetIO().DeltaTime * speed) : target - *v;
     if (std::fabs(target - *v) < 0.002f) *v = target;
     return *v;
 }
@@ -424,7 +431,7 @@ void backdrop(float sidebar_w) {
     ImDrawList* dl = ImGui::GetBackgroundDrawList();
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     const ImVec2 o = vp->Pos, size = vp->Size;
-    const float t = static_cast<float>(ImGui::GetTime());
+    const float t = anim_time();
     dl->AddRectFilled(o, o + size, kInk);
     if (g_art.sharp) {
         const float ia = static_cast<float>(g_art.w) / static_cast<float>(g_art.h), wa = size.x / size.y;
@@ -443,6 +450,7 @@ void backdrop(float sidebar_w) {
     dl->AddRectFilledMultiColor(o + ImVec2(0, size.y * 0.42f), o + size, clear, clear, alpha(kInk, 215), alpha(kInk, 215));
     dl->AddRectFilledMultiColor(o, o + ImVec2(size.x, size.y * 0.16f), alpha(kInk, 120), alpha(kInk, 120), clear, clear);
 
+    if (!g_animations) return;  // the motes are motion alone
     if (g_motes.empty()) {
         std::uniform_real_distribution<float> u(0.0f, 1.0f);
         for (int i = 0; i < 46; ++i) {
@@ -657,7 +665,7 @@ void logo(const char* name, const char* version, float width, bool compact) {
     const float s = g_scale;
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 p = ImGui::GetCursorScreenPos();
-    const float t = static_cast<float>(ImGui::GetTime());
+    const float t = anim_time();
     const float top = compact ? 6 * s : 74 * s;
     if (!compact) {
         // The pale moon, breathing, and a few stars about it.
@@ -680,16 +688,25 @@ void logo(const char* name, const char* version, float width, bool compact) {
     }
     // The name, spaced, over a violet glow.
     ImFont* f = font_title();
-    const float fs = 29 * s, tr = 7 * s;
+    float fs = 29 * s, tr = 7 * s;
+    // Smaller where the column is narrower than the name (a large Menu text size).
+    if (const float nw = spaced_width(f, fs, name, tr) + 6 * s; nw > width) {
+        fs *= width / nw;
+        tr *= width / nw;
+    }
     const ImVec2 np(p.x + (width - spaced_width(f, fs, name, tr)) * 0.5f, p.y + top);
     for (int i = 0; i < 8; ++i) {
         const float a = static_cast<float>(i) * IM_PI / 4.0f;
         spaced_text(dl, f, fs, np + ImVec2(std::cos(a), std::sin(a)) * (2.2f * s), c(alpha(kViolet, 46)), name, tr);
     }
     spaced_text(dl, f, fs, np, c(kText), name, tr);
-    const float vs = 12.5f * s;
+    float vs = 12.5f * s;
     ImFont* vf = g_body ? g_body : ImGui::GetFont();
-    const ImVec2 vsz = vf->CalcTextSizeA(vs, FLT_MAX, 0.0f, version);
+    ImVec2 vsz = vf->CalcTextSizeA(vs, FLT_MAX, 0.0f, version);
+    if (vsz.x > width) {  // smaller where the column is narrower (a large Menu text size)
+        vs *= width / vsz.x;
+        vsz = vf->CalcTextSizeA(vs, FLT_MAX, 0.0f, version);
+    }
     dl->AddText(vf, vs, ImVec2(p.x + (width - vsz.x) * 0.5f, np.y + fs + 8 * s), c(kTextFaint), version);
     ImGui::Dummy(ImVec2(width, top + fs + 8 * s + vsz.y + 6 * s));
 }
@@ -803,7 +820,7 @@ bool segmented(const char* id, int* v, const char* const* labels, int n, float w
     const float seg = width / static_cast<float>(n);
     // The lit one slides to the choice.
     float* at = ImGui::GetStateStorage()->GetFloatRef(ImGui::GetID("##at"), static_cast<float>(*v));
-    *at += (static_cast<float>(*v) - *at) * std::min(1.0f, ImGui::GetIO().DeltaTime * 14.0f);
+    *at += g_animations ? (static_cast<float>(*v) - *at) * std::min(1.0f, ImGui::GetIO().DeltaTime * 14.0f) : static_cast<float>(*v) - *at;
     const ImVec2 la(p.x + *at * seg + 3 * s, p.y + 3 * s);
     gradient_rect(dl, la, ImVec2(la.x + seg - 6 * s, p.y + h - 3 * s), kBlue, kViolet, std::max(0.0f, r - 2 * s));
     bool changed = false;
@@ -949,7 +966,15 @@ bool nav_item(const char* label, Icon icon, bool selected, ImU32 dot, const char
     const float lit = std::max(ks, kh * 0.6f);
     draw_icon(dl, icon, ImVec2(p.x + 25 * s, p.y + h * 0.5f), 18 * s, c(mix(kTextDim, kIce, lit)));
     const float fs = ImGui::GetFontSize();
-    dl->AddText(ImVec2(p.x + 48 * s, p.y + (h - fs) * 0.5f - 1 * s), c(mix(kTextDim, kText, lit)), label, ImGui::FindRenderedTextEnd(label));
+    // Cut to the row (a large Menu text size in a narrow sidebar), clear of the badge or dot.
+    // Where not even a few letters fit, the icon alone, the name in its bubble.
+    const std::string name(label, ImGui::FindRenderedTextEnd(label));
+    const float room = w - 48 * s - ((badge && *badge) || dot ? 34 * s : 8 * s);
+    if (room >= ImGui::CalcTextSize("Abc...").x) {
+        dl->AddText(ImVec2(p.x + 48 * s, p.y + (h - fs) * 0.5f - 1 * s), c(mix(kTextDim, kText, lit)), fit_text(name, room).c_str());
+    } else if (hovered) {
+        tooltip(name.c_str(), std::string());
+    }
     if (badge && *badge) {
         const float bs = std::round(fs * 0.8f);
         const ImVec2 bsz = font_strong()->CalcTextSizeA(bs, FLT_MAX, 0.0f, badge);
@@ -969,7 +994,7 @@ bool play_button(const char* label, ImVec2 size, bool enabled) {
     const bool hovered = ImGui::IsItemHovered(), held = ImGui::IsItemActive();
     ImGui::EndDisabled();
     const float kh = ease(ImGui::GetItemID(), hovered && enabled, 10.0f);
-    const float t = static_cast<float>(ImGui::GetTime());
+    const float t = anim_time();
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const float r = 12 * s;
     if (enabled) {

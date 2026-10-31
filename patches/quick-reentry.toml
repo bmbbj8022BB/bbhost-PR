@@ -13,7 +13,7 @@
 # that picks the 0 becomes a `jmp`, so every load takes it; the multiplayer
 # wait and the readiness check stay the game's. Measured: respawns 2.2-2.7 s,
 # a lamp's travel 2.6 s; the first frames after arrival hitch no more than
-# after a 12 s load. Off unless `quick_reentry = true` under [loading] in
+# after a 12 s load. On unless `quick_reentry = false` under [loading] in
 # bbhost.toml (the setup window's Patches tab writes it; BBHOST_QUICK_REENTRY=0
 # or 1 overrides).
 [patch]

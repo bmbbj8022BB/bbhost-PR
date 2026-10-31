@@ -6,8 +6,10 @@
 #include "hle/platform.h"
 #include "hle/hle.h"
 #include "engine/guest.h"
+#include "engine/lua_events.h"
 #include "engine/menu_pointer.h"
 #include "host/bindings.h"
+#include "engine/world_chr.h"
 #include "host/gpu.h"
 #include "core/config.h"
 #include "host/window.h"
@@ -377,6 +379,14 @@ void test_requests(std::uint64_t display_va, std::uint64_t count) {
         } else if (verb == "f12") {
             host_log("test: F12 capture %s asked for at flip %llu", arg.empty() ? "-" : arg.c_str(), static_cast<unsigned long long>(count));
             host_gpu_request_dump();
+        } else if (verb == "remo" && !arg.empty()) {
+            const bool ok = remo_request_queue(std::atoi(arg.c_str()), arg2.empty() ? 0 : std::atoi(arg2.c_str()));
+            host_log("test: cutscene %s (method %s) at flip %llu%s", arg.c_str(), arg2.empty() ? "0" : arg2.c_str(),
+                     static_cast<unsigned long long>(count), ok ? "" : ": not queued");
+        } else if (verb == "travel" && !arg.empty()) {
+            const bool ok = world_lamp_warp_queue(std::atoi(arg.c_str()));
+            host_log("test: lamp travel to return point %s at flip %llu%s", arg.c_str(), static_cast<unsigned long long>(count),
+                     ok ? "" : ": not queued (BBHOST_TEST_WARP=1, in the world)");
         } else if (verb == "exit") {
             host_log("test: exit asked for at flip %llu", static_cast<unsigned long long>(count));
             g_test_exit.store(true);

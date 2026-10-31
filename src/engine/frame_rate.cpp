@@ -1328,6 +1328,15 @@ float pace_target() {
     return swing_target(1.0f / static_cast<float>(g_game_fps));
 }
 
+// BBHOST_TEST_STEP_FPS=N (a test switch): every frame's step is exactly 1/N
+// whatever the frame took - what a machine running N frames a second gives
+// the game, at the speed this one manages (game time runs slower than real).
+const float g_test_step = [] {
+    const char* e = std::getenv("BBHOST_TEST_STEP_FPS");
+    const int n = e && *e ? std::atoi(e) : 0;
+    return n >= 30 && n <= 2000 ? 1.0f / static_cast<float>(n) : 0.0f;
+}();
+
 // After the update, at every converted rate, for the frame about to run: the
 // task step (kStepLoad) - the measured frame time clamped to [target, 1/30]
 // as the 60 FPS++ cave has it (a loading screen has no target: the measured
@@ -1342,7 +1351,8 @@ float pace_target() {
 void each_frame(const SprjFlipper* f) {
     const float scale = g_scale_by_step.load(std::memory_order_relaxed) ? g_time_scale.load(std::memory_order_relaxed) : 1.0f;
     const auto scaled = [scale](float s) { return scale == 1.0f ? s : std::min(s * scale, kThirtieth); };
-    const float step = scaled(std::min(std::max(f->measured_frame_seconds, f->target_frame_seconds), kThirtieth));
+    const float measured = g_test_step > 0.0f ? g_test_step : f->measured_frame_seconds;
+    const float step = scaled(std::min(std::max(measured, g_test_step > 0.0f ? g_test_step : f->target_frame_seconds), kThirtieth));
     if (step > 0.0f) {  // also NaN: the cave keeps the last step
         frame_tick_frame(step);  // the fixed ticks' count for this frame (engine/frame_tick.h)
         if (g_step_va) put<float>(g_step_va, step);
@@ -1377,7 +1387,7 @@ void each_frame(const SprjFlipper* f) {
         decomp_water_step_frame(water_between);
     }
     const float floor_s = std::max(f->target_frame_seconds, 1.0f / static_cast<float>(g_game_fps));
-    const float dt = scaled(std::min(std::max(f->measured_frame_seconds, floor_s), kThirtieth));
+    const float dt = g_test_step > 0.0f ? scaled(g_test_step) : scaled(std::min(std::max(f->measured_frame_seconds, floor_s), kThirtieth));
     if (!(dt > 0.0f)) return;  // also NaN
     frame_rate_step::g_frame_seconds.store(dt, std::memory_order_relaxed);
     const double fps = 1.0 / static_cast<double>(dt);

@@ -45,11 +45,11 @@ struct HostConfig {
     std::string shaders;       // video.shaders: the Shaders setting's default ("HLSL" or "Lifted")
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     bool headless = false;     // video.headless / --headless / BBHOST_HEADLESS=1
-    bool skip_intro = false;   // startup.skip_intro / BBHOST_SKIP_INTRO=0|1: the three company logos only
+    bool skip_intro = true;    // startup.skip_intro / BBHOST_SKIP_INTRO=0|1: the three company logos only
     // loading.quick_reentry / BBHOST_QUICK_REENTRY=0|1: a load after a death or
     // lamp travel ends when the area is ready, not after the game's 12-second
-    // minimum (engine/loading.h). Off until turned on, like every shipped patch.
-    bool quick_reentry = false;
+    // minimum (engine/loading.h). On unless turned off.
+    bool quick_reentry = true;
     // streaming.all_post_processors / BBHOST_ALL_POST_PROCESSORS=0|1: all three
     // resource post-processors in play, not two (patches/ingame-post-processors.toml).
     bool all_post_processors = false;
@@ -80,6 +80,14 @@ struct HostConfig {
     // is true, a build from source's false (its harnesses never stop there);
     // BBHOST_SETUP_WINDOW=0|1 overrides.
     bool setup_always = false;
+    // startup.setup_animations: the setup window's motion - the drifting
+    // painting and its motes, the moon's breathing, the Play button's pulse
+    // and shine, the page fade, the eased highlights. Off, it stands still.
+    bool setup_animations = true;
+    // startup.setup_text_size: Menu text size's default in percent (100-400;
+    // 0 none), for the setup window, F9 and F10 alike; the options file
+    // (menu_text_size, host/options.cpp) holds the player's choice.
+    int setup_text_size = 0;
     // debug.tooling / BBHOST_TOOLING=0|1 (the setup window's Settings page): the
     // periodic reports and the instrumentation behind them (log.h,
     // host_tooling). Off, a run logs its start, warnings and errors only.
