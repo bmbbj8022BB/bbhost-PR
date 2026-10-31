@@ -1,5 +1,11 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "host/launcher_ui.h"
+#include "core/config.h"
+#include "host/i18n.h"
+
+#include <fstream>
+#include <iterator>
+#include <vector>
 
 #include "log.h"
 
@@ -154,6 +160,27 @@ void draw_switch(ImDrawList* dl, ImVec2 p, float k, bool hovered) {
     dl->AddCircleFilled(ImVec2(x, p.y + r), kr, c(mix(kTextDim, IM_COL32(250, 251, 255, 255), 0.4f + 0.6f * k)));
 }
 
+// The Korean interface: the language is set once from [ui] language, and its
+// Hangul font (ui.font, else the system's) is merged into each font just
+// added. 1.92 draws glyphs from it as they are needed. The file is read once
+// and shared by every merge.
+void merge_hangul() {
+    if (!i18n::active()) return;
+    static std::vector<char> data;
+    static bool tried = false;
+    if (!tried) {
+        tried = true;
+        const std::string path = i18n::find_font(config().ui_font);
+        std::ifstream in(path, std::ios::binary);
+        if (!path.empty() && in) data.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+    if (data.empty()) return;
+    ImFontConfig cfg;
+    cfg.MergeMode = true;
+    cfg.FontDataOwnedByAtlas = false;
+    ImGui::GetIO().Fonts->AddFontFromMemoryTTF(data.data(), static_cast<int>(data.size()), 0.0f, &cfg);
+}
+
 // Fonts: the first of `names` that exists - under %WINDIR%\Fonts on
 // Windows, whole paths elsewhere.
 ImFont* add_font(std::initializer_list<const char*> names) {
@@ -167,15 +194,22 @@ ImFont* add_font(std::initializer_list<const char*> names) {
         std::error_code ec;
         if (!std::filesystem::is_regular_file(path, ec)) continue;
         // 1.92's atlas adds glyphs as they are drawn: no ranges.
-        if (ImFont* f = ImGui::GetIO().Fonts->AddFontFromFileTTF(path.c_str())) return f;
+        if (ImFont* f = ImGui::GetIO().Fonts->AddFontFromFileTTF(path.c_str())) {
+            merge_hangul();
+            return f;
+        }
     }
     return nullptr;
 }
 
 void load_fonts() {
+    if (i18n::language() != config().ui_language) i18n::set_language(config().ui_language);
 #if defined(_WIN32)
     g_body = add_font({"segoeui.ttf"});
-    if (!g_body) g_body = ImGui::GetIO().Fonts->AddFontDefault();
+    if (!g_body) {
+        g_body = ImGui::GetIO().Fonts->AddFontDefault();
+        merge_hangul();
+    }
     g_strong = add_font({"seguisb.ttf", "segoeuib.ttf"});
     g_title = add_font({"pala.ttf", "georgia.ttf", "constan.ttf"});
 #else
@@ -185,7 +219,10 @@ void load_fonts() {
                        "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf",
                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
                        "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"});
-    if (!g_body) g_body = ImGui::GetIO().Fonts->AddFontDefault();
+    if (!g_body) {
+        g_body = ImGui::GetIO().Fonts->AddFontDefault();
+        merge_hangul();
+    }
     g_strong = add_font({"/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf", "/usr/share/fonts/noto/NotoSans-SemiBold.ttf",
                          "/usr/share/fonts/google-noto/NotoSans-SemiBold.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
                          "/usr/share/fonts/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -723,17 +760,29 @@ void draw_icon(ImDrawList* dl, Icon icon, ImVec2 at, float size, ImU32 col) {
     }
 }
 
+// The bytes of the UTF-8 character at `ch` (Hangul takes three). Letter-spaced
+// text steps by whole characters, so a translation draws as itself.
+static int utf8_len(const char* ch) {
+    const unsigned char c0 = static_cast<unsigned char>(*ch);
+    const int n = c0 < 0xC0 ? 1 : c0 < 0xE0 ? 2 : c0 < 0xF0 ? 3 : 4;
+    for (int i = 1; i < n; ++i) {
+        if ((static_cast<unsigned char>(ch[i]) & 0xC0) != 0x80) return i;
+    }
+    return n;
+}
+
 float spaced_width(ImFont* font, float size, const char* text, float tracking) {
     float w = 0;
     int n = 0;
-    for (const char* ch = text; *ch; ++ch, ++n) w += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, ch + 1).x;
+    for (const char* ch = text; *ch; ch += utf8_len(ch), ++n) w += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, ch + utf8_len(ch)).x;
     return n ? w + tracking * static_cast<float>(n - 1) : 0.0f;
 }
 
 void spaced_text(ImDrawList* dl, ImFont* font, float size, ImVec2 pos, ImU32 col, const char* text, float tracking) {
-    for (const char* ch = text; *ch; ++ch) {
-        dl->AddText(font, size, pos, col, ch, ch + 1);
-        pos.x += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, ch + 1).x + tracking;
+    for (const char* ch = text; *ch; ch += utf8_len(ch)) {
+        const char* end = ch + utf8_len(ch);
+        dl->AddText(font, size, pos, col, ch, end);
+        pos.x += font->CalcTextSizeA(size, FLT_MAX, 0.0f, ch, end).x + tracking;
     }
 }
 
@@ -947,6 +996,7 @@ bool combo(const char* id, int* v, const char* const* items, int n, const char* 
 std::string fit_left(const std::string& text, float width) {
     if (ImGui::CalcTextSize(text.c_str()).x <= width) return text;
     for (std::size_t cut = 1; cut < text.size(); ++cut) {
+        if ((static_cast<unsigned char>(text[cut]) & 0xC0) == 0x80) continue;  // whole UTF-8 characters
         const std::string t = "..." + text.substr(cut);
         if (ImGui::CalcTextSize(t.c_str()).x <= width) return t;
     }
@@ -1015,11 +1065,13 @@ void avatar(const std::string& name, float size) {
     dl->AddCircleFilled(mid, r, c(IM_COL32_WHITE));
     ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, v0, dl->VtxBuffer.Size, p, p + ImVec2(size, size), kBlue, kViolet);
     dl->AddCircle(mid, r, c(alpha(kIce, 110)), 0, 1.0f);
-    const char initial[2] = {static_cast<char>(std::toupper(static_cast<unsigned char>(name[0]))), 0};
+    // The name's first character: upper-cased when it is plain ASCII, whole when it is Hangul or the like.
+    std::string initial = name.substr(0, static_cast<std::size_t>(utf8_len(name.c_str())));
+    if (initial.size() == 1) initial[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(initial[0])));
     ImFont* f = font_strong();
     const float fs = size * 0.48f;
-    const ImVec2 ts = f->CalcTextSizeA(fs, FLT_MAX, 0.0f, initial);
-    dl->AddText(f, fs, mid - ts * 0.5f, c(kText), initial);
+    const ImVec2 ts = f->CalcTextSizeA(fs, FLT_MAX, 0.0f, initial.c_str());
+    dl->AddText(f, fs, mid - ts * 0.5f, c(kText), initial.c_str());
 }
 
 bool nav_item(const char* label, Icon icon, bool selected, ImU32 dot, const char* badge) {
@@ -1179,18 +1231,23 @@ void tooltip(const char* title, const std::string& body, const std::string& note
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14 * s, 11 * s));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8 * s, 5 * s));
     if (ImGui::BeginTooltip()) {
+        // Every tooltip passes through the translation table here, so a caller
+        // that hands over plain English (a settings table, a tips array) is
+        // translated too; text already translated, or built at run time and
+        // not in the table, comes back unchanged.
+        const std::string body_t = i18n::trs(body), note_t = i18n::trs(note);
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 340 * s);
         if (title && *title) {
             ImGui::PushFont(font_strong(), 0.0f);
             ImGui::PushStyleColor(ImGuiCol_Text, kIce);
-            ImGui::TextUnformatted(title);
+            ImGui::TextUnformatted(i18n::tr(title));
             ImGui::PopStyleColor();
             ImGui::PopFont();
         }
-        if (!body.empty()) ImGui::TextUnformatted(body.c_str());
-        if (!note.empty()) {
+        if (!body_t.empty()) ImGui::TextUnformatted(body_t.c_str());
+        if (!note_t.empty()) {
             ImGui::PushStyleColor(ImGuiCol_Text, kTextDim);
-            ImGui::TextUnformatted(note.c_str());
+            ImGui::TextUnformatted(note_t.c_str());
             ImGui::PopStyleColor();
         }
         ImGui::PopTextWrapPos();
