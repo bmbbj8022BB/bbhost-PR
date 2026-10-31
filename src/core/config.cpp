@@ -159,6 +159,8 @@ void apply_values(const std::map<std::string, std::string>& kv, HostConfig* c) {
     str("update.token_file", &c->update_token_file);
     str("player.name", &c->player_name);
     str("player.ime", &c->ime_mode);
+    str("ui.language", &c->ui_language);
+    str("ui.font", &c->ui_font);
     num("video.width", &c->width);
     num("video.height", &c->height);
     num("video.fps_cap", &c->fps_cap);
@@ -1038,7 +1040,10 @@ bool config_write_template(const std::string& path) {
            "# the network password - are typed in a box over the game (Enter\n"
            "# accepts, Escape cancels). auto: the name is `name` at once.\n"
            "ime = \"type\"\n"
-           "\n[video]\n"
+           "\n[ui]\n"
+           "# The setup window's language: \"en\" (default) or \"ko\" (Korean).\n"
+           "language = \"en\"\n"
+                      "\n[video]\n"
            "width = 1920\n"
            "height = 1080\n"
            "fps_cap = 30\n"
