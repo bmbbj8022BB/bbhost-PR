@@ -1086,10 +1086,26 @@ bool play_button(const char* label, ImVec2 size, bool enabled) {
         const float ph = std::fmod(t, 3.6f) / 3.6f;
         const float bw = size.x * 0.16f, x = p.x - bw * 1.5f + ph * (size.x * 2.4f);
         if (x < q.x) {
-            dl->PushClipRect(p + ImVec2(r * 0.3f, 0), q - ImVec2(r * 0.3f, 0), true);
-            dl->AddQuadFilled(ImVec2(x, q.y), ImVec2(x + bw * 0.6f, p.y), ImVec2(x + bw * 1.2f, p.y), ImVec2(x + bw * 0.6f, q.y),
-                              c(IM_COL32(255, 255, 255, 30)));
-            dl->PopClipRect();
+            // The band (slanted 0.6 bw across the height, 0.6 bw wide) cut to
+            // the button's rounded outline, corners included, at any scale.
+            dl->PathRect(p, q, r);
+            ImVector<ImVec2> shape;
+            shape.swap(dl->_Path);
+            dl->PathClear();
+            const float lean = bw * 0.6f / size.y;
+            const auto across = [&](const ImVec2& v) { return v.x - (x + (q.y - v.y) * lean); };  // 0 .. 0.6 bw inside
+            for (int side = 0; side < 2; ++side) {
+                const auto inside = [&](const ImVec2& v) { return side ? bw * 0.6f - across(v) : across(v); };
+                ImVector<ImVec2> kept;
+                for (int i = 0; i < shape.Size; ++i) {
+                    const ImVec2 a = shape[i], b = shape[(i + 1) % shape.Size];
+                    const float da = inside(a), db = inside(b);
+                    if (da >= 0) kept.push_back(a);
+                    if ((da >= 0) != (db >= 0)) kept.push_back(a + (b - a) * (da / (da - db)));
+                }
+                shape.swap(kept);
+            }
+            if (shape.Size >= 3) dl->AddConvexPolyFilled(shape.Data, shape.Size, c(IM_COL32(255, 255, 255, 30)));
         }
     }
     if (held && enabled) dl->AddRectFilled(p, q, c(IM_COL32(0, 0, 0, 44)), r);
