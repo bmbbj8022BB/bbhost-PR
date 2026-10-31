@@ -257,6 +257,12 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
     char scheme[8] = {};
     std::snprintf(scheme, sizeof(scheme), "%s", cfg.online_scheme.empty() ? "http" : cfg.online_scheme.c_str());
     bool verify_tls = cfg.online_verify_tls, require_account = cfg.online_require_account;
+    // The interface language, 0 English and 1 Korean ([ui] language). The
+    // fonts and the language are read once, at the start, so a change here is
+    // saved at once and the window starts again (relaunch_setup_window). Korean
+    // needs a font with Hangul: without one the choice is shut.
+    int language = cfg.ui_language == "ko" ? 1 : 0;
+    const bool have_hangul = !i18n::find_font(cfg.ui_font).empty();
 #if defined(BBHOST_RELEASE_BUILD)
     bool check_updates = cfg.update_check != 0;
 #else
@@ -439,6 +445,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         if (!f[kToken].str().empty()) e.push_back({"update", "token_file", toml_string(saved_path(f[kToken].str()))});
         e.push_back({"startup", "setup_window", show_every_start ? "true" : "false"});
         e.push_back({"debug", "tooling", tooling ? "true" : "false"});
+        e.push_back({"ui", "language", language == 1 ? "\"ko\"" : "\"en\""});
         // What this bbhost's file looks like (core/config.h): a value saved
         // from here is a choice.
         e.push_back({"bbhost", "config_version", std::to_string(kUserConfigVersion)});
@@ -736,6 +743,44 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
 
         if (page == kPageGame) {
             const float w = ImGui::GetContentRegionAvail().x;
+            // The language, at the heading's right: a new one saves everything
+            // and starts the window again in it.
+            {
+                const char* const langs[2] = {tr("English"), tr("Korean")};
+                const float lang_w = std::round(150 * scale);
+                const ImVec2 back = head_actions(lang_w);
+                int chosen = language;
+                ImGui::SetNextItemWidth(lang_w);
+                ImGui::BeginDisabled(compiling || !have_hangul);
+                const bool picked = ui::combo("##language", &chosen, langs, 2);
+                // A shut item shows no bubble of its own: ask for it, and draw it
+                // outside the shut part (it would be dimmed inside).
+                const bool lang_hover = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled);
+                ImGui::EndDisabled();
+                if (lang_hover) {
+                    if (compiling)
+                        ui::tooltip(tr("Language"), tr("Can't change the language while shaders are compiling. Wait for it to finish or cancel it."));
+                    else if (!have_hangul)
+                        ui::tooltip(tr("Language"), tr("No font with Korean letters was found. Set [ui] font in bbhost.toml to one."));
+                    else
+                        ui::tooltip(tr("Language"), tr("Saves your settings and starts the launcher again in the language you pick."));
+                }
+                ImGui::SetCursorScreenPos(back);
+                if (picked && chosen != language) {
+                    const int before = language;
+                    language = chosen;
+                    std::string why;
+                    if (!save()) {
+                        language = before;  // saved_note says why it could not
+                    } else if (relaunch_setup_window(why)) {
+                        result = LauncherResult::Restart;
+                        done = true;
+                    } else {
+                        saved_note = tf("Saved, but it could not start again (%s). Close bbhost and open it again.", why.c_str());
+                        saved_ok = false;
+                    }
+                }
+            }
             // Why the window opened, until the paths are right: a welcome
             // when nothing is set yet.
             if (!reason.empty() && !(app0_ok && eboot.ok)) {

@@ -263,6 +263,36 @@ ShaderCompileJob::~ShaderCompileJob() {
     if (proc_) SDL_DestroyProcess(static_cast<SDL_Process*>(proc_));
 }
 
+namespace {
+// This executable, by its own path.
+std::string self_exe_path() {
+    std::string name = g_exe_name;
+#if defined(_WIN32)
+    if (name.empty()) name = "bbhost.exe";
+    if (name.size() < 4 || name.compare(name.size() - 4, 4, ".exe") != 0) name += ".exe";
+#else
+    if (name.empty()) name = "bbhost";
+#endif
+    return config_exe_dir() + "/" + name;
+}
+}  // namespace
+
+bool relaunch_setup_window(std::string& error) {
+    std::vector<std::string> args{self_exe_path(), "--setup"};
+    args.insert(args.end(), g_args.begin(), g_args.end());
+    std::vector<const char*> argv;
+    for (const std::string& a : args) argv.push_back(a.c_str());
+    argv.push_back(nullptr);
+    // No pipes: the new process has the console and the window of its own.
+    SDL_Process* p = SDL_CreateProcess(argv.data(), false);
+    if (!p) {
+        error = SDL_GetError();
+        return false;
+    }
+    SDL_DestroyProcess(p);  // only lets go of the handle; the process goes on
+    return true;
+}
+
 bool ShaderCompileJob::start(std::string& error) {
     if (running()) return true;
     if (thread_.joinable()) thread_.join();
@@ -271,14 +301,7 @@ bool ShaderCompileJob::start(std::string& error) {
         proc_ = nullptr;
     }
     // This executable again, by its own path.
-    std::string name = g_exe_name;
-#if defined(_WIN32)
-    if (name.empty()) name = "bbhost.exe";
-    if (name.size() < 4 || name.compare(name.size() - 4, 4, ".exe") != 0) name += ".exe";
-#else
-    if (name.empty()) name = "bbhost";
-#endif
-    const std::string exe = config_exe_dir() + "/" + name;
+    const std::string exe = self_exe_path();
     std::vector<std::string> args{exe, "--compile-shaders"};
     args.insert(args.end(), g_args.begin(), g_args.end());
     std::vector<const char*> argv;

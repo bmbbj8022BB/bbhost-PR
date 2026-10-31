@@ -557,7 +557,7 @@ msgid "English, or the developers' original Japanese."
 msgstr "영어 또는 개발자들의 원래 일본어입니다."
 
 msgid "English"
-msgstr "영어"
+msgstr "English"
 
 msgid "Japanese"
 msgstr "일본어"
@@ -1155,6 +1155,24 @@ msgstr "DXC 모듈 사용 %llu개(이번에 컴파일 %llu개), lift 유지 %llu
 
 msgid "Applies at the next start."
 msgstr "다음 시작 때 적용됩니다."
+
+msgid "Korean"
+msgstr "한국어"
+
+msgid "Language"
+msgstr "언어"
+
+msgid "Can't change the language while shaders are compiling. Wait for it to finish or cancel it."
+msgstr "셰이더를 컴파일하는 동안에는 언어를 바꿀 수 없습니다. 끝나거나 취소한 뒤에 바꾸세요."
+
+msgid "No font with Korean letters was found. Set [ui] font in bbhost.toml to one."
+msgstr "한글이 들어 있는 글꼴을 찾지 못했습니다. bbhost.toml의 [ui] font에 글꼴 파일을 지정하세요."
+
+msgid "Saves your settings and starts the launcher again in the language you pick."
+msgstr "설정을 저장하고, 고른 언어로 런처를 다시 시작합니다."
+
+msgid "Saved, but it could not start again (%s). Close bbhost and open it again."
+msgstr "저장했지만 다시 시작하지 못했습니다(%s). bbhost를 닫았다가 다시 여세요."
 
 msgid "Finished"
 msgstr "완료"
