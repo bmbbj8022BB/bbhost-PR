@@ -85,7 +85,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN | BB_PLUGIN_GAMEPLAY,
     "quake",
     "Quake",
-    "0.3.10",
+    "0.3.11",
     "Kyo",
     "First person with Quake 3's movement and view: strafe jumping, bunny hopping, crouching, and the bob, roll and "
     "landing dip of Quake 3's camera.",
@@ -403,8 +403,32 @@ void face(std::uint8_t* phys, float yaw) {
 // props, breakables, ragdolls and every other character fall by, is never
 // touched - and gravity goes back the moment the player dies, so the death
 // falls as the game has it.
+//
+// The Restore Debug Dash patch hooks the character's movement step (a jump at
+// 0x1cbd711 over its vmovss [rbp-0x7c], xmm0) and, with the dash off, clears
+// that same no-gravity bit on the player every step: the game's gravity then
+// holds the hunter to the floor under every jump. While Quake has the player
+// the step's own instruction goes back in place of the jump - the dash is
+// Left Ctrl, Quake's crouch, anyway - and the hook returns with the player.
+constexpr std::uint64_t kDashSite = 0x1cbd711;
+constexpr std::uint8_t kDashOwn[5] = {0xc5, 0xfa, 0x11, 0x45, 0x84};
+constexpr std::uint8_t kDashHook[5] = {0xe9, 0xce, 0xe1, 0x07, 0x03};
+bool g_dash_lifted = false;
+
+void lift_dash(bool lift) {
+    if (lift == g_dash_lifted) return;
+    if (lift) {
+        if (g.api->patch(kDashSite, kDashHook, kDashOwn, sizeof kDashOwn) != 0) return;  // no dash patch
+        g.log("quake: the debug dash's hook set aside while Quake has the player (it clears the no-gravity bit)");
+    } else if (g.api->patch(kDashSite, kDashOwn, kDashHook, sizeof kDashHook) != 0) {
+        g.log("quake: the debug dash's hook could not be put back");
+    }
+    g_dash_lifted = lift;
+}
+
 void hold_body(std::uint8_t* chr, bool weightless, bool hidden) {
     if (!chr) return;
+    lift_dash(weightless);
     std::uint8_t& f1 = at<std::uint8_t>(chr, 0x1e1);
     std::uint8_t& f2 = at<std::uint8_t>(chr, 0x1e2);
     if (weightless) f1 |= 0x40;
@@ -2518,6 +2542,7 @@ void take_input(bool on, bool moving = true) {
 void release() {
     g_on_ladder = false;
     if (g_held) hold_body(g_held, false, false);
+    lift_dash(false);
     vm_release(g_held ? g_held : player());
     g_held = nullptr;
     if (g_active) take_input(false);
