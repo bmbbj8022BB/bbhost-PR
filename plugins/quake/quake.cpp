@@ -85,7 +85,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN | BB_PLUGIN_GAMEPLAY,
     "quake",
     "Quake",
-    "0.3.11",
+    "0.3.12",
     "Kyo",
     "First person with Quake 3's movement and view: strafe jumping, bunny hopping, crouching, and the bob, roll and "
     "landing dip of Quake 3's camera.",
@@ -2484,6 +2484,13 @@ V3 g_prev_origin;
 double g_off_dump = 0.0;  // QUAKE_OFF_AFTER: a frame dump due then
 
 bool g_on_ladder = false;
+// Off the rungs, still in the game's hands until its climb-off stops moving
+// the hunter: when that began (-1 none), when they last moved, where they were.
+double g_ladder_exit_ms = -1.0, g_ladder_still_ms = 0.0;
+V3 g_ladder_last;
+constexpr float kLadderStill = 0.002f;     // metres a frame that count as standing still
+constexpr double kLadderSettleMs = 150.0;  // that long still and the climb-off is over
+constexpr double kLadderExitMs = 3000.0;   // and never longer than this
 
 // The barrels turn by the gun model's own animations (parts wp_a_1750's
 // anibnd), which the game plays as the hunter's firing animations play (a150
@@ -2541,6 +2548,7 @@ void take_input(bool on, bool moving = true) {
 
 void release() {
     g_on_ladder = false;
+    g_ladder_exit_ms = -1.0;
     if (g_held) hold_body(g_held, false, false);
     lift_dash(false);
     vm_release(g_held ? g_held : player());
@@ -2703,8 +2711,28 @@ void camera(BbCamera& cam) {
     const bool dead = hp == 0;
     // On a ladder (its state 0 and up; -1 off it) the climb is the game's:
     // its gravity, its keys, its placing - the view stays the eye, and Quake
-    // takes the player back at the top or the bottom.
-    const bool ladder = ladder_state(chr) >= 0;
+    // takes the player back at the top or the bottom. The state ends as the
+    // hunter lets go of the rungs, before the climb over the top has carried
+    // them onto the ledge: the game keeps the player while its animation
+    // still moves them, and Quake takes them back once they stand still.
+    const int rungs = ladder_state(chr);
+    static int rungs_was = -1;
+    if (rungs != rungs_was) {
+        if (g_log) g.log("quake: ladder state %d", rungs);
+        rungs_was = rungs;
+    }
+    if (rungs >= 0) {
+        g_ladder_exit_ms = -1.0;
+    } else if (g_on_ladder && g_ladder_exit_ms < 0.0) {
+        g_ladder_exit_ms = g_ladder_still_ms = view.ms;
+    }
+    const V3 now_at = read_position(phys);
+    if (g_ladder_exit_ms >= 0.0 && length(now_at - g_ladder_last) > kLadderStill) g_ladder_still_ms = view.ms;
+    g_ladder_last = now_at;
+    const bool climbing_off = g_ladder_exit_ms >= 0.0 && view.ms - g_ladder_still_ms < kLadderSettleMs &&
+                              view.ms - g_ladder_exit_ms < kLadderExitMs;
+    if (g_ladder_exit_ms >= 0.0 && !climbing_off) g_ladder_exit_ms = -1.0;
+    const bool ladder = rungs >= 0 || climbing_off;
     if (ladder != g_on_ladder) {
         g_on_ladder = ladder;
         take_input(true, !ladder);
