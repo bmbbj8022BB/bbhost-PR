@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <string>
 #include <string_view>
 #include <mutex>
@@ -788,6 +789,19 @@ void save() {
         std::fprintf(f, "%s = \"%s\"\n", s.key, s.values[static_cast<std::size_t>(index)]);
     }
     host_bindings_save(f);
+    // The pad: [input] and [input.pad] (host/window.cpp, pad_remap). Written
+    // whole each time, so the file keeps what it was read with.
+    {
+        const HostConfig& c = config();
+        std::fprintf(f, "\n[input]\n");
+        std::fprintf(f, "swap_ab = \"%s\"\n", c.input_swap_ab.c_str());
+        std::fprintf(f, "back_short = \"%s\"\n", c.input_back_short.c_str());
+        std::fprintf(f, "back_long_ms = \"%d\"\n", c.input_back_long_ms);
+        std::fprintf(f, "\n[input.pad]\n");
+        std::fprintf(f, "# Pad buttons remapped: south east west north l1 r1 l3 r3 start back touchpad dpad_*\n");
+        std::fprintf(f, "# = what they press (see bbhost.example.toml). A button not listed keeps its own.\n");
+        for (const auto& kv : c.input_pad) std::fprintf(f, "%s = \"%s\"\n", kv.first.c_str(), kv.second.c_str());
+    }
     // The account: its name and token.
     if (net::account_logged_in()) {
         std::fprintf(f, "[account]\nname = \"%s\"\ntoken = \"%s\"\n", net::account_name().c_str(),
@@ -993,10 +1007,17 @@ void host_options_load() {
         g_default_index[static_cast<std::size_t>(id)] = g_set[id].index;
     const std::string path = options_path();
     FILE* f = std::fopen(path.c_str(), "r");
+    // The pad ([input], [input.pad]): read here, applied after the file is closed.
+    bool input_section = false, pad_section = false;
+    std::string pad_swap_ab, pad_back_short;
+    int pad_back_long_ms = 0;
+    std::map<std::string, std::string> pad_buttons;
     if (f) {
         char line[512];
         bool keys = false;  // in [keys]: bindings, not settings
         bool account = false;  // in [account]: the name and token
+        bool in_input = false;  // in [input]: swap_ab, back_short, back_long_ms
+        bool in_pad = false;    // in [input.pad]: the pad's buttons remapped
         std::string acct_name, acct_token;
         int file_version = 1;
         bool old_hunters_off = false;  // v0.2.9's PC enhancement, turned off
@@ -1005,6 +1026,10 @@ void host_options_load() {
             if (line[0] == '[') {
                 keys = std::strncmp(line, "[keys]", 6) == 0;
                 account = std::strncmp(line, "[account]", 9) == 0;
+                in_pad = std::strncmp(line, "[input.pad]", 11) == 0;
+                in_input = !in_pad && std::strncmp(line, "[input]", 7) == 0;
+                if (in_pad) pad_section = true;
+                if (in_input) input_section = true;
                 continue;
             }
             char* eq = std::strchr(line, '=');
@@ -1033,6 +1058,16 @@ void host_options_load() {
             if (account) {
                 if (key == "name") acct_name = val;
                 if (key == "token") acct_token = val;
+                continue;
+            }
+            if (in_pad) {
+                pad_buttons[key] = val;
+                continue;
+            }
+            if (in_input) {
+                if (key == "swap_ab") pad_swap_ab = val;
+                if (key == "back_short") pad_back_short = val;
+                if (key == "back_long_ms") pad_back_long_ms = std::atoi(val.c_str());
                 continue;
             }
             if (key == "version") {
@@ -1124,6 +1159,44 @@ void host_options_load() {
             }
         }
         host_log("options: read %s", path.c_str());
+    }
+    // The pad's remapping lives in this file ([input], [input.pad]). What the
+    // file holds replaces what bbhost.toml read; a file that has neither yet
+    // takes bbhost.toml's (an older install) and is saved with them, so the
+    // pad is kept here from then on.
+    {
+        HostConfig& c = config_mutable();
+        if (input_section) {
+            if (!pad_swap_ab.empty()) c.input_swap_ab = pad_swap_ab;
+            c.input_back_short = pad_back_short;
+            if (pad_back_long_ms > 0) c.input_back_long_ms = pad_back_long_ms;
+        }
+        if (pad_section) c.input_pad = pad_buttons;
+        const bool toml_has_pad = !c.input_pad.empty() || c.input_swap_ab != "auto" || !c.input_back_short.empty() ||
+                                  c.input_back_long_ms != 450;
+        if (!input_section && !pad_section && toml_has_pad) {
+            host_log("options: pad remapping moved from bbhost.toml to %s", path.c_str());
+            g_dirty = true;
+            save();
+            // Moved: take the pad's sections out of the config files it came
+            // from, once the options file is known to hold them.
+            bool saved = false;
+            {
+                std::ifstream chk(path);
+                for (std::string l; std::getline(chk, l);) saved = saved || l.rfind("[input.pad]", 0) == 0;
+            }
+            if (saved) {
+                const std::string layers = c.config_layers;
+                for (std::size_t at = 0; at < layers.size();) {
+                    std::size_t end = layers.find(" <- ", at);
+                    if (end == std::string::npos) end = layers.size();
+                    const std::string file = layers.substr(at, end - at);
+                    if (!file.empty() && file != path && config_remove_sections(file, {"input", "input.pad"}))
+                        host_log("options: [input] and [input.pad] taken out of %s", file.c_str());
+                    at = end + 4;
+                }
+            }
+        }
     }
     // BBHOST_ACCOUNT=name:token, for a scripted run that must not touch the file.
     if (const char* e = std::getenv("BBHOST_ACCOUNT"); e && e[0]) {

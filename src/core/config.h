@@ -47,7 +47,8 @@ struct HostConfig {
     std::string window_mode;   // video.window_mode: the Window mode setting's default ("Windowed" or "Fullscreen")
     std::string model_detail;  // video.model_detail: the Model detail setting's default ("Full", "Normal", "Low", "Lowest")
     std::string shaders;       // video.shaders: the Shaders setting's default ("HLSL" or "Lifted")
-    // [input]: the controller. swap_ab exchanges Cross and Circle (the pad's A and B): "auto" (the default)
+    // [input], [input.pad]: the controller. They live in bbhost-options.toml (host/options.cpp); a bbhost.toml's
+    // still seeds them until the options file has them (they are then copied over). swap_ab exchanges Cross and Circle (the pad's A and B): "auto" (the default)
     // does so only for the Asian release, CUSA03023 or CUSA01363 (config_swap_ab); "true" / "false" force it. A non-empty
     // back_short splits the Back / Select / Share button: released before back_long_ms it presses that
     // touchpad side ("personal_effects" or "gestures"), held past it gives the other (the default, Gestures).
@@ -119,6 +120,9 @@ struct HostConfig {
 // that was explicitly requested).
 bool config_load(int argc, char** argv, HostConfig* out, std::string* error);
 const HostConfig& config();
+// For host_options_load() only, once at startup before any thread reads the pad: the pad settings
+// bbhost-options.toml holds ([input], [input.pad]) replace what bbhost.toml read.
+HostConfig& config_mutable();
 // The options screen (host/options.h) owns this one once it has read its own
 // file; the loader reads config().skip_intro after that.
 void config_set_skip_intro(bool on);
@@ -230,6 +234,9 @@ struct ConfigEdit {
 // section, else in a new section - leaving every other line, comments
 // included, as it was. Creates the file (with its folder) when missing.
 bool config_set_values(const std::string& path, const std::vector<ConfigEdit>& edits);
+// Removes whole sections (their header, keys and comments up to the next header) from a config
+// file, leaving the rest as it was. True when the file was rewritten or had none of them.
+bool config_remove_sections(const std::string& path, const std::vector<std::string>& sections);
 // The bbhost.toml settings are saved to: one beside the exe (or in the working
 // directory) when there is one - read last, it has the last word over the
 // per-user one - else the per-user config_user_dir()/bbhost.toml. A --config
