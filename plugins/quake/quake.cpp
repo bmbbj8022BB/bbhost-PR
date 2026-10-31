@@ -85,7 +85,7 @@ extern "C" BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
     BB_PLUGIN_OPT_IN | BB_PLUGIN_GAMEPLAY,
     "quake",
     "Quake",
-    "0.3.12",
+    "0.3.13",
     "Kyo",
     "First person with Quake 3's movement and view: strafe jumping, bunny hopping, crouching, and the bob, roll and "
     "landing dip of Quake 3's camera.",
@@ -129,6 +129,13 @@ extern "C" BB_PLUGIN_EXPORT const BbOption bb_plugin_options[] = {
      "Quake 3's cg_fov: degrees across a 4:3 picture; a wider screen sees more at the sides.", "90", 50.0, 140.0},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "bob", "View bob",
      "Quake 3's bob, roll and landing dip, times this (1 is Quake 3's own, 0 none).", "1.0", 0.0, 2.0},
+    {BB_OPT_BOOL | BB_OPT_LIVE, "crosshair", "Crosshair",
+     "A dot in a ring at the middle of the view, as Quake 3's cg_drawCrosshair: drawn over the world and under the "
+     "game's own HUD and menus.",
+     "true"},
+    {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_size", "Crosshair size",
+     "Quake 3's cg_crosshairSize: across, in its 640x480 screen's pixels (24 is Quake 3's own).", "24", 8.0, 64.0},
+    {BB_OPT_FLOAT | BB_OPT_LIVE, "crosshair_alpha", "Crosshair opacity", "1 is solid, 0 none.", "1.0", 0.0, 1.0},
     {BB_OPT_HEADING, nullptr, "Gun"},
     {BB_OPT_BOOL | BB_OPT_LIVE, "draw_gun", "Draw the gun",
      "The gun in your hand at the lower right of the view, as Quake 3's cg_drawGun.", "true"},
@@ -232,6 +239,8 @@ struct Settings {
     bool invert = false;
     float fov = 90.0f;
     float bob = 1.0f;
+    bool crosshair = true;
+    float crosshair_size = 24.0f, crosshair_alpha = 1.0f;
     bool draw_gun = true;
     bool muzzle_flash = false;
     float gun_bob = 1.0f;
@@ -260,6 +269,9 @@ void read_options() {
     s.invert = g.config_bool("quake.invert", false);
     s.fov = std::clamp(static_cast<float>(g.config_number("quake.fov", 90.0)), 50.0f, 140.0f);
     s.bob = std::clamp(static_cast<float>(g.config_number("quake.bob", 1.0)), 0.0f, 2.0f);
+    s.crosshair = g.config_bool("quake.crosshair", true);
+    s.crosshair_size = std::clamp(static_cast<float>(g.config_number("quake.crosshair_size", 24.0)), 8.0f, 64.0f);
+    s.crosshair_alpha = std::clamp(static_cast<float>(g.config_number("quake.crosshair_alpha", 1.0)), 0.0f, 1.0f);
     s.draw_gun = g.config_bool("quake.draw_gun", true);
     s.muzzle_flash = g.config_bool("quake.muzzle_flash", false);
     s.gun_bob = std::clamp(static_cast<float>(g.config_number("quake.gun_bob", 1.0)), 0.0f, 2.0f);
@@ -2626,6 +2638,109 @@ void snap_velocity() {
     pm.velocity.z = std::nearbyint(pm.velocity.z);
 }
 
+// ---- the crosshair -----------------------------------------------------------
+//
+// RendMan's draw lists take the game's debug shapes (the follow camera's
+// keep-out spheres among them) and are played after the scene - over its
+// effects and post-processing, under the HUD and the menus. The current list's
+// shape object (+0x20 the lists, their [+0x20] the current one at +0x10 + 8 *
+// that, its +0x40) holds the look the next shape takes: colours at +0x20 and
+// +0x30, modes at +0x18, +0x1c and +0x70, each change flagged at +0x8. Its
+// lines are 0x135d8d0(lists, from, to), its spheres 0x135d810(lists, 3x4).
+constexpr std::uint64_t kRendMan = 0x5940298;
+constexpr std::uint64_t kDrawSphere = 0x135d810, kDrawLine = 0x135d8d0;
+constexpr float kCrosshairAhead = 0.25f;  // metres in front of the eye: inside the body, nothing nearer
+
+struct alignas(16) V4 {
+    float x, y, z, w;
+};
+
+std::uint8_t* debug_lists() {
+    std::uint8_t* rendman = ptr_at(kRendMan);
+    return rendman ? at<std::uint8_t*>(rendman, 0x20) : nullptr;
+}
+
+std::uint8_t* debug_shape(std::uint8_t* lists) {
+    std::uint8_t* list = at<std::uint8_t*>(lists, 0x10 + 8 * static_cast<std::int64_t>(at<std::int32_t>(lists, 0x20)));
+    return list ? at<std::uint8_t*>(list, 0x40) : nullptr;
+}
+
+void debug_look(std::uint8_t* lists, V4 colour) {
+    std::uint8_t* shape = debug_shape(lists);
+    if (!shape) return;
+    BbCallRegs r{};
+    r.arg[0] = reinterpret_cast<std::uint64_t>(shape);
+    r.arg[1] = 0xffffffffu;
+    g.api->call_guest(bn_of(at<std::uint64_t>(at<std::uint8_t*>(shape, 0), 0x28)), &r);  // begun
+    shape = debug_shape(lists);
+    if (!shape) return;
+    auto set_i = [&](std::size_t off, std::int32_t v, std::uint8_t flag) {
+        if (at<std::int32_t>(shape, off) == v) return;
+        at<std::int32_t>(shape, off) = v;
+        at<std::uint8_t>(shape, 0x8) |= flag;
+    };
+    set_i(0x70, 2, 0x80);
+    set_i(0x1c, 1, 0x8);
+    set_i(0x18, 2, 0x4);
+    for (const auto [off, flag] : {std::pair<std::size_t, std::uint8_t>{0x20, 0x10}, {0x30, 0x20}}) {
+        V4& c = at<V4>(shape, off);
+        if (c.x == colour.x && c.y == colour.y && c.z == colour.z && c.w == colour.w) continue;
+        c = colour;
+        at<std::uint8_t>(shape, 0x8) |= flag;
+    }
+}
+
+void debug_line(std::uint8_t* lists, V3 a, V3 b) {
+    const V4 from{a.x, a.y, a.z, 1.0f}, to{b.x, b.y, b.z, 1.0f};
+    BbCallRegs r{};
+    r.arg[0] = reinterpret_cast<std::uint64_t>(lists);
+    r.arg[1] = reinterpret_cast<std::uint64_t>(&from);
+    r.arg[2] = reinterpret_cast<std::uint64_t>(&to);
+    g.api->call_guest(kDrawLine, &r);
+}
+
+// A flat disc: a sphere of radius r across `right` and `up`, none along the view.
+void debug_disc(std::uint8_t* lists, V3 c, V3 right, V3 up, V3 forward, float r) {
+    const V3 x = right * r, y = up * r, z = forward * 1e-4f;
+    const V4 rows[3] = {{x.x, y.x, z.x, c.x}, {x.y, y.y, z.y, c.y}, {x.z, y.z, z.z, c.z}};
+    BbCallRegs regs{};
+    regs.arg[0] = reinterpret_cast<std::uint64_t>(lists);
+    regs.arg[1] = reinterpret_cast<std::uint64_t>(rows);
+    g.api->call_guest(kDrawSphere, &regs);
+}
+
+// Quake 3's crosshair at the middle of the view: a dot in a ring, its size in
+// the 640x480 screen's pixels (cg_crosshairSize), white.
+void draw_crosshair(const BbCamera& cam) {
+    if (!s.crosshair || s.crosshair_alpha <= 0.0f) return;
+    std::uint8_t* lists = debug_lists();
+    if (!lists) return;
+    const V3 eye{cam.position[0], cam.position[1], cam.position[2]};
+    const V3 right{cam.right[0], cam.right[1], cam.right[2]}, up{cam.up[0], cam.up[1], cam.up[2]};
+    const V3 forward{cam.forward[0], cam.forward[1], cam.forward[2]};
+    const V3 c = eye + forward * kCrosshairAhead;
+    // Metres at that distance a 480-line screen's pixel spans.
+    const float pixel = kCrosshairAhead * std::tan(cam.fov_y * 0.5f) / 240.0f;
+    const float ring = s.crosshair_size * 0.5f * pixel * 0.75f, dot_r = s.crosshair_size * pixel * 0.06f;
+    const float a = s.crosshair_alpha;
+    // The ring: a halo of fainter circles round a solid one.
+    constexpr int kSegments = 32;
+    const float widths[] = {-1.0f, -0.5f, 0.0f, 0.5f, 1.0f};
+    for (const float w : widths) {
+        debug_look(lists, {1.0f, 1.0f, 1.0f, a * (w == 0.0f ? 1.0f : std::fabs(w) < 1.0f ? 0.6f : 0.25f)});
+        const float rr = ring + w * pixel * 0.5f;
+        V3 prev = c + right * rr;
+        for (int i = 1; i <= kSegments; ++i) {
+            const float t = 2.0f * kPi * static_cast<float>(i) / kSegments;
+            const V3 next = c + right * (rr * std::cos(t)) + up * (rr * std::sin(t));
+            debug_line(lists, prev, next);
+            prev = next;
+        }
+    }
+    debug_look(lists, {1.0f, 1.0f, 1.0f, a});
+    debug_disc(lists, c, right, up, forward, dot_r);
+}
+
 void camera(BbCamera& cam) {
     const Clock::time_point now = Clock::now();
     double dt = g_have_last ? std::chrono::duration<double>(now - g_last).count() : 0.0;
@@ -2851,6 +2966,7 @@ void camera(BbCamera& cam) {
     place_view(cam, dead, draw_origin, yaw, pitch, roll);
     vm_frame(chr, !dead);
     if (vm.out) vm_place(cam, yaw, pitch, roll);
+    if (!dead) draw_crosshair(cam);
 
     if (g_log && g_now >= g_next_log) {
         g_next_log = g_now + 0.25;
