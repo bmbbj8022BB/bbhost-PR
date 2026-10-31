@@ -1251,19 +1251,40 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                     else if (k == "lift") lift.push_back(v);
                 }
                 ui::card_begin("##last", ImVec2(w, 0), tr("THE LAST COMPILE"));
-                std::string details = "On " + device + ": shaders " + stages + "; " + hlsl + ".";
-                if (!pipelines.empty() && pipelines.rfind("0 of 0", 0) != 0) details += "\nPipelines " + pipelines + ".";
+                // shader-compile.txt is written in English (shader_compile.cpp), so each
+                // line is taken apart and said again through tf(): the numbers stay, the
+                // words come from the translation table. A line in a shape not known
+                // here is shown as it is.
+                unsigned long long n1 = 0, n2 = 0, n3 = 0;
+                const std::string stages_t = std::sscanf(stages.c_str(), "%llu of %llu, %llu failed", &n1, &n2, &n3) == 3
+                                                 ? tf("%llu of %llu, %llu failed", n1, n2, n3)
+                                                 : stages;
+                const std::string hlsl_t =
+                    std::sscanf(hlsl.c_str(), "%llu with DXC's module (%llu compiled now), %llu kept the lift", &n1, &n2, &n3) == 3
+                        ? tf("%llu with DXC's module (%llu compiled now), %llu kept the lift", n1, n2, n3)
+                        : hlsl;
+                std::string details = tf("On %s: shaders %s; %s.", device.c_str(), stages_t.c_str(), hlsl_t.c_str());
+                if (!pipelines.empty()) {
+                    if (std::sscanf(pipelines.c_str(), "%llu of %llu", &n1, &n2) == 2) {
+                        if (n1 != 0 || n2 != 0)
+                            details += "\n" + tf("Pipelines from your earlier sessions and the shipped list: %llu of %llu", n1, n2);
+                    } else {
+                        details += "\nPipelines " + pipelines + ".";
+                    }
+                }
                 for (const std::string& r : failed) {
                     if (r.find("LDS use outside a compute shader") != std::string::npos)
-                        details += "\nNot compiled alone (" + r.substr(r.rfind(' ') + 1) +
-                                   "): vertex shaders that write LDS, which only run inside another stage (tessellation); they are "
-                                   "compiled when the game draws them.";
+                        details += "\n" + tf("Not compiled alone (%s): vertex shaders that write LDS, which only run inside another "
+                                              "stage (tessellation); they are compiled when the game draws them.",
+                                              r.substr(r.rfind(' ') + 1).c_str());
                     else
-                        details += "\nFailed: " + r;
+                        details += "\n" + tf("Failed: %s", r.c_str());
                 }
-                for (const std::string& r : lift) details += "\nKept the lift: " + r;
+                for (const std::string& r : lift) details += "\n" + tf("Kept the lift: %s", r.c_str());
+                const std::string result_t =
+                    res == "done" ? std::string(tr("Finished")) : res == "cancelled" ? std::string(tr("Cancelled")) : capitalised(res);
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted((capitalised(res == "done" ? "finished" : res) + ", " + when + "  |  " + seconds + " s  |  bbhost " + version).c_str());
+                ImGui::TextUnformatted(tf("%s, %s  |  %s s  |  bbhost %s", result_t.c_str(), when.c_str(), seconds.c_str(), version.c_str()).c_str());
                 ImGui::SameLine();
                 const ImVec2 ip = ImGui::GetCursorScreenPos();
                 const float fh = ImGui::GetFrameHeight();

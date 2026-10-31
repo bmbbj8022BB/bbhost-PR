@@ -1114,18 +1114,23 @@ void tooltip(const char* title, const std::string& body, const std::string& note
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14 * s, 11 * s));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8 * s, 5 * s));
     if (ImGui::BeginTooltip()) {
+        // Every tooltip passes through the translation table here, so a caller
+        // that hands over plain English (a settings table, a tips array) is
+        // translated too; text already translated, or built at run time and
+        // not in the table, comes back unchanged.
+        const std::string body_t = i18n::trs(body), note_t = i18n::trs(note);
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + 340 * s);
         if (title && *title) {
             ImGui::PushFont(font_strong(), 0.0f);
             ImGui::PushStyleColor(ImGuiCol_Text, kIce);
-            ImGui::TextUnformatted(title);
+            ImGui::TextUnformatted(i18n::tr(title));
             ImGui::PopStyleColor();
             ImGui::PopFont();
         }
-        if (!body.empty()) ImGui::TextUnformatted(body.c_str());
-        if (!note.empty()) {
+        if (!body_t.empty()) ImGui::TextUnformatted(body_t.c_str());
+        if (!note_t.empty()) {
             ImGui::PushStyleColor(ImGuiCol_Text, kTextDim);
-            ImGui::TextUnformatted(note.c_str());
+            ImGui::TextUnformatted(note_t.c_str());
             ImGui::PopStyleColor();
         }
         ImGui::PopTextWrapPos();
