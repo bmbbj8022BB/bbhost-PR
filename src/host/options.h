@@ -40,6 +40,9 @@ int host_options_page_count();
 const char* host_options_page_name(int page);
 const char* host_options_page_blurb(int page);
 void host_options_draw_page(int page);
+// The Pad page for the setup window (host/launcher.cpp): the same rows as F10's, applied at once to
+// the config here (there is no window thread yet), written when the setup window saves.
+void host_pad_options_draw();
 // Runs `fn` on the window's thread at its next pump: the menus' changes to
 // settings and to bbhost.toml, which can touch the window or write files.
 void host_options_post(std::function<void()> fn);
