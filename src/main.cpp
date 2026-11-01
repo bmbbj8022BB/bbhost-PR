@@ -1028,6 +1028,7 @@ int main(int argc, char** argv) {
                 host_log("%s", err.c_str());
                 return 2;
             }
+            host_options_apply_pad();  // the config was read anew: the pad's settings are the options file's
         }
     }
 #endif

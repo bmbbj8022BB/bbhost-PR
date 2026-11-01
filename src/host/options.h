@@ -20,6 +20,10 @@ void host_options_load();
 // ones could only be recorded before that.
 void host_options_apply();
 
+// Puts the pad settings the options file holds ([input], [input.pad]) over the config's. Done by
+// host_options_load(), and again after the config is read anew (the setup window saved it).
+void host_options_apply_pad();
+
 bool host_options_open();
 // The window's thread (F10, host/ingame_menu.cpp). Opening drains the latched
 // pointer edges, so a click from before it opened reaches nothing. Closing saves.
