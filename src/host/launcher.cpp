@@ -67,7 +67,7 @@ constexpr int kTextSizes[] = {100, 125, 150, 175, 200, 250, 300, 350, 400};
 const char* const kTextSizeLabels[] = {"100%", "125%", "150%", "175%", "200%", "250%", "300%", "350%", "400%"};
 
 // The window's pages, as the sidebar lists them.
-enum Page { kPageGame, kPageOnline, kPageEnhancements, kPagePatches, kPageShaders, kPagePlugins, kPageSettings, kPageCount };
+enum Page { kPageGame, kPageOnline, kPageEnhancements, kPagePatches, kPageShaders, kPagePlugins, kPagePad, kPageSettings, kPageCount };
 struct PageInfo {
     const char* name;
     const char* slug;  // its picture's name (BBHOST_SETUP_TEST=shot)
@@ -80,6 +80,7 @@ constexpr PageInfo kPages[kPageCount] = {
     {"Patches", "patches", launcher_ui::Icon::Patches},
     {"Shaders", "shaders", launcher_ui::Icon::Shaders},
     {"Plugins", "plugins", launcher_ui::Icon::Plugins},
+    {"Pad", "pad", launcher_ui::Icon::Game},
     {"Settings", "settings", launcher_ui::Icon::Settings},
 };
 
@@ -1400,6 +1401,9 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ImGui::PopStyleColor();
             ui::child_cards();
             plugin_seen = true;
+        } else if (page == kPagePad) {
+            // The same rows as F10's Pad page (host/options.cpp); written to bbhost-options.toml with Save.
+            host_pad_options_draw();
         } else if (page == kPageSettings) {
             const float w = ImGui::GetContentRegionAvail().x;
             ui::card_begin("##folders", ImVec2(w, 0), tr("FOLDERS"));

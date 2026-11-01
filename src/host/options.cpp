@@ -4,6 +4,7 @@
 #include "host/settings_store.h"
 
 #include "host/bindings.h"
+#include "host/i18n.h"
 #include "host/overlay.h"
 #include "host/window.h"
 #include "core/config.h"
@@ -364,6 +365,8 @@ const Row g_rows[] = {
     {Row::Header, "STARTUP"},
     {Row::Option, nullptr, kSkipLogos},
     {Row::Option, nullptr, kPerformanceMode},
+    // The pad's buttons, remapped (host/window.cpp, pad_remap): drawn by pad_page().
+    {Row::Header, "PAD"},
     // The private server's account. No passwords: link this PC to
     // the account signed into on the website with Discord, or make one held
     // by this PC with a recovery code. The token is kept in the options file.
@@ -915,9 +918,11 @@ struct PadOptions {
     std::map<std::string, std::string> buttons;
 };
 PadOptions g_pad_opts;
+std::mutex g_pad_mu;  // g_pad_opts: the Pad page (presenter or setup window) and the apply (window thread)
 }  // namespace
 
 void host_options_apply_pad() {
+    std::lock_guard<std::mutex> lock(g_pad_mu);
     HostConfig& c = config_mutable();
     if (g_pad_opts.input) {
         if (!g_pad_opts.swap_ab.empty()) c.input_swap_ab = g_pad_opts.swap_ab;
@@ -1279,6 +1284,7 @@ const std::vector<OptionsPage>& pages() {
             {"GRAPHICS", "Graphics", "The game's effects and detail. Most change at once."},
             {"PC ENHANCEMENTS", "PC Enhancements", "Additions to the game itself, read as it starts."},
             {"STARTUP", "Startup", "What happens as the game starts."},
+            {"PAD", "Pad", "Remap the controller's buttons. A change applies at once."},
             {"ACCOUNT", "Account", "The private server's account. No passwords: this PC keeps a token."},
             {"UPDATES", "Updates", "Newer releases of bbhost."},
         };
@@ -1415,6 +1421,198 @@ void action_button(const char* label, int which, bool primary, const char* name 
     }
 }
 
+// ---- the Pad page: [input] and [input.pad], changed here and applied at once ----
+// Shared by the in-game menu (live: the change is handed to the window's thread)
+// and the setup window (no window thread yet: applied here). The file is
+// written when the menu closes / the setup window saves.
+const char* const kPadTargets[] = {"cross", "circle", "square", "triangle", "l1", "r1", "l3", "r3", "options",
+                                   "touchpad", "up", "down", "left", "right", "gestures", "personal_effects", "none"};
+constexpr int kPadTargetCount = static_cast<int>(sizeof(kPadTargets) / sizeof(kPadTargets[0]));
+// Index 0 of each list is "no entry": the button keeps its own (tap) or has no long press (long).
+const char* const kPadTapItems[] = {"Default", "Cross", "Circle", "Square", "Triangle", "L1", "R1", "L3", "R3", "Options",
+                                    "Touchpad click", "D-pad up", "D-pad down", "D-pad left", "D-pad right",
+                                    "Gestures (touchpad left)", "Personal Effects (touchpad right)", "Nothing"};
+const char* const kPadLongItems[] = {"None", "Cross", "Circle", "Square", "Triangle", "L1", "R1", "L3", "R3", "Options",
+                                     "Touchpad click", "D-pad up", "D-pad down", "D-pad left", "D-pad right",
+                                     "Gestures (touchpad left)", "Personal Effects (touchpad right)", "Nothing"};
+struct PadSrc {
+    const char* key;
+    const char* label;
+};
+const PadSrc kPadSrcs[] = {
+    {"south", "Cross / A"},          {"east", "Circle / B"},         {"west", "Square / X"},
+    {"north", "Triangle / Y"},       {"l1", "L1 / LB"},              {"r1", "R1 / RB"},
+    {"l3", "L3 (left stick click)"}, {"r3", "R3 (right stick click)"}, {"start", "Options / Start"},
+    {"back", "Create / Back"},       {"touchpad", "Touchpad click"},
+    {"touchpad_left", "Touchpad click, left half"}, {"touchpad_right", "Touchpad click, right half"},
+    {"dpad_up", "D-pad up"},         {"dpad_down", "D-pad down"},    {"dpad_left", "D-pad left"},
+    {"dpad_right", "D-pad right"},
+};
+const char* const kPadSwapItems[] = {"Auto (by the game's region)", "Swap Cross and Circle", "Don't swap"};
+const char* const kPadSwapValues[] = {"auto", "true", "false"};
+
+// What the page shows: the options file's pad settings, taken from the config the first time
+// when the file held none (so the page starts from what is in effect).
+void pad_seed() {
+    std::lock_guard<std::mutex> lock(g_pad_mu);
+    if (g_pad_opts.input && g_pad_opts.pad) return;
+    const HostConfig& c = config();
+    if (!g_pad_opts.input) {
+        g_pad_opts.input = true;
+        g_pad_opts.swap_ab = c.input_swap_ab;
+        g_pad_opts.back_short = c.input_back_short;
+        g_pad_opts.back_long_ms = c.input_back_long_ms;
+    }
+    if (!g_pad_opts.pad) {
+        g_pad_opts.pad = true;
+        g_pad_opts.buttons = c.input_pad;
+    }
+}
+
+// The change is in g_pad_opts: put it over the config and have the remap built again.
+void pad_changed(bool live) {
+    auto apply = [] {
+        host_options_apply_pad();
+        host_pad_remap_changed();
+        g_dirty = true;
+    };
+    if (live) host_options_post(apply);
+    else apply();
+}
+
+int pad_index_of(const std::map<std::string, std::string>& m, const std::string& key) {
+    const auto it = m.find(key);
+    if (it == m.end() || it->second.empty()) return 0;
+    for (int i = 0; i < kPadTargetCount; ++i) {
+        if (it->second == kPadTargets[i]) return i + 1;
+    }
+    return 0;
+}
+
+void pad_set(const std::string& key, int idx, bool live) {
+    {
+        std::lock_guard<std::mutex> lock(g_pad_mu);
+        if (idx <= 0) g_pad_opts.buttons.erase(key);
+        else g_pad_opts.buttons[key] = kPadTargets[idx - 1];
+    }
+    pad_changed(live);
+}
+
+void pad_page(bool live) {
+    pad_seed();
+    const float sc = ui::scale(), w = ImGui::GetContentRegionAvail().x;
+    std::map<std::string, std::string> buttons;
+    std::string swap_ab;
+    int long_ms = 450;
+    {
+        std::lock_guard<std::mutex> lock(g_pad_mu);
+        buttons = g_pad_opts.buttons;
+        swap_ab = g_pad_opts.swap_ab;
+        long_ms = g_pad_opts.back_long_ms > 0 ? g_pad_opts.back_long_ms : 450;
+        if (const auto it = g_pad_opts.buttons.find("long_ms"); it != g_pad_opts.buttons.end()) {
+            const int n = std::atoi(it->second.c_str());
+            if (n > 0) long_ms = n;
+        }
+    }
+    const float cw = std::min(std::round(250 * sc), (w * 0.62f - 8 * sc) * 0.5f);
+    const float gap = std::round(8 * sc);
+
+    ui::card_begin("##padswap", ImVec2(w, 0), i18n::tr("CROSS AND CIRCLE"));
+    {
+        int sw = 0;
+        for (int i = 0; i < 3; ++i) {
+            if (swap_ab == kPadSwapValues[i]) sw = i;
+        }
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(i18n::tr("Confirm and back"));
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + w - 2 * cw - gap, p.y));
+        ImGui::SetNextItemWidth(2 * cw + gap);
+        int want = sw;
+        const char* items[3] = {i18n::tr(kPadSwapItems[0]), i18n::tr(kPadSwapItems[1]), i18n::tr(kPadSwapItems[2])};
+        if (ui::combo("##swap", &want, items, 3) && want != sw) {
+            {
+                std::lock_guard<std::mutex> lock(g_pad_mu);
+                g_pad_opts.swap_ab = kPadSwapValues[want];
+            }
+            pad_changed(live);
+        }
+    }
+    ui::card_end();
+    ImGui::Dummy(ImVec2(0, 6 * sc));
+
+    ui::card_begin("##padbuttons", ImVec2(w, 0), i18n::tr("BUTTONS"));
+    {
+        // Column captions over the two lists.
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
+        ImGui::SetCursorScreenPos(ImVec2(p.x + w - 2 * cw - gap, p.y));
+        ImGui::TextUnformatted(i18n::tr("Press"));
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + w - cw, p.y));
+        ImGui::TextUnformatted(i18n::tr("Held long"));
+        ImGui::PopStyleColor();
+        for (std::size_t i = 0; i < sizeof(kPadSrcs) / sizeof(kPadSrcs[0]); ++i) {
+            const PadSrc& src = kPadSrcs[i];
+            const std::string long_key = std::string(src.key) + "_long";
+            const int tap = pad_index_of(buttons, src.key), lng = pad_index_of(buttons, long_key);
+            ImGui::PushID(static_cast<int>(i));
+            const ImVec2 at = ImGui::GetCursorScreenPos();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(i18n::tr(src.label));
+            ImGui::SameLine();
+            ImGui::SetCursorScreenPos(ImVec2(at.x + w - 2 * cw - gap, at.y));
+            const char* tap_items[kPadTargetCount + 1];
+            const char* long_items[kPadTargetCount + 1];
+            for (int k = 0; k <= kPadTargetCount; ++k) {
+                tap_items[k] = i18n::tr(kPadTapItems[k]);
+                long_items[k] = i18n::tr(kPadLongItems[k]);
+            }
+            int want_tap = tap, want_long = lng;
+            ImGui::SetNextItemWidth(cw);
+            if (ui::combo("##tap", &want_tap, tap_items, kPadTargetCount + 1) && want_tap != tap) pad_set(src.key, want_tap, live);
+            ImGui::SameLine(0, gap);
+            ImGui::SetNextItemWidth(cw);
+            if (ui::combo("##long", &want_long, long_items, kPadTargetCount + 1) && want_long != lng) pad_set(long_key, want_long, live);
+            ImGui::PopID();
+        }
+    }
+    ui::card_end();
+    ImGui::Dummy(ImVec2(0, 6 * sc));
+
+    ui::card_begin("##padhold", ImVec2(w, 0), i18n::tr("LONG PRESS"));
+    {
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(i18n::tr("Held longer than"));
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + w - 2 * cw - gap, p.y));
+        ImGui::SetNextItemWidth(2 * cw + gap);
+        int ms = long_ms;
+        if (ImGui::SliderInt("##ms", &ms, 200, 1000, "%d ms", ImGuiSliderFlags_AlwaysClamp) && ms != long_ms) {
+            {
+                std::lock_guard<std::mutex> lock(g_pad_mu);
+                g_pad_opts.back_long_ms = ms;
+                g_pad_opts.buttons.erase("long_ms");
+            }
+            pad_changed(live);
+        }
+        ImGui::Spacing();
+        if (ui::ghost_button(i18n::tr("Reset the pad"))) {
+            {
+                std::lock_guard<std::mutex> lock(g_pad_mu);
+                g_pad_opts.buttons.clear();
+                g_pad_opts.swap_ab = "auto";
+                g_pad_opts.back_short.clear();
+                g_pad_opts.back_long_ms = 450;
+            }
+            pad_changed(live);
+        }
+    }
+    ui::card_end();
+}
+
 char g_name_buf[64] = {};  // the account fields as typed (the presenter's)
 char g_code_buf[64] = {};
 bool g_bufs_seeded = false;
@@ -1496,6 +1694,7 @@ const char* host_options_page_blurb(int page) {
 void host_options_draw_page(int page) {
     if (page < 0 || page >= host_options_page_count()) return;
     const OptionsPage& pg = pages()[static_cast<std::size_t>(page)];
+    if (std::strcmp(pg.header, "PAD") == 0) return pad_page(true);
     if (std::strcmp(pg.header, "ACCOUNT") == 0) return account_page();
     if (std::strcmp(pg.header, "UPDATES") == 0) return updates_page();
     ui::card_begin("##rows", ImVec2(ImGui::GetContentRegionAvail().x, 0));
@@ -1510,12 +1709,15 @@ void host_options_draw_page(int page) {
     ui::card_end();
 }
 
+void host_pad_options_draw() { pad_page(false); }
+
 #else  // a build without a window: no menu
 
 int host_options_page_count() { return 0; }
 const char* host_options_page_name(int) { return ""; }
 const char* host_options_page_blurb(int) { return ""; }
 void host_options_draw_page(int) {}
+void host_pad_options_draw() {}
 
 #endif
 

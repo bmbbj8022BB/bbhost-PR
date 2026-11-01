@@ -66,6 +66,8 @@ bool host_window_active();
 
 // Snapshot of controller/keyboard state for scePad.
 PadState host_pad_state();
+// The pad remapping ([input.pad]) changed: the next frame reads it anew (host/options.cpp's Pad page).
+void host_pad_remap_changed();
 
 // The pointer, for menus. Bloodborne has no mouse
 // device, so this is a channel of its own rather than part of PadState: a pad
