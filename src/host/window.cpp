@@ -1525,12 +1525,19 @@ bool pad_target_named(const std::string& raw, PadTarget* out) {
 
 // The table, rebuilt only when the A/B swap (which depends on the release
 // found in the game folder) changes.
+// Bumped when the pad's settings change (the in-game menu's Pad page,
+// host_pad_remap_changed): the remap is built again at its next use.
+std::atomic<unsigned> g_pad_remap_gen{0};
+
 std::shared_ptr<const PadRemap> pad_remap() {
     static std::mutex mu;
     static std::shared_ptr<const PadRemap> cur;
+    static unsigned built_gen = 0;
     const bool swap = config_swap_ab();
+    const unsigned gen = g_pad_remap_gen.load();
     std::lock_guard<std::mutex> lock(mu);
-    if (cur && cur->swap == swap) return cur;
+    if (cur && cur->swap == swap && built_gen == gen) return cur;
+    built_gen = gen;
     auto rm = std::make_shared<PadRemap>();
     rm->swap = swap;
     const HostConfig& cfg = config();
@@ -1928,6 +1935,9 @@ bool host_test_keys_play(const char* path) {
     return false;
 #endif
 }
+
+void host_pad_remap_changed() { ++g_pad_remap_gen; }
+
 
 
 void host_window_set_fullscreen(bool on) {
