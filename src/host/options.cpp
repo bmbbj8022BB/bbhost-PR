@@ -905,6 +905,28 @@ void host_options_apply() {
     }
 }
 
+namespace {
+// What the options file says about the pad, kept so it can be applied again
+// whenever the config is read anew (main.cpp does after the setup window).
+struct PadOptions {
+    bool input = false, pad = false;  // [input] and [input.pad] were in the file
+    std::string swap_ab, back_short;
+    int back_long_ms = 0;
+    std::map<std::string, std::string> buttons;
+};
+PadOptions g_pad_opts;
+}  // namespace
+
+void host_options_apply_pad() {
+    HostConfig& c = config_mutable();
+    if (g_pad_opts.input) {
+        if (!g_pad_opts.swap_ab.empty()) c.input_swap_ab = g_pad_opts.swap_ab;
+        c.input_back_short = g_pad_opts.back_short;
+        if (g_pad_opts.back_long_ms > 0) c.input_back_long_ms = g_pad_opts.back_long_ms;
+    }
+    if (g_pad_opts.pad) c.input_pad = g_pad_opts.buttons;
+}
+
 void host_options_load() {
     // Once: the setup window (host/launcher.h) loads them before it shows them.
     static bool loaded = false;
@@ -951,10 +973,7 @@ void host_options_load() {
     const std::string path = options_path();
     FILE* f = std::fopen(path.c_str(), "r");
     // The pad ([input], [input.pad]): read here, applied after the file is closed.
-    bool input_section = false, pad_section = false;
-    std::string pad_swap_ab, pad_back_short;
-    int pad_back_long_ms = 0;
-    std::map<std::string, std::string> pad_buttons;
+    g_pad_opts = PadOptions{};
     if (f) {
         char line[512];
         bool keys = false;  // in [keys]: bindings, not settings
@@ -971,8 +990,8 @@ void host_options_load() {
                 account = std::strncmp(line, "[account]", 9) == 0;
                 in_pad = std::strncmp(line, "[input.pad]", 11) == 0;
                 in_input = !in_pad && std::strncmp(line, "[input]", 7) == 0;
-                if (in_pad) pad_section = true;
-                if (in_input) input_section = true;
+                if (in_pad) g_pad_opts.pad = true;
+                if (in_input) g_pad_opts.input = true;
                 continue;
             }
             char* eq = std::strchr(line, '=');
@@ -1004,13 +1023,13 @@ void host_options_load() {
                 continue;
             }
             if (in_pad) {
-                pad_buttons[key] = val;
+                g_pad_opts.buttons[key] = val;
                 continue;
             }
             if (in_input) {
-                if (key == "swap_ab") pad_swap_ab = val;
-                if (key == "back_short") pad_back_short = val;
-                if (key == "back_long_ms") pad_back_long_ms = std::atoi(val.c_str());
+                if (key == "swap_ab") g_pad_opts.swap_ab = val;
+                if (key == "back_short") g_pad_opts.back_short = val;
+                if (key == "back_long_ms") g_pad_opts.back_long_ms = std::atoi(val.c_str());
                 continue;
             }
             if (key == "version") {
@@ -1102,19 +1121,21 @@ void host_options_load() {
     // takes bbhost.toml's (an older install) and is saved with them, so the
     // pad is kept here from then on.
     {
+        host_options_apply_pad();
         HostConfig& c = config_mutable();
-        if (input_section) {
-            if (!pad_swap_ab.empty()) c.input_swap_ab = pad_swap_ab;
-            c.input_back_short = pad_back_short;
-            if (pad_back_long_ms > 0) c.input_back_long_ms = pad_back_long_ms;
-        }
-        if (pad_section) c.input_pad = pad_buttons;
         const bool toml_has_pad = !c.input_pad.empty() || c.input_swap_ab != "auto" || !c.input_back_short.empty() ||
                                   c.input_back_long_ms != 450;
-        if (!input_section && !pad_section && toml_has_pad) {
+        if (!g_pad_opts.input && !g_pad_opts.pad && toml_has_pad) {
             host_log("options: pad remapping moved from bbhost.toml to %s", path.c_str());
             g_dirty = true;
             save();
+            // The options file holds them now: a config read anew (the setup
+            // window has saved it) gets them back from here, bbhost.toml's gone.
+            g_pad_opts.input = g_pad_opts.pad = true;
+            g_pad_opts.swap_ab = c.input_swap_ab;
+            g_pad_opts.back_short = c.input_back_short;
+            g_pad_opts.back_long_ms = c.input_back_long_ms;
+            g_pad_opts.buttons = c.input_pad;
             // Moved: take the pad's sections out of the config files it came
             // from, once the options file is known to hold them.
             bool saved = false;
