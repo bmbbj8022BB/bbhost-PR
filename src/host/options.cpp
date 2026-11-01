@@ -1514,11 +1514,13 @@ void pad_page(bool live) {
             if (n > 0) long_ms = n;
         }
     }
-    const float cw = std::min(std::round(250 * sc), (w * 0.62f - 8 * sc) * 0.5f);
     const float gap = std::round(8 * sc);
+    // A card's rows are as wide as its inside (its padding is not theirs): the two columns end at its right edge.
+    auto col_w = [&](float inner) { return std::min(std::round(250 * sc), (inner * 0.62f - gap) * 0.5f); };
 
     ui::card_begin("##padswap", ImVec2(w, 0), i18n::tr("CROSS AND CIRCLE"));
     {
+        const float iw = ImGui::GetContentRegionAvail().x, cw = col_w(iw);
         int sw = 0;
         for (int i = 0; i < 3; ++i) {
             if (swap_ab == kPadSwapValues[i]) sw = i;
@@ -1527,7 +1529,7 @@ void pad_page(bool live) {
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(i18n::tr("Confirm and back"));
         ImGui::SameLine();
-        ImGui::SetCursorScreenPos(ImVec2(p.x + w - 2 * cw - gap, p.y));
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
         ImGui::SetNextItemWidth(2 * cw + gap);
         int want = sw;
         const char* items[3] = {i18n::tr(kPadSwapItems[0]), i18n::tr(kPadSwapItems[1]), i18n::tr(kPadSwapItems[2])};
@@ -1544,13 +1546,14 @@ void pad_page(bool live) {
 
     ui::card_begin("##padbuttons", ImVec2(w, 0), i18n::tr("BUTTONS"));
     {
+        const float iw = ImGui::GetContentRegionAvail().x, cw = col_w(iw);
         // Column captions over the two lists.
         const ImVec2 p = ImGui::GetCursorScreenPos();
         ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
-        ImGui::SetCursorScreenPos(ImVec2(p.x + w - 2 * cw - gap, p.y));
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
         ImGui::TextUnformatted(i18n::tr("Press"));
         ImGui::SameLine();
-        ImGui::SetCursorScreenPos(ImVec2(p.x + w - cw, p.y));
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - cw, p.y));
         ImGui::TextUnformatted(i18n::tr("Held long"));
         ImGui::PopStyleColor();
         for (std::size_t i = 0; i < sizeof(kPadSrcs) / sizeof(kPadSrcs[0]); ++i) {
@@ -1562,7 +1565,7 @@ void pad_page(bool live) {
             ImGui::AlignTextToFramePadding();
             ImGui::TextUnformatted(i18n::tr(src.label));
             ImGui::SameLine();
-            ImGui::SetCursorScreenPos(ImVec2(at.x + w - 2 * cw - gap, at.y));
+            ImGui::SetCursorScreenPos(ImVec2(at.x + iw - 2 * cw - gap, at.y));
             const char* tap_items[kPadTargetCount + 1];
             const char* long_items[kPadTargetCount + 1];
             for (int k = 0; k <= kPadTargetCount; ++k) {
@@ -1583,11 +1586,12 @@ void pad_page(bool live) {
 
     ui::card_begin("##padhold", ImVec2(w, 0), i18n::tr("LONG PRESS"));
     {
+        const float iw = ImGui::GetContentRegionAvail().x, cw = col_w(iw);
         const ImVec2 p = ImGui::GetCursorScreenPos();
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(i18n::tr("Held longer than"));
         ImGui::SameLine();
-        ImGui::SetCursorScreenPos(ImVec2(p.x + w - 2 * cw - gap, p.y));
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
         ImGui::SetNextItemWidth(2 * cw + gap);
         int ms = long_ms;
         if (ImGui::SliderInt("##ms", &ms, 200, 1000, "%d ms", ImGuiSliderFlags_AlwaysClamp) && ms != long_ms) {
