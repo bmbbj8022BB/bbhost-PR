@@ -4,6 +4,7 @@
 #include "bbhost_version.h"
 
 #include <cctype>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -159,9 +160,17 @@ void apply_values(const std::map<std::string, std::string>& kv, HostConfig* c) {
     str("update.token_file", &c->update_token_file);
     str("player.name", &c->player_name);
     str("player.ime", &c->ime_mode);
+    str("ui.language", &c->ui_language);
+    str("ui.font", &c->ui_font);
     num("video.width", &c->width);
     num("video.height", &c->height);
     num("video.fps_cap", &c->fps_cap);
+    str("input.swap_ab", &c->input_swap_ab);
+    str("input.back_short", &c->input_back_short);
+    num("input.back_long_ms", &c->input_back_long_ms);
+    for (const auto& e : kv) {
+        if (e.first.rfind("input.pad.", 0) == 0) c->input_pad[e.first.substr(10)] = unquote(e.second);
+    }
     str("video.resolution", &c->resolution);
     str("video.window_mode", &c->window_mode);
     str("video.model_detail", &c->model_detail);
@@ -830,6 +839,7 @@ bool config_load(int argc, char** argv, HostConfig* out, std::string* error) {
 }
 
 const HostConfig& config() { return g_cfg; }
+HostConfig& config_mutable() { return g_cfg; }
 
 std::string config_setup_help(const HostConfig& c) {
     std::string out;
@@ -1042,6 +1052,9 @@ bool config_write_template(const std::string& path) {
            "# the network password - are typed in a box over the game (Enter\n"
            "# accepts, Escape cancels). auto: the name is `name` at once.\n"
            "ime = \"type\"\n"
+           "\n[ui]\n"
+           "# The setup window's language: \"en\" (default) or \"ko\" (Korean).\n"
+           "language = \"en\"\n"
            "\n[video]\n"
            "width = 1920\n"
            "height = 1080\n"
@@ -1150,6 +1163,42 @@ bool config_set_values(const std::string& path, const std::vector<ConfigEdit>& e
     if (!make_dirs(dir_of(path))) return false;
     std::ofstream out(path, std::ios::trunc);
     for (const std::string& l : lines) out << l << "\n";
+    return static_cast<bool>(out);
+}
+
+bool config_remove_sections(const std::string& path, const std::vector<std::string>& sections) {
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(path);
+        if (!in) return true;
+        for (std::string l; std::getline(in, l);) {
+            if (!l.empty() && l.back() == '\r') l.pop_back();
+            lines.push_back(l);
+        }
+    }
+    std::vector<std::string> kept;
+    bool skipping = false, removed = false, gap = false;
+    for (const std::string& l : lines) {
+        const std::string t = trim(l);
+        if (t.size() >= 2 && t.front() == '[' && t.back() == ']') {
+            const std::string name = trim(t.substr(1, t.size() - 2));
+            skipping = std::find(sections.begin(), sections.end(), name) != sections.end();
+            if (skipping) {
+                removed = true;
+                // The blank line that set the section off goes with it.
+                while (!kept.empty() && trim(kept.back()).empty()) kept.pop_back();
+                gap = true;
+                continue;
+            }
+            // The section after a removed one: one blank line back in front of it.
+            if (gap && !kept.empty()) kept.push_back("");
+            gap = false;
+        }
+        if (!skipping) kept.push_back(l);
+    }
+    if (!removed) return true;
+    std::ofstream out(path, std::ios::trunc);
+    for (const std::string& l : kept) out << l << "\n";
     return static_cast<bool>(out);
 }
 

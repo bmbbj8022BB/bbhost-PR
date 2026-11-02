@@ -3,10 +3,14 @@
 // bbhost.toml: a small TOML subset ([section], key = "string" | integer |
 // true/false, # comments). Values are addressed as "section.key".
 
+#include <cctype>
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
+
+#include "core/sfo.h"
 
 struct HostConfig {
     std::string app0;          // paths.app0: the /app0 dump (dvdroot_ps4 inside)
@@ -43,6 +47,19 @@ struct HostConfig {
     std::string window_mode;   // video.window_mode: the Window mode setting's default ("Windowed" or "Fullscreen")
     std::string model_detail;  // video.model_detail: the Model detail setting's default ("Full", "Normal", "Low", "Lowest")
     std::string shaders;       // video.shaders: the Shaders setting's default ("HLSL" or "Lifted")
+    // [input], [input.pad]: the controller. They live in bbhost-options.toml (host/options.cpp); a bbhost.toml's
+    // still seeds them until the options file has them (they are then copied over). swap_ab exchanges Cross and Circle (the pad's A and B): "auto" (the default)
+    // does so only for the Asian release, CUSA03023 or CUSA01363 (config_swap_ab); "true" / "false" force it. A non-empty
+    // back_short splits the Back / Select / Share button: released before back_long_ms it presses that
+    // touchpad side ("personal_effects" or "gestures"), held past it gives the other (the default, Gestures).
+    std::string input_swap_ab = "auto";  // input.swap_ab: "auto", "true" or "false"
+    std::string input_back_short;     // input.back_short: "personal_effects", "gestures", or "" (off)
+    int input_back_long_ms = 450;     // input.back_long_ms
+    // [input.pad]: the controller's buttons remapped (host/window.cpp, pad_remap): "south" = "circle",
+    // "south_long" = "cross", "long_ms" = 450, ... Keys are as written, without "input.pad.".
+    std::map<std::string, std::string> input_pad;
+    std::string ui_language = "en";   // ui.language: "en" or "ko" (the setup window and the F9/F10 screens)
+    std::string ui_font;              // ui.font: a font file with Hangul; empty: the system's (Malgun Gothic on Windows)
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     // video.frame_clock: the Native frame clock setting's default (F10's DISPLAY,
     // the setup window's Game page), off; what they save in bbhost-options.toml
@@ -105,6 +122,9 @@ struct HostConfig {
 // that was explicitly requested).
 bool config_load(int argc, char** argv, HostConfig* out, std::string* error);
 const HostConfig& config();
+// For host_options_load() only, once at startup before any thread reads the pad: the pad settings
+// bbhost-options.toml holds ([input], [input.pad]) replace what bbhost.toml read.
+HostConfig& config_mutable();
 // The options screen (host/options.h) owns this one once it has read its own
 // file; the loader reads config().skip_intro after that.
 void config_set_skip_intro(bool on);
@@ -150,6 +170,43 @@ struct App0Version {
     std::string app_ver, category, update;
 };
 App0Version config_app0_version(const std::string& app0);
+// The game's TITLE_ID from sce_sys/param.sfo (the update folder's when it has
+// one, else the game folder's): "CUSA03023" or "CUSA01363" for the Asian release. "" when the
+// file cannot be read.
+inline std::string config_app0_title_id(const std::string& app0) {
+    const GameFolders g = config_game_folders(app0);
+    const std::string* dirs[2] = {&g.update, &g.base};
+    for (const std::string* dir : dirs) {
+        if (dir->empty()) continue;
+        std::map<std::string, SfoValue> sfo;
+        std::string err;
+        if (!sfo_read(*dir + "/sce_sys/param.sfo", &sfo, &err)) continue;
+        auto it = sfo.find("TITLE_ID");
+        if (it != sfo.end()) return it->second.text;
+    }
+    return "";
+}
+// Whether the pad's A and B (Cross and Circle) are exchanged: input.swap_ab "true" or
+// "false", or "auto" (the default) for the Asian release only (CUSA03023, CUSA01363); the other
+// releases keep the default. In "auto" the title is read once per paths.app0.
+inline bool config_swap_ab() {
+    std::string m = config().input_swap_ab;
+    for (char& ch : m) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (m == "true" || m == "1" || m == "on") return true;
+    if (m == "false" || m == "0" || m == "off") return false;
+    static std::mutex mu;
+    static std::string cached_app0;
+    static bool have = false, result = false;
+    std::lock_guard<std::mutex> lock(mu);
+    const std::string& app0 = config().app0;
+    if (!have || cached_app0 != app0) {
+        cached_app0 = app0;
+        have = true;
+        const std::string id = config_app0_title_id(app0);
+        result = id.rfind("CUSA03023", 0) == 0 || id.rfind("CUSA01363", 0) == 0;
+    }
+    return result;
+}
 // The PC enhancements, the same way: the options file's choices (F10, the
 // System menu's PC Enhancements, the setup window's tab) once it is read. A
 // BBHOST_CHANGE_APPEARANCE, BBHOST_REBIRTH, BBHOST_FIVE_PLAYERS or
@@ -179,6 +236,9 @@ struct ConfigEdit {
 // section, else in a new section - leaving every other line, comments
 // included, as it was. Creates the file (with its folder) when missing.
 bool config_set_values(const std::string& path, const std::vector<ConfigEdit>& edits);
+// Removes whole sections (their header, keys and comments up to the next header) from a config
+// file, leaving the rest as it was. True when the file was rewritten or had none of them.
+bool config_remove_sections(const std::string& path, const std::vector<std::string>& sections);
 // The bbhost.toml settings are saved to: one beside the exe (or in the working
 // directory) when there is one - read last, it has the last word over the
 // per-user one - else the per-user config_user_dir()/bbhost.toml. A --config

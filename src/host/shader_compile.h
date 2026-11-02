@@ -28,6 +28,18 @@
 // setup window starts its child with.
 bool shader_compile_take_flag(int& argc, char** argv);
 void shader_compile_set_args(int argc, char** argv);
+// Starts this executable again with the same arguments and --setup, so the
+// setup window opens anew (a changed interface language is read once, at the
+// start). It lives here because it shares the arguments and the executable's
+// name kept above. True once the new process has started; `error` says why not.
+// Under run-bbhost.bat (BBHOST_SUPERVISED set) it starts nothing and returns
+// true: the caller leaves with relaunch_exit_code() and the script starts
+// bbhost again in the same console and log folder.
+bool relaunch_setup_window(std::string& error);
+constexpr int kRestartExitCode = 75;
+// What main returns after LauncherResult::Restart: kRestartExitCode under the
+// script, else 0 (the new process was started by relaunch_setup_window).
+int relaunch_exit_code();
 // The child's run, once the game's folders are known; its exit code.
 int shader_compile_session();
 
