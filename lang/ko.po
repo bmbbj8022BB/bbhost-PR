@@ -1652,7 +1652,7 @@ msgid "Remap the controller's buttons. A change applies at once."
 msgstr "컨트롤러 버튼을 바꿉니다. 바꾼 것은 바로 적용됩니다."
 
 msgid "CROSS AND CIRCLE"
-msgstr "✕ 와 ○"
+msgstr "A 와 B"
 
 msgid "Confirm and back"
 msgstr "확인과 취소"
@@ -1661,7 +1661,7 @@ msgid "Auto (by the game's region)"
 msgstr "자동 (게임 지역에 따라)"
 
 msgid "Swap Cross and Circle"
-msgstr "✕ 와 ○ 바꾸기"
+msgstr "A 와 B 바꾸기"
 
 msgid "Don't swap"
 msgstr "바꾸지 않음"
@@ -1682,16 +1682,16 @@ msgid "None"
 msgstr "없음"
 
 msgid "Cross"
-msgstr "✕"
+msgstr "A"
 
 msgid "Circle"
-msgstr "○"
+msgstr "B"
 
 msgid "Square"
-msgstr "□"
+msgstr "X"
 
 msgid "Triangle"
-msgstr "△"
+msgstr "Y"
 
 msgid "Options"
 msgstr "옵션"
@@ -1721,16 +1721,16 @@ msgid "Nothing"
 msgstr "아무것도 안 함"
 
 msgid "Cross / A"
-msgstr "✕ / A"
+msgstr "A"
 
 msgid "Circle / B"
-msgstr "○ / B"
+msgstr "B"
 
 msgid "Square / X"
-msgstr "□ / X"
+msgstr "X"
 
 msgid "Triangle / Y"
-msgstr "△ / Y"
+msgstr "Y"
 
 msgid "L1 / LB"
 msgstr "L1 / LB"
