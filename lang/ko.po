@@ -1764,3 +1764,10 @@ msgstr "이 시간보다 오래 누르면"
 
 msgid "Reset the pad"
 msgstr "패드 설정 초기화"
+
+msgid "Native frame clock (experimental)"
+msgstr "네이티브 프레임 클럭 (실험적)"
+
+msgid "Requires a restart. Timing follows each frame's real length, for PCs that do not hold their chosen frame rate."
+msgstr "재시작이 필요합니다. 각 프레임의 실제 길이에 맞춰 타이밍을 잡습니다. 선택한 프레임 레이트를 유지하지 못하는 PC용입니다."
+
