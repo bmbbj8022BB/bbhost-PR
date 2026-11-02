@@ -589,3 +589,4 @@
     {"Reset the pad", "패드 설정 초기화"},
     {"Native frame clock (experimental)", "네이티브 프레임 클럭 (실험적)"},
     {"Requires a restart. Timing follows each frame's real length, for PCs that do not hold their chosen frame rate.", "재시작이 필요합니다. 각 프레임의 실제 길이에 맞춰 타이밍을 잡습니다. 선택한 프레임 레이트를 유지하지 못하는 PC용입니다."},
+    {"Screen space reflections on, at the render's full size, with the depth they read at full and half size (the game's are half and a quarter): sharper reflections, more GPU time. It loads last, so other patches' render changes give way to it.", "스크린 스페이스 리플렉션을 켭니다. 렌더 전체 크기로 처리하고, 깊이 정보도 전체·절반 크기로 읽습니다(게임 기본값은 절반·4분의 1). 반사가 더 선명해지는 대신 GPU 부담이 늘어납니다. 가장 마지막에 로드되므로 다른 패치의 렌더 변경보다 우선합니다."},
