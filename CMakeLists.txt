@@ -223,6 +223,13 @@ endfunction()
 bb_plugin(randomizer plugins/randomizer/randomizer.cpp)
 bb_plugin(boss_rush plugins/boss_rush/boss_rush.cpp)
 bb_plugin(mutators plugins/mutators/mutators.cpp)
+add_library(bb_plugin_save_flags MODULE save_flags.c)
+target_include_directories(bb_plugin_save_flags PRIVATE include)
+set_target_properties(bb_plugin_save_flags PROPERTIES OUTPUT_NAME save_flags PREFIX ""
+  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins)
+if(WIN32)
+  target_link_options(bb_plugin_save_flags PRIVATE -static -static-libgcc)
+endif()
 # The Debug Menu plugin carries its glyphs (plugins/debug_menu/font14.bin,
 # tools/make_debug_font.py) as bytes: build/gen/debug_font14.inc, rewritten
 # only when the file changes.
@@ -927,7 +934,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_CROSSCOMPILING)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     # The official plugins too: the package carries them, and a CI build makes
     # nothing it is not asked for (v0.2.0's Windows zip shipped without them).
-    DEPENDS bbhost bb_plugin_randomizer bb_plugin_boss_rush bb_plugin_mutators bb_plugin_debug_menu
+    DEPENDS bbhost bb_plugin_randomizer bb_plugin_boss_rush bb_plugin_mutators bb_plugin_debug_menu bb_plugin_save_flags
     USES_TERMINAL)
 else()
   add_custom_target(smoke
