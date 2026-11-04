@@ -68,7 +68,7 @@ fi
 FFMPEG_VER=${FFMPEG_VER:-7.1.1}
 if ! ls -d "$root/src"/ffmpeg-* > /dev/null 2>&1; then
   echo "fetching ffmpeg"
-  curl -sL -m 600 -o "$root/src/ffmpeg.tar.xz" "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VER.tar.xz"
+  curl -sSL --retry 5 --retry-all-errors --retry-delay 10 --connect-timeout 30 -m 300 -o "$root/src/ffmpeg.tar.xz" "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VER.tar.xz"
   tar xJf "$root/src/ffmpeg.tar.xz" -C "$root/src"
 fi
 fsrc=$(ls -d "$root/src"/ffmpeg-* | head -1)
