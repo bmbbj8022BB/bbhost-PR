@@ -500,7 +500,7 @@ msgid "Seed for the random order"
 msgstr "무작위 순서의 시드"
 
 msgid "The Old Hunters' bosses"
-msgstr "올드헌터스 보스"
+msgstr "디 올드 헌터즈 보스"
 
 msgid "Skipped on a save that cannot enter their maps."
 msgstr "그 지역에 들어갈 수 없는 세이브에서는 건너뜁니다."
@@ -527,7 +527,7 @@ msgid "Skip the bosses' first entrances"
 msgstr "보스 첫 등장 연출 건너뛰기"
 
 msgid "Each round starts at the fog wall, as on a return. Off: as the first time (cutscenes)."
-msgstr "각 라운드를 재도전할 때처럼 안개 벽 앞에서 시작합니다. 끄면 처음 만날 때처럼(컷신 포함) 시작합니다."
+msgstr "각 라운드를 재도전할 때처럼 안개벽 앞에서 시작합니다. 끄면 처음 만날 때처럼(컷신 포함) 시작합니다."
 
 msgid "Refill vials and bullets on death"
 msgstr "사망 시 수혈액과 총알 보충"
@@ -1806,4 +1806,145 @@ msgstr "효과가 프레임마다 한 번 갱신됩니다. 깜박임 등 따로 
 
 msgid "Applies at the next start"
 msgstr "다음 시작 때 적용됩니다"
+
+msgid "On to the next boss. In a practice it restarts the fight, as Restart does."
+msgstr "다음 보스로 넘어갑니다. 연습 중에는 재시작처럼 전투를 처음부터 다시 시작합니다."
+
+msgid "Refill vials and bullets"
+msgstr "수혈액과 수은탄 채우기"
+
+msgid "To the most after each death; in a practice, before every attempt. Off: what you have left, as the game restocks it from storage."
+msgstr "죽을 때마다 최대치까지 채웁니다. 연습에서는 시도마다 채웁니다. 끄면 게임이 보관함에서 보충해 주는 만큼만 남습니다."
+
+msgid "Practice"
+msgstr "연습"
+
+msgid "One boss again and again, from its fog wall: a death tries again, a win wakes it for the next fight. Restart starts the fight over; Stop ends it. Skip the bosses' first entrances, Refill and the seconds before the first round apply."
+msgstr "한 보스를 안개벽에서 계속 반복해서 상대합니다. 죽으면 다시 시도하고, 이기면 다음 전투를 위해 보스가 다시 깨어납니다. 재시작은 전투를 처음부터 다시 시작하고, 중지는 연습을 끝냅니다. 보스 첫 등장 연출 건너뛰기, 채우기, 첫 라운드까지의 대기 시간이 적용됩니다."
+
+msgid "Practice this boss"
+msgstr "이 보스 연습"
+
+msgid "Restart"
+msgstr "재시작"
+
+msgid "The practice's fight again from its fog wall, the boss woken anew. It is not counted as an attempt."
+msgstr "연습 전투를 안개벽에서 다시 시작하고 보스를 새로 깨웁니다. 시도 횟수에는 세지 않습니다."
+
+msgid "Boss"
+msgstr "보스"
+
+msgid "The Old Hunters' and the chalice bosses when the save can reach them."
+msgstr "세이브가 도달할 수 있으면 디 올드 헌터즈와 성배 던전 보스도 고를 수 있습니다."
+
+msgid "Repeat"
+msgstr "반복"
+
+msgid "Once or N times: that many attempts, each a win or a death (a Restart is not one). Loop: until Stop."
+msgstr "한 번 또는 N번: 승리든 죽음이든 그 횟수만큼 시도합니다 (재시작은 세지 않습니다). 반복: 중지할 때까지."
+
+msgid "Once"
+msgstr "한 번"
+
+msgid "N times"
+msgstr "N번"
+
+msgid "Loop until stopped"
+msgstr "중지할 때까지 반복"
+
+msgid "Attempts, with Repeat N times: a win or a death each."
+msgstr "반복이 N번일 때의 시도 횟수. 승리든 죽음이든 한 번으로 셉니다."
+
+msgid "Start at phase"
+msgstr "시작 페이즈"
+
+msgid "2 or 3: as each fight begins the boss is put just under the HP its next phase starts at, and the game plays its own change. A boss without that phase starts at the latest it has (the message says so)."
+msgstr "2 또는 3: 전투가 시작될 때 보스를 다음 페이즈가 시작되는 HP 바로 아래로 맞추고, 게임이 자체 전환 연출을 재생합니다. 해당 페이즈가 없는 보스는 가진 마지막 페이즈에서 시작합니다 (메시지로 알려 줍니다)."
+
+msgid "Cleric Beast"
+msgstr "성직자 야수"
+
+msgid "Father Gascoigne"
+msgstr "개스코인 신부"
+
+msgid "Blood-starved Beast"
+msgstr "피에 굶주린 야수"
+
+msgid "Vicar Amelia"
+msgstr "교구장 아멜리아"
+
+msgid "The Witch of Hemwick"
+msgstr "헴윅의 마녀"
+
+msgid "Darkbeast Paarl"
+msgstr "검은 야수 파알"
+
+msgid "Shadow of Yharnam"
+msgstr "야남의 그림자"
+
+msgid "Rom, the Vacuous Spider"
+msgstr "우둔한 거미 롬"
+
+msgid "The One Reborn"
+msgstr "다시 태어난 자"
+
+msgid "Martyr Logarius"
+msgstr "순교자 로가리우스"
+
+msgid "Amygdala"
+msgstr "아미그달라"
+
+msgid "Celestial Emissary"
+msgstr "천계의 사자"
+
+msgid "Ebrietas, Daughter of the Cosmos"
+msgstr "우주의 딸 이브리에타스"
+
+msgid "Mergo's Wet Nurse"
+msgstr "메르고의 유모"
+
+msgid "Ludwig, the Holy Blade"
+msgstr "저주받은 루드비히"
+
+msgid "Living Failures"
+msgstr "살아있는 실패작들"
+
+msgid "Lady Maria of the Astral Clocktower"
+msgstr "시계탑의 레이디 마리아"
+
+msgid "Laurence, the First Vicar"
+msgstr "초대 교구장 로렌스"
+
+msgid "Orphan of Kos"
+msgstr "코스의 버려진 자"
+
+msgid "Undead Giant"
+msgstr "불사의 거인"
+
+msgid "Merciless Watchers"
+msgstr "무정한 묘지기"
+
+msgid "Watchdog of the Old Lords"
+msgstr "옛 주군의 감시견"
+
+msgid "Beast-possessed Soul"
+msgstr "야수에 홀린 영혼"
+
+msgid "Keeper of the Old Lords"
+msgstr "옛 주군의 파수꾼"
+
+msgid "Pthumerian Descendant"
+msgstr "투메르의 후예"
+
+msgid "Bloodletting Beast"
+msgstr "야수 피의 주인"
+
+msgid "Pthumerian Elder"
+msgstr "투메르의 장로"
+
+msgid "Abhorrent Beast"
+msgstr "무서운 야수"
+
+msgid "Yharnam, Pthumerian Queen"
+msgstr "투메르의 여왕 야남"
 
