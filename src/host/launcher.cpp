@@ -934,14 +934,14 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 {
                     const HostEffectTimingRow et = host_effect_timing_row();
-                    const char* labels[5] = {kHostEffectTimingLabels[0], kHostEffectTimingLabels[1], kHostEffectTimingLabels[2],
-                                             kHostEffectTimingLabels[3], et.custom.c_str()};
-                    const char* tips[5] = {kHostEffectTimingTips[0], kHostEffectTimingTips[1], kHostEffectTimingTips[2],
-                                           kHostEffectTimingTips[3], et.tip.c_str()};
+                    const char* labels[5] = {tr(kHostEffectTimingLabels[0]), tr(kHostEffectTimingLabels[1]), tr(kHostEffectTimingLabels[2]),
+                                             tr(kHostEffectTimingLabels[3]), et.custom.c_str()};
+                    const char* tips[5] = {tr(kHostEffectTimingTips[0]), tr(kHostEffectTimingTips[1]), tr(kHostEffectTimingTips[2]),
+                                           tr(kHostEffectTimingTips[3]), et.tip.c_str()};
                     int shown = effect_timing >= 0 ? effect_timing : et.index;
                     if (ui::combo("##effects", &shown, labels, et.index == 4 ? 5 : 4, tips) && shown < 4) effect_timing = shown;
                 }
-                ui::tooltip_for_item(tr("Effect timing"), kHostEffectTimingNote);
+                ui::tooltip_for_item(tr("Effect timing"), tr(kHostEffectTimingNote));
                 ui::row_label(tr("Resolution"), row_lw);
                 ImGui::SetNextItemWidth(-FLT_MIN);
                 ui::combo("##res", &resolution, kResolutions, static_cast<int>(sizeof(kResolutions) / sizeof(kResolutions[0])));

@@ -630,3 +630,8 @@ KO.update({
 "Effects step 60 times a second. The flicker and the other counted parts speed up with them, to twice the game's own pace.": "효과가 초당 60회 갱신됩니다. 깜박임 등 따로 세는 부분도 함께 빨라져 게임 원래 속도의 두 배가 됩니다.",
 "Effects step once a frame. The flicker and the other counted parts speed up with them: twice the game's own pace at 60 fps, four times at 120.": "효과가 프레임마다 한 번 갱신됩니다. 깜박임 등 따로 세는 부분도 함께 빨라져, 60fps에서는 게임 원래 속도의 두 배, 120fps에서는 네 배가 됩니다.",
 })
+
+# --- 0.2.25: F10 restart notices
+KO.update({
+    'Applies at the next start': '다음 시작 때 적용됩니다',
+})

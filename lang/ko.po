@@ -1774,3 +1774,36 @@ msgstr "재시작이 필요합니다. 각 프레임의 실제 길이에 맞춰 �
 msgid "Screen space reflections on, at the render's full size, with the depth they read at full and half size (the game's are half and a quarter): sharper reflections, more GPU time. It loads last, so other patches' render changes give way to it."
 msgstr "스크린 스페이스 리플렉션을 켭니다. 렌더 전체 크기로 처리하고, 깊이 정보도 전체·절반 크기로 읽습니다(게임 기본값은 절반·4분의 1). 반사가 더 선명해지는 대신 GPU 부담이 늘어납니다. 가장 마지막에 로드되므로 다른 패치의 렌더 변경보다 우선합니다."
 
+msgid "Effect timing"
+msgstr "효과 타이밍"
+
+msgid "Smooth"
+msgstr "부드럽게"
+
+msgid "Original (30)"
+msgstr "원본 (30)"
+
+msgid "60 a second"
+msgstr "초당 60회"
+
+msgid "Your frame rate"
+msgstr "내 프레임 레이트"
+
+msgid "Requires a restart. How fire, blood, magic and the flicker of lamps and candles keep time above 30 fps."
+msgstr "재시작이 필요합니다. 30fps를 넘을 때 불, 피, 마법 효과와 램프·촛불의 깜박임이 시간을 맞추는 방식입니다."
+
+msgid "Effects move at your frame rate, while the flicker and the other parts the game counts keep its own 30 a second."
+msgstr "효과는 프레임 레이트에 맞춰 움직이고, 깜박임 등 게임이 따로 세는 부분은 게임 고유의 초당 30회 속도를 유지합니다."
+
+msgid "Effects step 30 times a second, as the game at 30 fps, whatever your frame rate: above 30 fps their motion is less smooth."
+msgstr "프레임 레이트와 상관없이 효과가 30fps일 때의 게임처럼 초당 30회 갱신됩니다. 30fps를 넘으면 움직임이 덜 부드럽습니다."
+
+msgid "Effects step 60 times a second. The flicker and the other counted parts speed up with them, to twice the game's own pace."
+msgstr "효과가 초당 60회 갱신됩니다. 깜박임 등 따로 세는 부분도 함께 빨라져 게임 원래 속도의 두 배가 됩니다."
+
+msgid "Effects step once a frame. The flicker and the other counted parts speed up with them: twice the game's own pace at 60 fps, four times at 120."
+msgstr "효과가 프레임마다 한 번 갱신됩니다. 깜박임 등 따로 세는 부분도 함께 빨라져, 60fps에서는 게임 원래 속도의 두 배, 120fps에서는 네 배가 됩니다."
+
+msgid "Applies at the next start"
+msgstr "다음 시작 때 적용됩니다"
+
