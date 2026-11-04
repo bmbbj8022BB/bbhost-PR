@@ -1302,7 +1302,7 @@ void setting_row(int id) {
     }
     if (n == 2 && on_i >= 0 && off_i >= 0) {
         bool v = cur == on_i;
-        if (ui::toggle_row(s.label, restart ? "Applies at the next start" : nullptr, &v, s.note)) change(id, v ? on_i : off_i);
+        if (ui::toggle_row(i18n::tr(s.label), restart ? i18n::tr("Applies at the next start") : nullptr, &v, s.note)) change(id, v ? on_i : off_i);
         ImGui::PopID();
         return;
     }
@@ -1311,10 +1311,10 @@ void setting_row(int id) {
     const ImVec2 p = ImGui::GetCursorScreenPos();
     ImGui::BeginGroup();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(s.label);
+    ImGui::TextUnformatted(i18n::tr(s.label));
     if (restart) {
         ImGui::SameLine();
-        ui::pill("next start", ui::kWarn, ui::alpha(ui::kWarn, 38));
+        ui::pill(i18n::tr("next start"), ui::kWarn, ui::alpha(ui::kWarn, 38));
     }
     ImGui::EndGroup();
     if (s.note) ui::tooltip_for_item(s.label, s.note);
@@ -1327,9 +1327,10 @@ void setting_row(int id) {
         // is. A pick is one of the four, the player's own even when the
         // setting held it already (set_index).
         const HostEffectTimingRow et = host_effect_timing_row();
-        const char* labels[5] = {s.values[0], s.values[1], s.values[2], s.values[3], et.custom.c_str()};
-        const char* tips[5] = {kHostEffectTimingTips[0], kHostEffectTimingTips[1], kHostEffectTimingTips[2],
-                               kHostEffectTimingTips[3], et.tip.c_str()};
+        const char* labels[5] = {i18n::tr(s.values[0]), i18n::tr(s.values[1]), i18n::tr(s.values[2]),
+                                 i18n::tr(s.values[3]), et.custom.c_str()};
+        const char* tips[5] = {i18n::tr(kHostEffectTimingTips[0]), i18n::tr(kHostEffectTimingTips[1]), i18n::tr(kHostEffectTimingTips[2]),
+                               i18n::tr(kHostEffectTimingTips[3]), et.tip.c_str()};
         const int shown = g_pending[static_cast<std::size_t>(id)] >= 0 ? cur : et.index;
         int pick = shown;
         ImGui::SetNextItemWidth(cw);
