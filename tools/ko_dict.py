@@ -573,3 +573,17 @@ KO.update({
     "Plasma": "플라스마",
     "What the plasma gun fires: one of A Call Beyond's small stars, flying straight and seeking nothing, or Blacksky Eye's shard.": "플라스마 건이 쏘는 것: A Call Beyond의 작은 별(똑바로 날아가며 아무것도 추적하지 않음) 또는 Blacksky Eye의 파편.",
 })
+
+# --- 0.2.25: Effect timing
+KO.update({
+"Effect timing": "효과 타이밍",
+"Smooth": "부드럽게",
+"Original (30)": "원본 (30)",
+"60 a second": "초당 60회",
+"Your frame rate": "내 프레임 레이트",
+"Requires a restart. How fire, blood, magic and the flicker of lamps and candles keep time above 30 fps.": "재시작이 필요합니다. 30fps를 넘을 때 불, 피, 마법 효과와 램프·촛불의 깜박임이 시간을 맞추는 방식입니다.",
+"Effects move at your frame rate, while the flicker and the other parts the game counts keep its own 30 a second.": "효과는 프레임 레이트에 맞춰 움직이고, 깜박임 등 게임이 따로 세는 부분은 게임 고유의 초당 30회 속도를 유지합니다.",
+"Effects step 30 times a second, as the game at 30 fps, whatever your frame rate: above 30 fps their motion is less smooth.": "프레임 레이트와 상관없이 효과가 30fps일 때의 게임처럼 초당 30회 갱신됩니다. 30fps를 넘으면 움직임이 덜 부드럽습니다.",
+"Effects step 60 times a second. The flicker and the other counted parts speed up with them, to twice the game's own pace.": "효과가 초당 60회 갱신됩니다. 깜박임 등 따로 세는 부분도 함께 빨라져 게임 원래 속도의 두 배가 됩니다.",
+"Effects step once a frame. The flicker and the other counted parts speed up with them: twice the game's own pace at 60 fps, four times at 120.": "효과가 프레임마다 한 번 갱신됩니다. 깜박임 등 따로 세는 부분도 함께 빨라져, 60fps에서는 게임 원래 속도의 두 배, 120fps에서는 네 배가 됩니다.",
+})
