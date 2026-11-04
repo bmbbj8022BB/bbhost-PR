@@ -643,3 +643,9 @@ KO.update({
     'Abhorrent Beast': '무서운 야수',
     'Yharnam, Pthumerian Queen': '투메르의 여왕 야남',
 })
+
+# --- 0.2.25: Native frame clock
+KO.update({
+    'Native frame clock (experimental)': '네이티브 프레임 클럭 (실험적)',
+    "Requires a restart. Timing follows each frame's real length, for PCs that do not hold their chosen frame rate.": '재시작이 필요합니다. 각 프레임의 실제 길이에 맞춰 타이밍을 잡습니다. 선택한 프레임 레이트를 유지하지 못하는 PC용입니다.',
+})

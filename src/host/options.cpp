@@ -37,6 +37,7 @@
 
 #if defined(BBHOST_HAVE_SDL3)
 #include "host/launcher_ui.h"
+#include "host/i18n.h"
 
 #include "imgui.h"
 
