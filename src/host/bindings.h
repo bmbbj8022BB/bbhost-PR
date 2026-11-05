@@ -37,7 +37,7 @@ enum BindAction : int {
     // actions (host_binding_in_menus)
     kBindMenuPageL, kBindMenuPageR, kBindMenuShortL, kBindMenuShortR, kBindMenuDisplay, kBindMenuStatus,
     // Other
-    kBindL3, kBindZoomIn, kBindZoomOut, kBindZoomReset, kBindDebugMenu,
+    kBindRollTap, kBindL3, kBindZoomIn, kBindZoomOut, kBindZoomReset, kBindDebugMenu,
     kBindCount,
 };
 constexpr int kBindPages = 6, kBindPerPage = 7;

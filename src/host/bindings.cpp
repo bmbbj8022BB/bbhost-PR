@@ -95,6 +95,8 @@ const BindingInfo kInfo[kBindCount] = {
      0},
     {"menu_status", "Menu Toggle Status", "Triangle in menus: Toggle Status, Switch, Initialize.", kTriangle, "R", 0},
 
+    // Circle for a short pulse only: the dodge without the sprint (roll_tap_pulse).
+    {"roll_tap", "Dodge (tap only)", "Circle, a short press: dodge only, holding it does not sprint.", kCircle, nullptr, 0},
     {"l3", "Left Stick Press", "L3.", kL3, "Left Ctrl", 0},
     // The follow camera's distance, in the world: each press a step of the
     // Camera distance setting (10%), Reset the game's own. No pad press.
@@ -439,7 +441,7 @@ bool host_key_long_allowed(int a) {
     switch (a) {
         case kBindMoveF: case kBindMoveB: case kBindMoveL: case kBindMoveR:
         case kBindLookU: case kBindLookD: case kBindLookL: case kBindLookR:
-        case kBindStrongMod: case kBindDebugMenu:
+        case kBindStrongMod: case kBindDebugMenu: case kBindRollTap:
         case kBindZoomIn: case kBindZoomOut: case kBindZoomReset:
             return false;
         default:
@@ -538,6 +540,49 @@ void key_long_filter(bool held[kBindCount]) {
 }
 }  // namespace
 
+namespace {
+// Dodge (tap only): a press of its key or mouse button gives the dodge button a
+// short pulse and nothing more, however long it is held, so it never sprints.
+// One state per device (0 the keyboard, 1 the mouse), read on every frame.
+// With a Dodge (tap only) key or button set, Dodge / Sprint is the sprint alone:
+// the game rolls when a short press of the button is let go, so the press is
+// held back until it has lasted long_ms (Long keys page), then given for as
+// long as the key stays down, and for at least kSprintMinHoldMs - let go sooner
+// the game would read it as a roll. One state per device (0 keyboard, 1 mouse).
+constexpr int kSprintMinHoldMs = 350;
+void roll_sprint_only(int device, bool held[kBindCount]) {
+    using clk = std::chrono::steady_clock;
+    static bool was_down[2], on[2];
+    static clk::time_point down_since[2], on_since[2];
+    if (g_key[kBindRollTap].load(std::memory_order_relaxed) == 0 &&
+        g_mouse[kBindRollTap].load(std::memory_order_relaxed) == 0) {
+        was_down[device] = on[device] = false;
+        return;
+    }
+    const auto now = clk::now();
+    const bool down = held[kBindRoll];
+    if (down && !was_down[device]) down_since[device] = now;
+    was_down[device] = down;
+    if (down && !on[device] && now - down_since[device] >= std::chrono::milliseconds(host_key_long_ms())) {
+        on[device] = true;
+        on_since[device] = now;
+    }
+    if (on[device] && !down && now - on_since[device] >= std::chrono::milliseconds(kSprintMinHoldMs)) on[device] = false;
+    held[kBindRoll] = on[device];
+}
+
+void roll_tap_pulse(int device, bool held[kBindCount]) {
+    using clk = std::chrono::steady_clock;
+    static bool was_down[2];
+    static clk::time_point until[2];
+    const auto now = clk::now();
+    const bool down = held[kBindRollTap];
+    if (down && !was_down[device]) until[device] = now + std::chrono::milliseconds(120);
+    was_down[device] = down;
+    held[kBindRollTap] = now < until[device];
+}
+}  // namespace
+
 void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount]) {
     for (int a = 0; a < kBindCount; ++a) {
         const int sc = g_key[a].load(std::memory_order_relaxed);
@@ -547,6 +592,8 @@ void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount])
         if (held[pair[0]] && held[pair[1]]) held[pair[0]] = held[pair[1]] = false;
     }
     key_long_filter(held);
+    roll_sprint_only(0, held);
+    roll_tap_pulse(0, held);
     held[kBindWalk] = held[kBindWalk] || g_walk_on_mouse.load(std::memory_order_relaxed);
     note_debug_key(0, held[kBindDebugMenu]);
     note_zoom_keys(0, held);
@@ -557,8 +604,10 @@ void host_bindings_mouse_held(std::uint32_t buttons, bool held[kBindCount]) {
         const int m = g_mouse[a].load(std::memory_order_relaxed);
         held[a] = m >= 1 && m <= kMouseInputs && (buttons & (1u << (m - 1)));
     }
+    roll_sprint_only(1, held);
     g_walk_on_mouse.store(held[kBindWalk], std::memory_order_relaxed);
     g_roll_on_mouse.store(held[kBindRoll], std::memory_order_relaxed);
+    roll_tap_pulse(1, held);
     note_debug_key(1, held[kBindDebugMenu]);
     note_zoom_keys(1, held);
 }
