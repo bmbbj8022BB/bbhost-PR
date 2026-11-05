@@ -571,15 +571,43 @@ void roll_sprint_only(int device, bool held[kBindCount]) {
     held[kBindRoll] = on[device];
 }
 
-void roll_tap_pulse(int device, bool held[kBindCount]) {
+// Dodging out of a sprint: the sprint holds the dodge button down, and a button
+// that is already down cannot be pressed again, so the dodge would wait for the
+// sprint key to be let go. So the sprint's press is lifted for kDodgeGapMs, the
+// dodge pulse follows, then another gap; if the sprint key is still down by
+// then the sprint goes on, held for at least kSprintMinHoldMs so the game does
+// not read the new short press as a roll. roll_down: the Dodge / Sprint key
+// itself is down, before the sprint-only filter held it back or kept it on.
+constexpr int kDodgeGapMs = 60, kDodgePulseMs = 120;
+void roll_tap_pulse(int device, bool held[kBindCount], bool roll_down) {
     using clk = std::chrono::steady_clock;
-    static bool was_down[2];
-    static clk::time_point until[2];
+    static bool was_down[2], resume[2];
+    static clk::time_point pulse_from[2], pulse_until[2], cut_until[2], keep_until[2];
     const auto now = clk::now();
+    const auto ms = [](int n) { return std::chrono::milliseconds(n); };
     const bool down = held[kBindRollTap];
-    if (down && !was_down[device]) until[device] = now + std::chrono::milliseconds(120);
+    if (down && !was_down[device]) {
+        const bool sprinting = held[kBindRoll] || now < keep_until[device];
+        keep_until[device] = clk::time_point{};
+        if (sprinting) {
+            pulse_from[device] = now + ms(kDodgeGapMs);
+            cut_until[device] = pulse_from[device] + ms(kDodgePulseMs + kDodgeGapMs);
+            resume[device] = true;
+        } else {
+            pulse_from[device] = now;
+            cut_until[device] = now;
+            resume[device] = false;
+        }
+        pulse_until[device] = pulse_from[device] + ms(kDodgePulseMs);
+    }
     was_down[device] = down;
-    held[kBindRollTap] = now < until[device];
+    held[kBindRollTap] = now >= pulse_from[device] && now < pulse_until[device];
+    if (now >= cut_until[device] && resume[device]) {
+        resume[device] = false;
+        if (roll_down) keep_until[device] = now + ms(kSprintMinHoldMs);
+    }
+    if (now < keep_until[device]) held[kBindRoll] = true;
+    if (now < cut_until[device]) held[kBindRoll] = false;
 }
 }  // namespace
 
@@ -592,8 +620,9 @@ void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount])
         if (held[pair[0]] && held[pair[1]]) held[pair[0]] = held[pair[1]] = false;
     }
     key_long_filter(held);
+    const bool roll_down_keys = held[kBindRoll];
     roll_sprint_only(0, held);
-    roll_tap_pulse(0, held);
+    roll_tap_pulse(0, held, roll_down_keys);
     held[kBindWalk] = held[kBindWalk] || g_walk_on_mouse.load(std::memory_order_relaxed);
     note_debug_key(0, held[kBindDebugMenu]);
     note_zoom_keys(0, held);
@@ -604,10 +633,11 @@ void host_bindings_mouse_held(std::uint32_t buttons, bool held[kBindCount]) {
         const int m = g_mouse[a].load(std::memory_order_relaxed);
         held[a] = m >= 1 && m <= kMouseInputs && (buttons & (1u << (m - 1)));
     }
+    const bool roll_down_mouse = held[kBindRoll];
     roll_sprint_only(1, held);
     g_walk_on_mouse.store(held[kBindWalk], std::memory_order_relaxed);
     g_roll_on_mouse.store(held[kBindRoll], std::memory_order_relaxed);
-    roll_tap_pulse(1, held);
+    roll_tap_pulse(1, held, roll_down_mouse);
     note_debug_key(1, held[kBindDebugMenu]);
     note_zoom_keys(1, held);
 }
