@@ -1510,7 +1510,7 @@ void keylong_page() {
         ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
         ImGui::SetNextItemWidth(2 * cw + gap);
         int ms = host_key_long_ms();
-        if (ImGui::SliderInt("##klms", &ms, 200, 1000, "%d ms") && ms != host_key_long_ms()) {
+        if (ImGui::SliderInt("##klms", &ms, 100, 1000, "%d ms") && ms != host_key_long_ms()) {
             host_key_long_set_ms(ms);
             host_options_post([] { g_dirty = true; });
         }
