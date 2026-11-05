@@ -402,6 +402,7 @@ const Row g_rows[] = {
     {Row::Option, nullptr, kPerformanceMode},
     // The pad's buttons, remapped (host/window.cpp, pad_remap): drawn by pad_page().
     {Row::Header, "PAD"},
+    {Row::Header, "LONG KEYS"},
     // The private server's account. No passwords: link this PC to
     // the account signed into on the website with Discord, or make one held
     // by this PC with a recovery code. The token is kept in the options file.
@@ -769,7 +770,31 @@ void apply(int id) {
 // button, its default until then, gives it to Camera Zoom Reset.
 constexpr int kOptionsVersion = 5;
 
+// The options file's last two versions are kept beside it, <file>.bak1 (the
+// newer) and <file>.bak2, each time it is about to be written over. A write
+// that changes nothing keeps them as they were.
+void backup_options_file() {
+    const std::string path = options_path();
+    const auto slurp = [](const std::string& p, std::string* out) {
+        std::ifstream in(p, std::ios::binary);
+        if (!in) return false;
+        out->assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        return true;
+    };
+    std::string cur, b1;
+    if (!slurp(path, &cur) || cur.empty()) return;
+    const bool have1 = slurp(path + ".bak1", &b1);
+    if (have1 && b1 == cur) return;
+    if (have1) {
+        std::ofstream o2(path + ".bak2", std::ios::binary | std::ios::trunc);
+        o2.write(b1.data(), static_cast<std::streamsize>(b1.size()));
+    }
+    std::ofstream o1(path + ".bak1", std::ios::binary | std::ios::trunc);
+    o1.write(cur.data(), static_cast<std::streamsize>(cur.size()));
+}
+
 void save() {
+    backup_options_file();
     if (!g_dirty) {
         return;
     }
@@ -795,6 +820,7 @@ void save() {
         std::fprintf(f, "%s = \"%s\"\n", s.key, s.values[static_cast<std::size_t>(index)]);
     }
     host_bindings_save(f);
+    host_key_long_save(f);
     // The pad: [input] and [input.pad] (host/window.cpp, pad_remap). Written
     // whole each time, so the file keeps what it was read with.
     {
@@ -1039,11 +1065,13 @@ void host_options_load() {
     FILE* f = std::fopen(path.c_str(), "r");
     // The pad ([input], [input.pad]): read here, applied after the file is closed.
     g_pad_opts = PadOptions{};
+    host_key_long_reset();
     if (f) {
         char line[512];
         bool keys = false;  // in [keys]: bindings, not settings
         bool account = false;  // in [account]: the name and token
         bool in_input = false;  // in [input]: swap_ab, back_short, back_long_ms
+        bool in_kl = false;     // in [input.key_long]: the keyboard's long presses
         bool in_pad = false;    // in [input.pad]: the pad's buttons remapped
         std::string acct_name, acct_token;
         int file_version = 1;
@@ -1053,6 +1081,7 @@ void host_options_load() {
             if (line[0] == '[') {
                 keys = std::strncmp(line, "[keys]", 6) == 0;
                 account = std::strncmp(line, "[account]", 9) == 0;
+                in_kl = std::strncmp(line, "[input.key_long]", 16) == 0;
                 in_pad = std::strncmp(line, "[input.pad]", 11) == 0;
                 in_input = !in_pad && std::strncmp(line, "[input]", 7) == 0;
                 if (in_pad) g_pad_opts.pad = true;
@@ -1085,6 +1114,10 @@ void host_options_load() {
             if (account) {
                 if (key == "name") acct_name = val;
                 if (key == "token") acct_token = val;
+                continue;
+            }
+            if (in_kl) {
+                host_key_long_parse(key.c_str(), val.c_str());
                 continue;
             }
             if (in_pad) {
@@ -1351,6 +1384,7 @@ const std::vector<OptionsPage>& pages() {
             {"PC ENHANCEMENTS", "PC Enhancements", "Additions to the game itself, read as it starts."},
             {"STARTUP", "Startup", "What happens as the game starts."},
             {"PAD", "Pad", "Remap the controller's buttons. A change applies at once."},
+            {"LONG KEYS", "Long keys", "Two keyboard actions that do something else when their key is held. A change applies at once."},
             {"ACCOUNT", "Account", "The private server's account. No passwords: this PC keeps a token."},
             {"UPDATES", "Updates", "Newer releases of bbhost."},
         };
@@ -1698,6 +1732,88 @@ void pad_page(bool live) {
     ui::card_end();
 }
 
+// ---- the Long keys page: two keyboard actions that split by how long their key is held ----
+// Read by host/bindings.cpp on every frame, so a change applies at once; written
+// with the rest of the file when the menu closes.
+void keylong_page() {
+    const float sc = ui::scale(), w = ImGui::GetContentRegionAvail().x;
+    const float gap = std::round(8 * sc);
+    int acts[kBindCount];
+    const char* items[kBindCount + 1];
+    int n = 0;
+    items[0] = i18n::tr("None");
+    for (int a = 0; a < kBindCount; ++a) {
+        if (!host_key_long_allowed(a)) continue;
+        acts[n] = a;
+        items[++n] = i18n::tr(host_binding_info(a).label);
+    }
+    const auto index_of = [&](int action) {
+        for (int i = 0; i < n; ++i) {
+            if (acts[i] == action) return i + 1;
+        }
+        return 0;
+    };
+    ui::card_begin("##keylong", ImVec2(w, 0), i18n::tr("KEYBOARD LONG PRESS"));
+    {
+        const float iw = ImGui::GetContentRegionAvail().x;
+        const float cw = std::min(std::round(250 * sc), (iw * 0.62f - gap) * 0.5f);
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
+        ImGui::TextUnformatted(i18n::tr("Action (its own key)"));
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - cw, p.y));
+        ImGui::TextUnformatted(i18n::tr("Held long"));
+        ImGui::PopStyleColor();
+        for (int slot = 0; slot < kKeyLongSlots; ++slot) {
+            int src = -1, lng = -1;
+            host_key_long_get(slot, &src, &lng);
+            ImGui::PushID(slot);
+            const ImVec2 at = ImGui::GetCursorScreenPos();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(slot == 0 ? i18n::tr("Key 1") : i18n::tr("Key 2"));
+            ImGui::SameLine();
+            ImGui::SetCursorScreenPos(ImVec2(at.x + iw - 2 * cw - gap, at.y));
+            int want_src = index_of(src), want_lng = index_of(lng);
+            const int had_src = want_src, had_lng = want_lng;
+            ImGui::SetNextItemWidth(cw);
+            ui::combo("##src", &want_src, items, n + 1);
+            ImGui::SameLine(0, gap);
+            ImGui::SetNextItemWidth(cw);
+            ui::combo("##long", &want_lng, items, n + 1);
+            if (want_src != had_src || want_lng != had_lng) {
+                host_key_long_set(slot, want_src > 0 ? acts[want_src - 1] : -1, want_lng > 0 ? acts[want_lng - 1] : -1);
+                host_options_post([] { g_dirty = true; });
+            }
+            ImGui::PopID();
+        }
+    }
+    ui::card_end();
+    ImGui::Dummy(ImVec2(0, 6 * sc));
+    ui::card_begin("##keylongms", ImVec2(w, 0), i18n::tr("LONG PRESS"));
+    {
+        const float iw = ImGui::GetContentRegionAvail().x;
+        const float cw = std::min(std::round(250 * sc), (iw * 0.62f - gap) * 0.5f);
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(i18n::tr("Held longer than"));
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
+        ImGui::SetNextItemWidth(2 * cw + gap);
+        int ms = host_key_long_ms();
+        if (ImGui::SliderInt("##klms", &ms, 200, 1000, "%d ms", ImGuiSliderFlags_AlwaysClamp) && ms != host_key_long_ms()) {
+            host_key_long_set_ms(ms);
+            host_options_post([] { g_dirty = true; });
+        }
+        ImGui::Spacing();
+        if (ui::ghost_button(i18n::tr("Reset long keys"))) {
+            host_key_long_reset();
+            host_options_post([] { g_dirty = true; });
+        }
+    }
+    ui::card_end();
+}
+
 char g_name_buf[64] = {};  // the account fields as typed (the presenter's)
 char g_code_buf[64] = {};
 bool g_bufs_seeded = false;
@@ -1780,6 +1896,7 @@ void host_options_draw_page(int page) {
     if (page < 0 || page >= host_options_page_count()) return;
     const OptionsPage& pg = pages()[static_cast<std::size_t>(page)];
     if (std::strcmp(pg.header, "PAD") == 0) return pad_page(true);
+    if (std::strcmp(pg.header, "LONG KEYS") == 0) return keylong_page();
     if (std::strcmp(pg.header, "ACCOUNT") == 0) return account_page();
     if (std::strcmp(pg.header, "UPDATES") == 0) return updates_page();
     ui::card_begin("##rows", ImVec2(ImGui::GetContentRegionAvail().x, 0));

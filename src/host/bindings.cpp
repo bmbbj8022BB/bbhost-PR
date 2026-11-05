@@ -426,6 +426,118 @@ float move_stick(int x, int y, bool sprint, std::chrono::steady_clock::time_poin
 
 }  // namespace
 
+// ---- Long press on two keys (the keyboard only; see bindings.h) ----------------
+namespace {
+std::atomic<int> g_kl_src[kKeyLongSlots] = {{-1}, {-1}};
+std::atomic<int> g_kl_long[kKeyLongSlots] = {{-1}, {-1}};
+std::atomic<int> g_kl_ms{450};
+constexpr const char* kKlNames[kKeyLongSlots][2] = {{"slot1_key", "slot1_long"}, {"slot2_key", "slot2_long"}};
+}  // namespace
+
+bool host_key_long_allowed(int a) {
+    if (a < 0 || a >= kBindCount) return false;
+    switch (a) {
+        case kBindMoveF: case kBindMoveB: case kBindMoveL: case kBindMoveR:
+        case kBindLookU: case kBindLookD: case kBindLookL: case kBindLookR:
+        case kBindStrongMod: case kBindDebugMenu:
+        case kBindZoomIn: case kBindZoomOut: case kBindZoomReset:
+            return false;
+        default:
+            return true;
+    }
+}
+
+void host_key_long_get(int slot, int* src, int* lng) {
+    const bool ok = slot >= 0 && slot < kKeyLongSlots;
+    if (src) *src = ok ? g_kl_src[slot].load(std::memory_order_relaxed) : -1;
+    if (lng) *lng = ok ? g_kl_long[slot].load(std::memory_order_relaxed) : -1;
+}
+
+void host_key_long_set(int slot, int src, int lng) {
+    if (slot < 0 || slot >= kKeyLongSlots) return;
+    g_kl_src[slot].store(host_key_long_allowed(src) ? src : -1, std::memory_order_relaxed);
+    g_kl_long[slot].store(host_key_long_allowed(lng) ? lng : -1, std::memory_order_relaxed);
+}
+
+int host_key_long_ms() { return g_kl_ms.load(std::memory_order_relaxed); }
+void host_key_long_set_ms(int ms) { g_kl_ms.store(ms < 100 ? 100 : (ms > 2000 ? 2000 : ms), std::memory_order_relaxed); }
+
+void host_key_long_reset() {
+    for (int i = 0; i < kKeyLongSlots; ++i) host_key_long_set(i, -1, -1);
+    host_key_long_set_ms(450);
+}
+
+bool host_key_long_parse(const char* name, const char* value) {
+    if (std::strcmp(name, "long_ms") == 0) {
+        int n = 0;
+        for (const char* c = value; *c >= '0' && *c <= '9'; ++c) n = n * 10 + (*c - '0');
+        if (n > 0) host_key_long_set_ms(n);
+        return true;
+    }
+    for (int i = 0; i < kKeyLongSlots; ++i) {
+        for (int k = 0; k < 2; ++k) {
+            if (std::strcmp(name, kKlNames[i][k]) != 0) continue;
+            int a = std::strcmp(value, "none") == 0 ? -1 : action_named(value);
+            if (a < 0 && std::strcmp(value, "none") != 0) {
+                host_log("keys: [input.key_long] %s = \"%s\" is not an action; ignored", name, value);
+            }
+            if (!host_key_long_allowed(a)) a = -1;
+            if (k == 0) g_kl_src[i].store(a, std::memory_order_relaxed);
+            else g_kl_long[i].store(a, std::memory_order_relaxed);
+            return true;
+        }
+    }
+    host_log("keys: [input.key_long] has no setting \"%s\"; ignored", name);
+    return false;
+}
+
+void host_key_long_save(std::FILE* f) {
+    std::fprintf(f, "\n[input.key_long]\n");
+    std::fprintf(f, "# Keyboard long press for two actions: held longer than long_ms, the key gives the long action.\n");
+    std::fprintf(f, "long_ms = \"%d\"\n", g_kl_ms.load(std::memory_order_relaxed));
+    for (int i = 0; i < kKeyLongSlots; ++i) {
+        const int s = g_kl_src[i].load(std::memory_order_relaxed), l = g_kl_long[i].load(std::memory_order_relaxed);
+        std::fprintf(f, "%s = \"%s\"\n", kKlNames[i][0], s >= 0 ? kInfo[s].key : "none");
+        std::fprintf(f, "%s = \"%s\"\n", kKlNames[i][1], l >= 0 ? kInfo[l].key : "none");
+    }
+}
+
+namespace {
+// Run on the keyboard's held actions, after the opposite keys cancelled. A slot's
+// action is held back while its key is down and under long_ms; let go inside
+// long_ms it is pressed for a short pulse, held past it the long action is held.
+void key_long_filter(bool held[kBindCount]) {
+    using clk = std::chrono::steady_clock;
+    static bool was_down[kKeyLongSlots];
+    static clk::time_point down_since[kKeyLongSlots], pulse_until[kKeyLongSlots];
+    const auto now = clk::now();
+    const auto limit = std::chrono::milliseconds(g_kl_ms.load(std::memory_order_relaxed));
+    bool raw[kBindCount];
+    bool long_on[kBindCount] = {};
+    for (int a = 0; a < kBindCount; ++a) raw[a] = held[a];
+    for (int i = 0; i < kKeyLongSlots; ++i) {
+        const int s = g_kl_src[i].load(std::memory_order_relaxed), l = g_kl_long[i].load(std::memory_order_relaxed);
+        if (!host_key_long_allowed(s) || !host_key_long_allowed(l) || s == l) {
+            was_down[i] = false;
+            continue;
+        }
+        const bool down = raw[s];
+        if (down && !was_down[i]) down_since[i] = now;
+        if (!down && was_down[i] && now - down_since[i] < limit) pulse_until[i] = now + std::chrono::milliseconds(120);
+        was_down[i] = down;
+        if (down) {
+            held[s] = false;
+            if (now - down_since[i] >= limit) long_on[l] = true;
+        } else if (now < pulse_until[i]) {
+            held[s] = true;
+        }
+    }
+    for (int a = 0; a < kBindCount; ++a) {
+        if (long_on[a]) held[a] = true;
+    }
+}
+}  // namespace
+
 void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount]) {
     for (int a = 0; a < kBindCount; ++a) {
         const int sc = g_key[a].load(std::memory_order_relaxed);
@@ -434,6 +546,7 @@ void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount])
     for (const auto& pair : kOpposites) {
         if (held[pair[0]] && held[pair[1]]) held[pair[0]] = held[pair[1]] = false;
     }
+    key_long_filter(held);
     held[kBindWalk] = held[kBindWalk] || g_walk_on_mouse.load(std::memory_order_relaxed);
     note_debug_key(0, held[kBindDebugMenu]);
     note_zoom_keys(0, held);

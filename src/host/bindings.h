@@ -147,3 +147,19 @@ void host_bindings_migrate_zoom();
 void host_bindings_migrate_menu_keys();
 bool host_bind_take_clear_key();
 void host_binding_clear(int action);
+
+// ---- Long press on two keys (the keyboard only) --------------------------------
+// Two actions may be given a "long" action: their key, let go inside long_ms,
+// presses the action as before (a short pulse, since the press is known only at
+// the release); held past long_ms, it presses the long action for as long as it
+// stays down. The mouse's buttons are not touched. Read on every frame, so a
+// change applies at once; written to [input.key_long] of the options file.
+constexpr int kKeyLongSlots = 2;
+bool host_key_long_allowed(int action);  // movement, look, zoom, debug and the strong modifier are not
+void host_key_long_get(int slot, int* src, int* lng);  // an action, or -1 for none
+void host_key_long_set(int slot, int src, int lng);
+int host_key_long_ms();
+void host_key_long_set_ms(int ms);
+void host_key_long_reset();
+bool host_key_long_parse(const char* name, const char* value);  // one line of [input.key_long]
+void host_key_long_save(std::FILE* f);
