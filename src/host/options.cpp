@@ -375,6 +375,7 @@ const Row g_rows[] = {
     {Row::Option, nullptr, kMouseAutoRotation},
     {Row::Option, nullptr, kDrawCursor},
     {Row::Option, nullptr, kButtonPrompts},
+    {Row::Header, "LONG KEYS"},
     {Row::Header, "GRAPHICS"},
     {Row::Option, nullptr, kSsao},
     {Row::Option, nullptr, kMotionBlur},
@@ -765,11 +766,43 @@ void apply(int id) {
 // button, its default until then, gives it to Camera Zoom Reset.
 constexpr int kOptionsVersion = 5;
 
+// The options file's last two versions are kept beside it, <file>.bak1 (the
+// newer) and <file>.bak2, each time it is about to be written over. A write
+// that changes nothing keeps them as they were.
+bool kl_slurp(const std::string& p, std::string* out) {
+    FILE* in = std::fopen(p.c_str(), "rb");
+    if (!in) return false;
+    out->clear();
+    char buf[4096];
+    std::size_t got;
+    while ((got = std::fread(buf, 1, sizeof(buf), in)) > 0) out->append(buf, got);
+    std::fclose(in);
+    return true;
+}
+
+void kl_spit(const std::string& p, const std::string& data) {
+    FILE* o = std::fopen(p.c_str(), "wb");
+    if (!o) return;
+    std::fwrite(data.data(), 1, data.size(), o);
+    std::fclose(o);
+}
+
+void backup_options_file() {
+    const std::string path = options_path();
+    std::string cur, b1;
+    if (!kl_slurp(path, &cur) || cur.empty()) return;
+    const bool have1 = kl_slurp(path + ".bak1", &b1);
+    if (have1 && b1 == cur) return;
+    if (have1) kl_spit(path + ".bak2", b1);
+    kl_spit(path + ".bak1", cur);
+}
+
 void save() {
     if (!g_dirty) {
         return;
     }
     const std::string path = options_path();
+    backup_options_file();
     FILE* f = std::fopen(path.c_str(), "w");
     if (!f) {
         host_log("options: cannot write %s", path.c_str());
@@ -791,6 +824,7 @@ void save() {
         std::fprintf(f, "%s = \"%s\"\n", s.key, s.values[static_cast<std::size_t>(index)]);
     }
     host_bindings_save(f);
+    host_key_long_save(f);
     // The account: its name and token.
     if (net::account_logged_in()) {
         std::fprintf(f, "[account]\nname = \"%s\"\ntoken = \"%s\"\n", net::account_name().c_str(),
@@ -1000,6 +1034,7 @@ void host_options_load() {
         char line[512];
         bool keys = false;  // in [keys]: bindings, not settings
         bool account = false;  // in [account]: the name and token
+        bool in_kl = false;  // in [input.key_long]: the keyboard's long presses
         std::string acct_name, acct_token;
         int file_version = 1;
         bool old_hunters_off = false;  // v0.2.9's PC enhancement, turned off
@@ -1008,6 +1043,7 @@ void host_options_load() {
             if (line[0] == '[') {
                 keys = std::strncmp(line, "[keys]", 6) == 0;
                 account = std::strncmp(line, "[account]", 9) == 0;
+                in_kl = std::strncmp(line, "[input.key_long]", 16) == 0;
                 continue;
             }
             char* eq = std::strchr(line, '=');
@@ -1031,6 +1067,10 @@ void host_options_load() {
             trim(val);
             if (keys) {
                 host_bindings_parse(key.c_str(), val.c_str());
+                continue;
+            }
+            if (in_kl) {
+                host_key_long_parse(key.c_str(), val.c_str());
                 continue;
             }
             if (account) {
@@ -1248,6 +1288,7 @@ const std::vector<OptionsPage>& pages() {
         } kNames[] = {
             {"DISPLAY", "Display", "The window, the frame rate, and what is shown over the game."},
             {"INPUT", "Input", "The mouse, the pointer and the button prompts."},
+            {"LONG KEYS", "Long keys", "Two keyboard actions that do something else when their key is held. A change applies at once."},
             {"GRAPHICS", "Graphics", "The game's effects and detail. Most change at once."},
             {"PC ENHANCEMENTS", "PC Enhancements", "Additions to the game itself, read as it starts."},
             {"STARTUP", "Startup", "What happens as the game starts."},
@@ -1401,6 +1442,87 @@ void action_button(const char* label, int which, bool primary, const char* name 
     }
 }
 
+// ---- the Long keys page: two keyboard actions that split by how long their key is held ----
+// Read by host/bindings.cpp on every frame, so a change applies at once; written
+// with the rest of the file when the menu closes.
+void keylong_page() {
+    const float sc = ui::scale(), w = ImGui::GetContentRegionAvail().x;
+    const auto px = [](float v) { return static_cast<float>(static_cast<int>(v + 0.5f)); };
+    const float gap = px(8 * sc);
+    int acts[kBindCount];
+    const char* items[kBindCount + 1];
+    int n = 0;
+    items[0] = "None";
+    for (int a = 0; a < kBindCount; ++a) {
+        if (!host_key_long_allowed(a)) continue;
+        acts[n] = a;
+        items[++n] = host_binding_info(a).label;
+    }
+    const auto index_of = [&](int action) {
+        for (int i = 0; i < n; ++i) {
+            if (acts[i] == action) return i + 1;
+        }
+        return 0;
+    };
+    ui::card_begin("##keylong", ImVec2(w, 0), "KEYBOARD LONG PRESS");
+    {
+        const float iw = ImGui::GetContentRegionAvail().x;
+        const float cw = std::min(px(250 * sc), (iw * 0.62f - gap) * 0.5f);
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
+        ImGui::TextDisabled("Action (its own key)");
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - cw, p.y));
+        ImGui::TextDisabled("Held long");
+        for (int slot = 0; slot < kKeyLongSlots; ++slot) {
+            int src = -1, lng = -1;
+            host_key_long_get(slot, &src, &lng);
+            ImGui::PushID(slot);
+            const ImVec2 at = ImGui::GetCursorScreenPos();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(slot == 0 ? "Key 1" : "Key 2");
+            ImGui::SameLine();
+            ImGui::SetCursorScreenPos(ImVec2(at.x + iw - 2 * cw - gap, at.y));
+            int want_src = index_of(src), want_lng = index_of(lng);
+            const int had_src = want_src, had_lng = want_lng;
+            ImGui::SetNextItemWidth(cw);
+            ui::combo("##src", &want_src, items, n + 1);
+            ImGui::SameLine(0, gap);
+            ImGui::SetNextItemWidth(cw);
+            ui::combo("##long", &want_lng, items, n + 1);
+            if (want_src != had_src || want_lng != had_lng) {
+                host_key_long_set(slot, want_src > 0 ? acts[want_src - 1] : -1, want_lng > 0 ? acts[want_lng - 1] : -1);
+                host_options_post([] { g_dirty = true; });
+            }
+            ImGui::PopID();
+        }
+    }
+    ui::card_end();
+    ImGui::Dummy(ImVec2(0, 6 * sc));
+    ui::card_begin("##keylongms", ImVec2(w, 0), "LONG PRESS");
+    {
+        const float iw = ImGui::GetContentRegionAvail().x;
+        const float cw = std::min(px(250 * sc), (iw * 0.62f - gap) * 0.5f);
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Held longer than");
+        ImGui::SameLine();
+        ImGui::SetCursorScreenPos(ImVec2(p.x + iw - 2 * cw - gap, p.y));
+        ImGui::SetNextItemWidth(2 * cw + gap);
+        int ms = host_key_long_ms();
+        if (ImGui::SliderInt("##klms", &ms, 200, 1000, "%d ms") && ms != host_key_long_ms()) {
+            host_key_long_set_ms(ms);
+            host_options_post([] { g_dirty = true; });
+        }
+        ImGui::Spacing();
+        if (ui::ghost_button("Reset long keys")) {
+            host_key_long_reset();
+            host_options_post([] { g_dirty = true; });
+        }
+    }
+    ui::card_end();
+}
+
 char g_name_buf[64] = {};  // the account fields as typed (the presenter's)
 char g_code_buf[64] = {};
 bool g_bufs_seeded = false;
@@ -1484,6 +1606,7 @@ void host_options_draw_page(int page) {
     const OptionsPage& pg = pages()[static_cast<std::size_t>(page)];
     if (std::strcmp(pg.header, "ACCOUNT") == 0) return account_page();
     if (std::strcmp(pg.header, "UPDATES") == 0) return updates_page();
+    if (std::strcmp(pg.header, "LONG KEYS") == 0) return keylong_page();
     ui::card_begin("##rows", ImVec2(ImGui::GetContentRegionAvail().x, 0));
     bool first = true;
     for (int r = pg.first; r < pg.end; ++r) {
