@@ -5,6 +5,7 @@
 #include "engine/debug_menu.h"
 #include "engine/option_menu.h"
 
+#include "core/config.h"
 #include "core/elf.h"
 #include "core/memory.h"
 #include "core/thunk.h"
@@ -924,11 +925,9 @@ void menu_pointer_install(ElfImage* image) {
 }
 
 std::uint32_t menu_region_confirm_button() {
-    std::int32_t region = -1;
-    if (!g_slide || !safe_read(guest(kRegion), &region, sizeof(region))) {
-        return 0x4000u;
-    }
-    return region == 5 ? 0x2000u : 0x4000u;
+    // The pad's swap_ab (auto / true / false) decides, so the keyboard, the
+    // mouse and the pad all agree. In auto it is the Asian release by title id.
+    return config_swap_ab() ? 0x2000u : 0x4000u;
 }
 
 std::uint32_t menu_confirm_button() {
