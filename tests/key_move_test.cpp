@@ -49,6 +49,7 @@ const HostConfig& config() {
 bool debug_menu_active() { return false; }
 std::uint32_t menu_confirm_button() { return 0x4000u; }
 std::uint32_t menu_back_button() { return 0x2000u; }
+std::uint32_t menu_region_confirm_button() { return 0x4000u; }
 
 namespace {
 

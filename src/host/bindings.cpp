@@ -646,6 +646,11 @@ void host_bindings_apply(const bool held[kBindCount], bool strong, PadState& p, 
                          std::chrono::steady_clock::time_point now) {
     bool any = false;
     const std::uint32_t before = p.buttons;  // what a controller holds, which a menu keeps
+    // The Asian releases swap Cross and Circle in play as well as in the menus,
+    // so Interact would dodge and Dodge would interact. The rows are actions, so
+    // the buttons are exchanged here, by the game's own region (not the pad's
+    // swap_ab); Confirm and Back already follow it (menu_confirm_button).
+    const bool swap_ab = menu_region_confirm_button() == kCircle;
     for (int a = 0; a < kBindCount; ++a) {
         // The Debug Menu key and the zoom set no pad bit: their presses were
         // queued when they were read, and the pad read acts on them on the
@@ -656,8 +661,14 @@ void host_bindings_apply(const bool held[kBindCount], bool strong, PadState& p, 
         // Shift is the strong-attack modifier, as in DS3: one key rather than
         // a second binding for every attack.
         if (a == kBindAttack && strong) bit = kR2;
-        if (a == kBindConfirm) bit = menu_confirm_button();
-        if (a == kBindBack) bit = menu_back_button();
+        if (a == kBindConfirm) {
+            bit = menu_confirm_button();
+        } else if (a == kBindBack) {
+            bit = menu_back_button();
+        } else if (swap_ab) {
+            if (bit == kCross) bit = kCircle;
+            else if (bit == kCircle) bit = kCross;
+        }
         const int where = host_binding_in_menus(a);
         if (where > 0) {
             // A menu's alone: the pad read adds it while a menu has the input.
