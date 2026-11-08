@@ -1683,9 +1683,9 @@ bool script_keys_step() {
 // The controller's seventeen bindable buttons as SDL names them, in PadInput's
 // order; the triggers are axes (INVALID here).
 SDL_GamepadButton pad_sdl_button(int input) {
-    // input.swap_ab_play: the pad's A and B are Circle and Cross in play and in the menus alike. Without it
-    // only the menus' decide and return move (the loop in update_pad).
-    if (config_swap_ab_play()) {
+    // input.swap_ab: where Cross and Circle are exchanged (the Asian release), the pad's A and B are
+    // Circle and Cross in play and in the menus alike, so the Pad page's rows stay at their defaults.
+    if (config_swap_ab()) {
         if (input == kPadCross) return SDL_GAMEPAD_BUTTON_EAST;
         if (input == kPadCircle) return SDL_GAMEPAD_BUTTON_SOUTH;
     }
@@ -1775,7 +1775,6 @@ void update_pad() {
         // so in a menu every button is itself - but for the menu's OK and
         // Back, which follow Interact and Dodge (host_pad_menu_bit).
         bool held[kPadInputs] = {};
-        const bool swap_menu = config_swap_ab() && !config_swap_ab_play();
         for (int i = 0; i < kPadInputs; ++i) {
             const SDL_GamepadButton b = pad_sdl_button(i);
             held[i] = b != SDL_GAMEPAD_BUTTON_INVALID && static_cast<int>(b) != end_button && SDL_GetGamepadButton(g_gamepad, b);

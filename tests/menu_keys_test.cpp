@@ -31,7 +31,6 @@ std::uint32_t g_confirm = 0x4000u;
 std::uint32_t menu_confirm_button() { return g_confirm; }
 std::uint32_t menu_back_button() { return g_confirm == 0x2000u ? 0x4000u : 0x2000u; }
 std::uint32_t menu_region_confirm_button() { return 0x4000u; }
-bool config_swap_ab_play() { return false; }
 
 namespace {
 

@@ -54,7 +54,6 @@ struct HostConfig {
     // mouse alike. "auto" (the default) does so only for the Asian release, CUSA03023 or CUSA01363
     // (config_swap_ab); "true" / "false" force it. bbhost-options.toml's [input] swap_ab has the last word.
     std::string input_swap_ab = "auto";
-    std::string input_swap_ab_play = "false";  // input.swap_ab_play: also exchange them in play (see config_swap_ab_play)
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     // video.frame_clock: the Native frame clock setting's default (F10's DISPLAY,
     // the setup window's Game page), off; what they save in bbhost-options.toml
@@ -139,13 +138,6 @@ bool config_swap_ab();
 // Kept apart from the config, so a config read anew does not lose it (host/options.cpp).
 void config_set_swap_ab_option(const std::string& value);
 std::string config_swap_ab_setting();
-// Whether the exchange also reaches play (the pad's A and B, and the keyboard's and mouse's Cross and
-// Circle rows). false (the default): only the menus' decide and return follow swap_ab, so in play the
-// buttons are where the game has them - the Asian release's A decides and B returns in the menus, and B
-// dodges. true: the buttons are exchanged in play as well. Only meaningful while swap_ab is on.
-bool config_swap_ab_play();
-std::string config_swap_ab_play_setting();  // the value in force, as written: "true" or "false"
-void config_set_swap_ab_play_option(const std::string& value);  // the value in force: the options file's, else bbhost.toml's
 // The options screen (host/options.h) owns this one once it has read its own
 // file; the loader reads config().skip_intro after that.
 void config_set_skip_intro(bool on);
