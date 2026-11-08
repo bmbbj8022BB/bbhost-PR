@@ -123,6 +123,7 @@ enum SettingId {
     kLeftStickOuter,
     kRightStickInner,
     kRightStickOuter,
+    kDodgeTapMs,
     kSsao,
     kMotionBlur,
     kAntiAlias,
@@ -355,6 +356,11 @@ Setting g_set[kSettingCount] = {
     {"right_stick_outer", "Right stick outer deadzone", signed_steps(50, 100, "%", false), 50,
      "How far out the right stick counts as pushed all the way: lower turns the camera at full speed sooner. "
      "100% is the stick's own edge.", false},
+    // Dodge (tap only) on the Controls page: how long its short press of the
+    // dodge button lasts (host/bindings.cpp roll_tap_pulse). 5..150 ms, a step a ms.
+    {"dodge_tap_ms", "Dodge only press", signed_steps(5, 150, " ms", false), 115,
+     "How long the Dodge (tap only) key holds the dodge button. Raise it if the dodge does not come out, lower it if "
+     "it turns into a sprint.", false},
     // The post-processing switches. They follow their settings live
     // (engine/graphics_patch.cpp, host/shader_patch.h).
     {"ssao", "Ambient occlusion", {"Off", "On"}, 1,
@@ -1331,6 +1337,7 @@ void apply(int id) {
         case kLeftStickOuter:
         case kRightStickInner:
         case kRightStickOuter:
+        case kDodgeTapMs:
         case kTextureQuality:  // the textures follow them at the next submission (host/textures.cpp)
         case kSfxTextureQuality:
         case kAnisotropicFiltering:
@@ -1537,6 +1544,7 @@ void rebuild_settings() {
     h.stick_outer[0] = static_cast<float>(50 + std::max(index_of(kLeftStickOuter), 0)) / 100.0f;
     h.stick_inner[1] = static_cast<float>(std::max(index_of(kRightStickInner), 0)) / 100.0f;
     h.stick_outer[1] = static_cast<float>(50 + std::max(index_of(kRightStickOuter), 0)) / 100.0f;
+    h.dodge_tap_ms = 5 + (index_of(kDodgeTapMs) < 0 ? 115 : index_of(kDodgeTapMs));
     h.ssao = on_of(kSsao);
     h.motion_blur = on_of(kMotionBlur);
     h.anti_alias = on_of(kAntiAlias);
@@ -2717,6 +2725,27 @@ void host_options_draw_setup_page(int page) {
     g_setup_page = false;
 }
 
+void host_options_dodge_slider(float width) {
+    const Setting& s = g_set[kDodgeTapMs];
+    const int n = static_cast<int>(s.values.size());
+    const int cur = std::clamp(shown_index(kDodgeTapMs), 0, n - 1);
+    int want = cur;
+    ImGui::PushID(kDodgeTapMs);
+    ImGui::SetNextItemWidth(width);
+    ImGui::SliderInt("##v", &want, 0, n - 1, s.values[static_cast<std::size_t>(cur)],
+                     ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_NoInput);
+    ui::tooltip_for_item(s.label, s.note);
+    ImGui::PopID();
+    if (want != cur) change(kDodgeTapMs, want);
+}
+
+void host_options_dodge_reset() {
+    const int cur = shown_index(kDodgeTapMs), def = g_default_index[static_cast<std::size_t>(kDodgeTapMs)];
+    ImGui::PushID(kDodgeTapMs);
+    if (ui::reset_button("##reset", cur == def)) change(kDodgeTapMs, def);
+    ImGui::PopID();
+}
+
 #else  // a build without a window: no menu
 
 void host_options_draw_setup_page(int) {}
@@ -2724,6 +2753,8 @@ int host_options_page_count() { return 0; }
 const char* host_options_page_name(int) { return ""; }
 const char* host_options_page_blurb(int) { return ""; }
 void host_options_draw_page(int) {}
+void host_options_dodge_slider(float) {}
+void host_options_dodge_reset() {}
 
 #endif
 
