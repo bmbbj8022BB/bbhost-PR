@@ -343,6 +343,29 @@ ShaderCompileJob::~ShaderCompileJob() {
     if (proc_) SDL_DestroyProcess(static_cast<SDL_Process*>(proc_));
 }
 
+namespace {
+// run-bbhost.bat sets this: it keeps the console and the log, and starts
+// bbhost again itself when this process ends with kRestartExitCode.
+bool supervised_by_launcher_script() {
+    const char* v = std::getenv("BBHOST_SUPERVISED");
+    return v && v[0] && v[0] != '0';
+}
+}  // namespace
+
+int relaunch_exit_code() { return supervised_by_launcher_script() ? kRestartExitCode : 0; }
+
+bool relaunch_setup_window(std::string& error) {
+    // Under the script nothing is started here: leaving with the restart code
+    // is the whole request, so the window, the log file and the exit
+    // handling stay the script's.
+    if (supervised_by_launcher_script()) return true;
+    // No pipes: the new process has the console and the window of its own.
+    auto* p = static_cast<SDL_Process*>(host_start_again("--setup", false, error));
+    if (!p) return false;
+    SDL_DestroyProcess(p);  // only lets go of the handle; the process goes on
+    return true;
+}
+
 bool ShaderCompileJob::start(const std::string& data, std::string& error) {
     if (running()) return true;
     if (thread_.joinable()) thread_.join();

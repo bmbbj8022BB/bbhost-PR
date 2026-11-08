@@ -44,6 +44,8 @@ struct HostConfig {
     std::string model_detail;  // video.model_detail: the Model detail setting's default ("Full", "Normal", "Low", "Lowest")
     std::string texture_quality;  // video.texture_quality: the Texture quality setting's default ("Lowest", "Low", "Medium", "High")
     std::string shaders;       // video.shaders: the Shaders setting's default ("HLSL" or "Lifted")
+    std::string ui_language = "en";   // ui.language: "en" or "ko" (the setup window and the F9/F10 screens)
+    std::string ui_font;              // ui.font: a font file with Hangul; empty: the system's (Malgun Gothic on Windows)
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     // video.frame_clock: the Native frame clock setting's default (F10's DISPLAY,
     // the setup window's Game page), off; what they save in bbhost-options.toml

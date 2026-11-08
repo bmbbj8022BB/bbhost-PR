@@ -40,6 +40,17 @@ void shader_compile_set_args(int argc, char** argv);
 // (--setup), its output piped to this one when `pipe_stdio`. The SDL_Process,
 // or null with `error` set.
 void* host_start_again(const char* flag, bool pipe_stdio, std::string& error);
+// Starts the setup window again with the arguments it was started with, so a
+// changed interface language (read once, at the start) takes effect. Under
+// run-bbhost.bat (BBHOST_SUPERVISED set) it starts nothing and returns true:
+// the caller leaves with relaunch_exit_code() and the script starts bbhost
+// again in the same console and log folder. True once the new process has
+// started; `error` says why not.
+bool relaunch_setup_window(std::string& error);
+constexpr int kRestartExitCode = 75;
+// What main returns after LauncherResult::Restart: kRestartExitCode under the
+// script, else 0 (the new process was started by relaunch_setup_window).
+int relaunch_exit_code();
 // The child's run, once the game's folders are known; its exit code.
 // BBHOST_TEST_COMPILE pretends the compile (no GPU) for the self-test below.
 int shader_compile_session();

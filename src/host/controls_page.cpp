@@ -2,6 +2,7 @@
 
 #include "engine/debug_menu.h"
 #include "host/bindings.h"
+#include "host/i18n.h"
 #include "host/launcher_ui.h"
 #include "host/options.h"
 #include "host/window.h"
@@ -42,8 +43,8 @@ constexpr Section kSections[] = {
 // What the controller column says for an action without a button of its own
 // to move: the stick it is, a menu's fixed button, or nothing.
 const char* pad_fixed(int a) {
-    if (a >= kBindMoveF && a <= kBindMoveR) return "Left stick";
-    if (a >= kBindLookU && a <= kBindLookR) return "Right stick";
+    if (a >= kBindMoveF && a <= kBindMoveR) return i18n::tr("Left stick");
+    if (a >= kBindLookU && a <= kBindLookR) return i18n::tr("Right stick");
     if (const int m = host_pad_menu_input(a); m >= 0) return host_pad_input_name(m);
     return nullptr;
 }
@@ -53,7 +54,7 @@ bool cell(const char* id, const char* text, bool choosing, float w, bool enabled
     ImGui::PushID(id);
     if (!enabled) ImGui::BeginDisabled();
     if (choosing) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
-    const bool clicked = ImGui::Button(choosing ? (std::strcmp(id, "##pad") == 0 ? "Press a button" : "Press a key") : text,
+    const bool clicked = ImGui::Button(choosing ? (std::strcmp(id, "##pad") == 0 ? i18n::tr("Press a button") : i18n::tr("Press a key")) : text,
                                        ImVec2(w, 0.0f));
     if (choosing) ImGui::PopStyleColor();
     if (!enabled) ImGui::EndDisabled();
@@ -87,35 +88,35 @@ void controls_page_draw(bool setup_window) {
 
     // The bindings on a card of their own, as the settings above sit on
     // theirs: the menus' glass under them, not the painting.
-    ui::card_begin("##bindings", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f), "BINDINGS");
+    ui::card_begin("##bindings", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f), i18n::tr("BINDINGS"));
     // Its bar: Reset all on the left, and beside it how to choose a binding -
     // or, while one is being chosen, which and how to back out.
     const int key_choosing = host_bind_capturing(), pad_choosing = host_pad_capturing();
-    if (ui::ghost_button("Reset all to defaults", ImVec2(0.0f, 0.0f))) ImGui::OpenPopup("##reset_all");
+    if (ui::ghost_button(i18n::tr("Reset all to defaults"), ImVec2(0.0f, 0.0f))) ImGui::OpenPopup("##reset_all");
     ui::tooltip_for_item("Reset all to defaults", "Every key, mouse button and controller button back to its default "
                                                   "(bbhost.toml's [keys] for the keys and the mouse).");
     if (ImGui::BeginPopup("##reset_all")) {
-        ImGui::TextUnformatted("Put every binding back to its default?");
-        if (ui::primary_button("Reset all", ImVec2(130.0f * sc, 0.0f))) {
+        ImGui::TextUnformatted(i18n::tr("Put every binding back to its default?"));
+        if (ui::primary_button(i18n::tr("Reset all"), ImVec2(130.0f * sc, 0.0f))) {
             host_bindings_reset_all();
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ui::ghost_button("Cancel", ImVec2(130.0f * sc, 0.0f))) ImGui::CloseCurrentPopup();
+        if (ui::ghost_button(i18n::tr("Cancel"), ImVec2(130.0f * sc, 0.0f))) ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
     ImGui::SameLine(0.0f, 14.0f * sc);
     ImGui::AlignTextToFramePadding();
     ImGui::PushTextWrapPos(0.0f);
     if (key_choosing >= 0) {
-        ImGui::Text("%s: press the new key or mouse button. Escape cancels.", host_binding_info(key_choosing).label);
+        ImGui::TextUnformatted(i18n::tf("%s: press the new key or mouse button. Escape cancels.", i18n::tr(host_binding_info(key_choosing).label)).c_str());
     } else if (pad_choosing >= 0) {
-        ImGui::Text("%s: press the new controller button. Escape cancels.", host_binding_info(pad_choosing).label);
+        ImGui::TextUnformatted(i18n::tf("%s: press the new controller button. Escape cancels.", i18n::tr(host_binding_info(pad_choosing).label)).c_str());
     } else {
-        ImGui::TextDisabled("Click a box, then press the new key, mouse button or controller button; Escape cancels. "
+        ImGui::TextDisabled("%s", i18n::tr("Click a box, then press the new key, mouse button or controller button; Escape cancels. "
                             "Right-click clears a key or a mouse button, and the arrow at the end of a line puts that "
                             "action back to its default. The controller's buttons move in play only: in menus each is "
-                            "itself, so Confirm and Back stay where they were.");
+                            "itself, so Confirm and Back stay where they were."));
     }
     ImGui::PopTextWrapPos();
     ImGui::Spacing();
@@ -128,20 +129,20 @@ void controls_page_draw(bool setup_window) {
     // The three binding columns share what the action's name and the reset
     // leave, up to 170 each: a narrow menu or a large text size keeps every
     // column, the reset's too, on the page.
-    const float reset_w = std::max(ui::reset_width(), ImGui::CalcTextSize("Reset").x);
+    const float reset_w = std::max(ui::reset_width(), ImGui::CalcTextSize(i18n::tr("Reset")).x);
     const float spare = ImGui::GetContentRegionAvail().x - 150.0f * sc - reset_w - ImGui::GetStyle().CellPadding.x * 10.0f;
     const float cw = std::clamp(spare / 3.0f, 72.0f * sc, 170.0f * sc);
-    ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch);
-    ImGui::TableSetupColumn("Keyboard", ImGuiTableColumnFlags_WidthFixed, cw);
-    ImGui::TableSetupColumn("Mouse", ImGuiTableColumnFlags_WidthFixed, cw);
-    ImGui::TableSetupColumn("Controller", ImGuiTableColumnFlags_WidthFixed, cw);
-    ImGui::TableSetupColumn("Reset", ImGuiTableColumnFlags_WidthFixed, reset_w);
+    ImGui::TableSetupColumn(i18n::tr("Action"), ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableSetupColumn(i18n::tr("Keyboard"), ImGuiTableColumnFlags_WidthFixed, cw);
+    ImGui::TableSetupColumn(i18n::tr("Mouse"), ImGuiTableColumnFlags_WidthFixed, cw);
+    ImGui::TableSetupColumn(i18n::tr("Controller"), ImGuiTableColumnFlags_WidthFixed, cw);
+    ImGui::TableSetupColumn(i18n::tr("Reset"), ImGuiTableColumnFlags_WidthFixed, reset_w);
     ImGui::TableHeadersRow();
     for (const Section& sec : kSections) {
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         ImGui::Spacing();
-        ui::caption(sec.name);
+        ui::caption(i18n::tr(sec.name));
         for (int a = sec.first; a <= sec.last; ++a) {
             if (a == kBindDebugMenu && !debug_menu_active()) continue;  // as the game's screen lists it
             const BindingInfo& info = host_binding_info(a);
@@ -149,7 +150,7 @@ void controls_page_draw(bool setup_window) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
             ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted(info.label);
+            ImGui::TextUnformatted(i18n::tr(info.label));
             ui::tooltip_for_item(info.label, info.help);
 
             // The key and the mouse button: one choice takes either, as the

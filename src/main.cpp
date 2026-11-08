@@ -1049,7 +1049,9 @@ int main(int argc, char** argv) {
             (cfg.setup_requested || cfg.setup_always || !help.empty() || plugins_tab || moved)) {
             std::string reason = help.substr(0, help.find('\n'));
             if (reason.rfind("bbhost: ", 0) == 0) reason = reason.substr(8);
-            if (launcher_run(cfg, reason, plugins_tab) == LauncherResult::Quit) return help.empty() ? 0 : 2;
+            const LauncherResult shown = launcher_run(cfg, reason, plugins_tab);
+            if (shown == LauncherResult::Restart) return relaunch_exit_code();  // the language changed: run-bbhost.bat starts it again, else a new process already did
+            if (shown == LauncherResult::Quit) return help.empty() ? 0 : 2;
             if (!config_load(argc, argv, &cfg, &err)) {
                 decide_log(true);
                 host_log("%s", err.c_str());
