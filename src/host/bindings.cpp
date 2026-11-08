@@ -491,10 +491,10 @@ void host_bindings_apply(const bool held[kBindCount], bool strong, PadState& p, 
                          std::chrono::steady_clock::time_point now) {
     bool any = false;
     const std::uint32_t before = p.buttons;  // what a controller holds, which a menu keeps
-    // input.swap_ab_play: Cross and Circle are exchanged in play as well as in the menus. The rows are
-    // actions, so the buttons are exchanged here, for the keyboard and the mouse alike; Confirm and Back
-    // always follow swap_ab (menu_confirm_button).
-    const bool swap_ab = config_swap_ab_play() && menu_region_confirm_button() == kCircle;
+    // The Asian releases swap Cross and Circle in play as well as in the menus. The rows are actions,
+    // so the buttons are exchanged here, for the keyboard and the mouse alike, whenever swap_ab is on
+    // (menu_region_confirm_button follows it); Confirm and Back follow menu_confirm_button.
+    const bool swap_ab = menu_region_confirm_button() == kCircle;
     for (int a = 0; a < kBindCount; ++a) {
         // The Debug Menu key and the zoom set no pad bit: their presses were
         // queued when they were read, and the pad read acts on them on the

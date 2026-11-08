@@ -1470,9 +1470,6 @@ void save() {
     std::fprintf(f, "# swap_ab: \"auto\" (Cross and Circle exchanged only for the Asian release, CUSA03023 or CUSA01363),\n");
     std::fprintf(f, "# \"true\" (always) or \"false\" (never). Applies to the controller, the keyboard and the mouse.\n");
     std::fprintf(f, "swap_ab = \"%s\"\n", config_swap_ab_setting().c_str());
-    std::fprintf(f, "# swap_ab_play: \"false\" (default): only the menus' decide and return follow swap_ab; in play the buttons stay\n");
-    std::fprintf(f, "# where the game has them. \"true\": Cross and Circle are exchanged in play as well.\n");
-    std::fprintf(f, "swap_ab_play = \"%s\"\n", config_swap_ab_play_setting().c_str());
     // The account: its name and token.
     if (net::account_logged_in()) {
         std::fprintf(f, "[account]\nname = \"%s\"\ntoken = \"%s\"\n", net::account_name().c_str(),
@@ -1789,12 +1786,6 @@ void host_options_load() {
                     for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
                     if (v == "auto" || v == "true" || v == "false") config_set_swap_ab_option(v);
                     else host_log("options: [input] swap_ab = \"%s\" - not auto, true or false; ignored", val.c_str());
-                }
-                if (key == "swap_ab_play") {
-                    std::string v = val;
-                    for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-                    if (v == "true" || v == "false") config_set_swap_ab_play_option(v);
-                    else host_log("options: [input] swap_ab_play = \"%s\" - not true or false; ignored", val.c_str());
                 }
                 continue;
             }

@@ -166,7 +166,6 @@ void apply_values(const std::map<std::string, std::string>& kv, HostConfig* c) {
     num("video.height", &c->height);
     num("video.fps_cap", &c->fps_cap);
     str("input.swap_ab", &c->input_swap_ab);
-    str("input.swap_ab_play", &c->input_swap_ab_play);
     str("video.resolution", &c->resolution);
     str("video.window_mode", &c->window_mode);
     str("video.model_detail", &c->model_detail);
@@ -886,34 +885,11 @@ const HostConfig& config() { return g_cfg; }
 namespace {
 std::mutex g_swap_mu;
 std::string g_swap_option;  // bbhost-options.toml's [input] swap_ab
-std::string g_swap_play_option;  // and its swap_ab_play
 }  // namespace
 
 void config_set_swap_ab_option(const std::string& value) {
     std::lock_guard<std::mutex> lock(g_swap_mu);
     g_swap_option = value;
-}
-
-void config_set_swap_ab_play_option(const std::string& value) {
-    std::lock_guard<std::mutex> lock(g_swap_mu);
-    g_swap_play_option = value;
-}
-
-std::string config_swap_ab_play_setting() {
-    std::lock_guard<std::mutex> lock(g_swap_mu);
-    std::string m = g_swap_play_option.empty() ? g_cfg.input_swap_ab_play : g_swap_play_option;
-    for (char& ch : m) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    return m == "true" || m == "1" || m == "on" ? "true" : "false";
-}
-
-bool config_swap_ab_play() {
-    std::string m;
-    {
-        std::lock_guard<std::mutex> lock(g_swap_mu);
-        m = g_swap_play_option.empty() ? g_cfg.input_swap_ab_play : g_swap_play_option;
-    }
-    for (char& ch : m) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-    return (m == "true" || m == "1" || m == "on") && config_swap_ab();
 }
 
 std::string config_swap_ab_setting() {
