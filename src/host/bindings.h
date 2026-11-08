@@ -25,7 +25,7 @@ struct PadState;
 
 enum BindAction : int {
     // Movement
-    kBindMoveF, kBindMoveB, kBindMoveL, kBindMoveR, kBindWalk, kBindRoll, kBindLockOn,
+    kBindMoveF, kBindMoveB, kBindMoveL, kBindMoveR, kBindWalk, kBindRoll, kBindRollTap,
     // Combat
     kBindAttack, kBindStrong, kBindStrongMod, kBindTransform, kBindFirearm, kBindBloodVial, kBindUseItem,
     // Items and gestures
@@ -37,7 +37,7 @@ enum BindAction : int {
     // actions (host_binding_in_menus)
     kBindMenuPageL, kBindMenuPageR, kBindMenuShortL, kBindMenuShortR, kBindMenuDisplay, kBindMenuStatus,
     // Other
-    kBindL3, kBindZoomIn, kBindZoomOut, kBindZoomReset, kBindDebugMenu,
+    kBindLockOn, kBindL3, kBindZoomIn, kBindZoomOut, kBindZoomReset, kBindDebugMenu,
     kBindCount,
 };
 constexpr int kBindPages = 6, kBindPerPage = 7;

@@ -42,6 +42,10 @@ void host_options_draw_page(int page);
 // pages - are left out. Its changes are the setup window's to apply
 // (host_options_frame) and to save.
 void host_options_draw_setup_page(int page);
+// Dodge only press (dodge_tap_ms, 5..150 ms) as a slider of `width` and its reset, drawn in the Controls page's
+// table right under the Dodge (tap only) row rather than among the Input settings.
+void host_options_dodge_slider(float width);
+void host_options_dodge_reset();
 // Runs `fn` on the window's thread at its next pump: the menus' changes to
 // settings and to bbhost.toml, which can touch the window or write files.
 void host_options_post(std::function<void()> fn);
