@@ -109,18 +109,21 @@ const BindingInfo kInfo[kBindCount] = {
     {"debug_menu", "Debug Menu", "Opens and closes the developers' debug menu (the Debug Menu plugin).", 0, "`", 0},
 };
 
-// The controller's sixteen buttons (host_pad_*), in PadInput's order: their
+// The controller's seventeen buttons (host_pad_*), in PadInput's order: their
 // names on the Controls page and in [pad], and the pad bit each one is.
 const char* const kPadNames[kPadInputs] = {"Cross", "Circle", "Square", "Triangle", "L1", "R1", "L2", "R2",
-                                           "L3", "R3", "Options", "Touchpad", "D-pad Up", "D-pad Down", "D-pad Left", "D-pad Right"};
+                                           "L3", "R3", "Options", "Touchpad", "D-pad Up", "D-pad Down", "D-pad Left", "D-pad Right",
+                                           "Back / Select / Share"};
 const char* const kPadTokens[kPadInputs] = {"Cross", "Circle", "Square", "Triangle", "L1", "R1", "L2", "R2",
-                                            "L3", "R3", "Options", "Touchpad", "Up", "Down", "Left", "Right"};
+                                            "L3", "R3", "Options", "Touchpad", "Up", "Down", "Left", "Right", "Back"};
 const std::uint32_t kPadBits[kPadInputs] = {kCross, kCircle, kSquare, kTriangle, kL1, kR1, kL2, kR2,
-                                            kL3, kR3, kOptions, kTouchPad, kUp, kDown, kLeft, kRight};
+                                            kL3, kR3, kOptions, kTouchPad, kUp, kDown, kLeft, kRight,
+                                            kTouchPad};  // Back: the touchpad's press, whose left side it holds
 // What each button gives in play: the button whose bit it presses, itself
 // until rebound. Always a permutation (a rebind swaps two).
 std::atomic<int> g_pad_gives[kPadInputs] = {kPadCross, kPadCircle, kPadSquare, kPadTriangle, kPadL1, kPadR1, kPadL2, kPadR2,
-                                            kPadL3, kPadR3, kPadOptions, kPadTouchpad, kPadUp, kPadDown, kPadLeft, kPadRight};
+                                            kPadL3, kPadR3, kPadOptions, kPadTouchpad, kPadUp, kPadDown, kPadLeft, kPadRight,
+                                            kPadBack};
 std::atomic<int> g_pad_capture{-1};
 std::atomic<std::int64_t> g_pad_capture_ms{0};
 
@@ -488,6 +491,10 @@ void host_bindings_apply(const bool held[kBindCount], bool strong, PadState& p, 
                          std::chrono::steady_clock::time_point now) {
     bool any = false;
     const std::uint32_t before = p.buttons;  // what a controller holds, which a menu keeps
+    // input.swap_ab_play: Cross and Circle are exchanged in play as well as in the menus. The rows are
+    // actions, so the buttons are exchanged here, for the keyboard and the mouse alike; Confirm and Back
+    // always follow swap_ab (menu_confirm_button).
+    const bool swap_ab = config_swap_ab_play() && menu_region_confirm_button() == kCircle;
     for (int a = 0; a < kBindCount; ++a) {
         // The Debug Menu key and the zoom set no pad bit: their presses were
         // queued when they were read, and the pad read acts on them on the
@@ -498,8 +505,14 @@ void host_bindings_apply(const bool held[kBindCount], bool strong, PadState& p, 
         // Shift is the strong-attack modifier, as in DS3: one key rather than
         // a second binding for every attack.
         if (a == kBindAttack && strong) bit = kR2;
-        if (a == kBindConfirm) bit = menu_confirm_button();
-        if (a == kBindBack) bit = menu_back_button();
+        if (a == kBindConfirm) {
+            bit = menu_confirm_button();
+        } else if (a == kBindBack) {
+            bit = menu_back_button();
+        } else if (swap_ab) {
+            if (bit == kCross) bit = kCircle;
+            else if (bit == kCircle) bit = kCross;
+        }
         const int where = host_binding_in_menus(a);
         if (where > 0) {
             // A menu's alone: the pad read adds it while a menu has the input.
@@ -921,5 +934,131 @@ static void pad_save(std::FILE* f) {
         if (a == kBindEffects) continue;
         const int p = host_pad_input_of(a);
         if (p >= 0) std::fprintf(f, "%s = \"%s\"\n", kInfo[a].key, kPadTokens[p]);
+    }
+}
+
+
+// ---- Short / long press on one controller button (see bindings.h) -------------
+namespace {
+std::atomic<int> g_pl_src{-1};
+std::atomic<int> g_pl_long{-1};
+std::atomic<int> g_pl_ms{kPadLongDefaultMs};
+bool pad_long_action(int a) { return a >= 0 && a < kBindCount && host_pad_input_of(a) >= 0; }
+bool pad_long_usable(int input) { return input >= 0 && input < kPadInputs && input != kPadL2 && input != kPadR2; }
+}  // namespace
+
+bool host_pad_long_src_allowed(int c) {
+    return c == kPadLongBack || pad_long_action(c);
+}
+
+bool host_pad_long_target_allowed(int c) { return pad_long_action(c); }
+
+const char* host_pad_long_name(int c) {
+    if (c == kPadLongBack) return "Back / Select / Share";
+    return c >= 0 && c < kBindCount ? kInfo[c].label : nullptr;
+}
+
+void host_pad_long_get(int* src, int* lng) {
+    if (src) *src = g_pl_src.load(std::memory_order_relaxed);
+    if (lng) *lng = g_pl_long.load(std::memory_order_relaxed);
+}
+
+void host_pad_long_set(int src, int lng) {
+    g_pl_src.store(host_pad_long_src_allowed(src) ? src : -1, std::memory_order_relaxed);
+    g_pl_long.store(host_pad_long_target_allowed(lng) ? lng : -1, std::memory_order_relaxed);
+    g_serial.fetch_add(1, std::memory_order_relaxed);
+}
+
+int host_pad_long_ms() { return g_pl_ms.load(std::memory_order_relaxed); }
+
+void host_pad_long_set_ms(int ms) {
+    g_pl_ms.store(ms < 100 ? 100 : (ms > 2000 ? 2000 : ms), std::memory_order_relaxed);
+    g_serial.fetch_add(1, std::memory_order_relaxed);
+}
+
+bool host_pad_long_at_default() {
+    return g_pl_src.load(std::memory_order_relaxed) < 0 && g_pl_long.load(std::memory_order_relaxed) < 0 &&
+           g_pl_ms.load(std::memory_order_relaxed) == kPadLongDefaultMs;
+}
+
+void host_pad_long_reset() {
+    host_pad_long_set(-1, -1);
+    host_pad_long_set_ms(kPadLongDefaultMs);
+}
+
+bool host_pad_long_parse(const char* name, const char* value) {
+    if (std::strcmp(name, "long_ms") == 0) {
+        int n = 0;
+        for (const char* c = value; *c >= '0' && *c <= '9'; ++c) n = n * 10 + (*c - '0');
+        if (n > 0) g_pl_ms.store(n < 100 ? 100 : (n > 2000 ? 2000 : n), std::memory_order_relaxed);
+        return true;
+    }
+    const bool is_src = std::strcmp(name, "short") == 0;
+    if (is_src || std::strcmp(name, "long") == 0) {
+        const bool none = std::strcmp(value, "none") == 0;
+        int c = none ? -1 : (std::strcmp(value, "back") == 0 ? kPadLongBack : action_named(value));
+        if (c < 0 && !none) host_log("pad: [pad_long] %s = \"%s\" - not an action; ignored", name, value);
+        // The actions' buttons are known when the filter runs; here only the kind is checked.
+        if (!(c == kPadLongBack ? is_src : (c >= 0 && c < kBindCount))) c = -1;
+        (is_src ? g_pl_src : g_pl_long).store(c, std::memory_order_relaxed);
+        return true;
+    }
+    host_log("pad: [pad_long] has no setting \"%s\"; ignored", name);
+    return false;
+}
+
+void host_pad_long_save(std::FILE* f) {
+    const int s = g_pl_src.load(std::memory_order_relaxed), l = g_pl_long.load(std::memory_order_relaxed);
+    const auto token = [](int c) { return c == kPadLongBack ? "back" : (c >= 0 && c < kBindCount ? kInfo[c].key : "none"); };
+    std::fprintf(f, "\n[pad_long]\n");
+    std::fprintf(f, "# One controller button, short and long: held longer than long_ms, it gives the long action.\n");
+    std::fprintf(f, "long_ms = \"%d\"\n", g_pl_ms.load(std::memory_order_relaxed));
+    std::fprintf(f, "short = \"%s\"\n", token(s));
+    std::fprintf(f, "long = \"%s\"\n", token(l));
+}
+
+void host_pad_long_filter(int pad, bool held[kPadInputs], bool* gestures, bool* effects) {
+    using clk = std::chrono::steady_clock;
+    constexpr int kPads = 4;
+    static bool was_down[kPads];
+    static clk::time_point down_since[kPads], pulse_until[kPads];
+    if (pad < 0 || pad >= kPads) return;
+    const int s = g_pl_src.load(std::memory_order_relaxed), l = g_pl_long.load(std::memory_order_relaxed);
+    // The buttons the actions are on now: a rebind moves them, and a trigger is not taken.
+    const bool src_back = s == kPadLongBack;
+    const int sin = src_back ? kPadBack : (!host_pad_long_src_allowed(s) ? -1 : host_pad_input_of(s));
+    const bool src_side = s == kBindGestures || s == kBindEffects;  // the touchpad's left or right side
+    const bool side = l == kBindGestures || l == kBindEffects;
+    const int lin = side || !host_pad_long_target_allowed(l) ? -1 : host_pad_input_of(l);
+    const bool src_ok = pad_long_usable(sin);
+    const bool long_ok = side || pad_long_usable(lin);
+    if (!src_ok || !long_ok || s == l || (!side && !src_side && sin == lin)) {
+        was_down[pad] = false;
+        return;
+    }
+    const auto now = clk::now();
+    const auto limit = std::chrono::milliseconds(g_pl_ms.load(std::memory_order_relaxed));
+    const bool down = held[sin];
+    // The short press: the button's own press, or - for Gestures and Personal Effects, which sit
+    // on the touchpad's one press - that side's finger as well.
+    const auto give = [&](bool on) {
+        if (src_side && on) {
+            (s == kBindGestures ? *gestures : *effects) = true;
+            return;
+        }
+        held[sin] = on;
+    };
+    if (down && !was_down[pad]) down_since[pad] = now;
+    if (!down && was_down[pad] && now - down_since[pad] < limit) pulse_until[pad] = now + std::chrono::milliseconds(120);
+    was_down[pad] = down;
+    if (down) {
+        give(false);
+        if (now - down_since[pad] >= limit) {
+            if (l == kBindGestures) *gestures = true;
+            else if (l == kBindEffects) *effects = true;
+            else held[lin] = true;
+        }
+    } else if (now < pulse_until[pad]) {
+        give(true);
     }
 }

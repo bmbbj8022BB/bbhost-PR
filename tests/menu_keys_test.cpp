@@ -30,6 +30,8 @@ bool debug_menu_active() { return false; }
 std::uint32_t g_confirm = 0x4000u;
 std::uint32_t menu_confirm_button() { return g_confirm; }
 std::uint32_t menu_back_button() { return g_confirm == 0x2000u ? 0x4000u : 0x2000u; }
+bool config_swap_ab_play() { return false; }
+std::uint32_t menu_region_confirm_button() { return 0x4000u; }
 
 namespace {
 
@@ -175,6 +177,7 @@ int main() {
         // Still one button for each bit.
         std::uint32_t all = 0;
         for (int i = 0; i < kPadInputs; ++i) {
+            if (i == kPadBack) continue;  // Back shares the touchpad press bit on purpose
             CHECK(!(all & host_pad_menu_bit(i)));
             all |= host_pad_menu_bit(i);
         }

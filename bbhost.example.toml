@@ -66,6 +66,14 @@ name = "Hunter"
 # still typed. BBHOST_IME=type or auto overrides this.
 ime = "type"
 
+# [input]: bbhost-options.toml's [input] has the same key and the last word.
+# # Exchanges Cross and Circle (the pad's A and B) on the controller, the keyboard and the mouse.
+# # auto: only for the Asian release (CUSA03023, CUSA01363); true: always; false: never.
+# swap_ab = "auto"
+# # false (the default): only the menus' decide and return follow swap_ab; in play the buttons stay
+# # where the game has them. true: Cross and Circle are exchanged in play as well.
+# swap_ab_play = "false"
+
 [video]
 # The window's size (fullscreen takes the desktop's).
 width = 1920

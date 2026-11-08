@@ -1744,14 +1744,21 @@ bool script_keys_step() {
     return true;
 }
 
-// The controller's sixteen bindable buttons as SDL names them, in PadInput's
+// The controller's seventeen bindable buttons as SDL names them, in PadInput's
 // order; the triggers are axes (INVALID here).
 SDL_GamepadButton pad_sdl_button(int input) {
+    // input.swap_ab_play: the pad's A and B are Circle and Cross in play and in the menus alike. Without it
+    // only the menus' decide and return move (the loop in update_pad).
+    if (config_swap_ab_play()) {
+        if (input == kPadCross) return SDL_GAMEPAD_BUTTON_EAST;
+        if (input == kPadCircle) return SDL_GAMEPAD_BUTTON_SOUTH;
+    }
     static constexpr SDL_GamepadButton kButtons[kPadInputs] = {
         SDL_GAMEPAD_BUTTON_SOUTH,       SDL_GAMEPAD_BUTTON_EAST,        SDL_GAMEPAD_BUTTON_WEST,       SDL_GAMEPAD_BUTTON_NORTH,
         SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, SDL_GAMEPAD_BUTTON_INVALID, SDL_GAMEPAD_BUTTON_INVALID,
         SDL_GAMEPAD_BUTTON_LEFT_STICK,  SDL_GAMEPAD_BUTTON_RIGHT_STICK, SDL_GAMEPAD_BUTTON_START,       SDL_GAMEPAD_BUTTON_TOUCHPAD,
-        SDL_GAMEPAD_BUTTON_DPAD_UP,     SDL_GAMEPAD_BUTTON_DPAD_DOWN,   SDL_GAMEPAD_BUTTON_DPAD_LEFT,  SDL_GAMEPAD_BUTTON_DPAD_RIGHT};
+        SDL_GAMEPAD_BUTTON_DPAD_UP,     SDL_GAMEPAD_BUTTON_DPAD_DOWN,   SDL_GAMEPAD_BUTTON_DPAD_LEFT,  SDL_GAMEPAD_BUTTON_DPAD_RIGHT,
+        SDL_GAMEPAD_BUTTON_BACK};
     return input >= 0 && input < kPadInputs ? kButtons[input] : SDL_GAMEPAD_BUTTON_INVALID;
 }
 
@@ -1835,7 +1842,8 @@ void update_pad() {
     }
     // Each pad's buttons are or-ed together, and each stick axis and trigger
     // is whichever pad pushes it furthest, so two pads never fight.
-    bool touch_done = false, back_held = false;
+    bool touch_done = false, back_held = false, gestures_held = false, effects_held = false;
+    int pad_index = 0;
     // A plugin's view of the controller, before what it takes from the game
     // (plugin API 29: host_plugin_pad, host_plugin_pad_take).
     PluginPad ctl;
@@ -1867,7 +1875,7 @@ void update_pad() {
     for (SDL_Gamepad* g_gamepad : g_pads) {
         p.connected = true;
         ctl.connected = true;
-        // The sixteen buttons, the triggers past a quarter of their travel, each
+        // The seventeen buttons, the triggers past a quarter of their travel, each
         // giving in play the press it is bound to (host/bindings.h host_pad_*):
         // a rebound one's play press goes to play_buttons, which a menu takes
         // out again, and its menu press to menu_buttons, which a menu puts in,
@@ -1878,7 +1886,6 @@ void update_pad() {
             const SDL_GamepadButton b = pad_sdl_button(i);
             held[i] = b != SDL_GAMEPAD_BUTTON_INVALID && static_cast<int>(b) != end_button && SDL_GetGamepadButton(g_gamepad, b);
         }
-        back_held |= SDL_GetGamepadButton(g_gamepad, SDL_GAMEPAD_BUTTON_BACK);  // below, after the touchpad's own fingers
         const auto further = [](std::uint8_t have, std::uint8_t v) {
             return std::abs(static_cast<int>(v) - kStickRest) > std::abs(static_cast<int>(have) - kStickRest) ? v : have;
         };
@@ -1923,10 +1930,22 @@ void update_pad() {
             }
             if ((take_buttons | taken_held_pad) & ~dialog_buttons & bit) held[i] = false;
         }
+        {
+            // The short / long button (Controls page). Back and what the long press gives on the
+            // touchpad's sides (Gestures left, Personal Effects right) come out beside the buttons.
+            bool gestures_pad = false, effects_pad = false;
+            host_pad_long_filter(pad_index++, held, &gestures_pad, &effects_pad);
+            gestures_held = gestures_held || gestures_pad;
+            effects_held = effects_held || effects_pad;
+        }
         for (int i = 0; i < kPadInputs; ++i) {
             if (!held[i]) continue;
             const std::uint32_t play = host_pad_play_bit(i), menu = host_pad_menu_bit(i);
             p.buttons |= play;
+            // The touchpad's press from a button that is not the touchpad (Back / Select / Share, or
+            // Options and the rest once Gestures is on them) has no finger of its own: it holds the
+            // left side, as the Gestures key does, since the game reads the side from the finger.
+            if (play == kTouchPad && i != kPadTouchpad) back_held = true;
             if (play != menu) {
                 p.play_buttons |= play;
                 p.menu_buttons |= menu;
@@ -1982,8 +2001,8 @@ void update_pad() {
         ctl.buttons |= kTouchPad;
         ctl.play |= kTouchPad;
     }
-    if (back_held && !(take_buttons & kTouchPad)) {
-        p.buttons |= kTouchPad;
+    if ((back_held || gestures_held || effects_held) && !(take_buttons & kTouchPad)) p.buttons |= kTouchPad;
+    if ((back_held || gestures_held) && !(take_buttons & kTouchPad)) {
         if (p.touch_count < 2) {
             PadState::Touch& t = p.touch[p.touch_count++];
             t.x = static_cast<std::uint16_t>(kPadTouchW / 4);
@@ -1991,6 +2010,14 @@ void update_pad() {
             t.id = 201;
             t.down = true;
         }
+    }
+    // Personal Effects, from the short / long choice: the touchpad's right side.
+    if (effects_held && !(take_buttons & kTouchPad) && p.touch_count < 2) {
+        PadState::Touch& t = p.touch[p.touch_count++];
+        t.x = static_cast<std::uint16_t>(kPadTouchW * 3 / 4);
+        t.y = static_cast<std::uint16_t>(kPadTouchH / 2);
+        t.id = 202;
+        t.down = true;
     }
     panel_held_pad = ((panel ? kPanelPadButtons : 0u) | panel_held_pad) & held_now;
     plugin_held_pad = ((panel_plugins ? kPanelPadButtons : 0u) | plugin_held_pad) & held_now;
