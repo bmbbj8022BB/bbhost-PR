@@ -31,12 +31,12 @@ struct Section {
     int first, last;  // BindAction, inclusive
 };
 constexpr Section kSections[] = {
-    {"MOVEMENT", kBindMoveF, kBindLockOn},
+    {"MOVEMENT", kBindMoveF, kBindRollTap},
     {"COMBAT", kBindAttack, kBindUseItem},
     {"ITEMS AND GESTURES", kBindInteract, kBindEffects},
     {"CAMERA AND MENUS", kBindLookU, kBindBack},
     {"MENU PAGES AND OPTIONS", kBindMenuPageL, kBindMenuStatus},
-    {"OTHER", kBindL3, kBindDebugMenu},
+    {"OTHER", kBindLockOn, kBindDebugMenu},
 };
 
 // What the controller column says for an action without a button of its own
@@ -212,6 +212,19 @@ void controls_page_draw(bool setup_window) {
                 ui::tooltip(info.label, at_default ? "Its default key, mouse button and controller button."
                                                    : "Back to its default key, mouse button and controller button.");
             ImGui::PopID();
+            // Dodge (tap only)'s press length, on a line of its own right under it.
+            if (a == kBindRollTap) {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextDisabled("    Dodge only press");
+                ui::tooltip_for_item("Dodge only press", "How long the Dodge (tap only) key holds the dodge button, 5 to 150 ms. "
+                                                         "Raise it if the dodge does not come out, lower it if it turns into a sprint.");
+                ImGui::TableSetColumnIndex(1);
+                host_options_dodge_slider(cw);
+                ImGui::TableSetColumnIndex(4);
+                host_options_dodge_reset();
+            }
         }
     }
     ImGui::EndTable();
