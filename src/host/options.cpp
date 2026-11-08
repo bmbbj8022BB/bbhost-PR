@@ -29,6 +29,7 @@
 #include <fstream>
 #include <cmath>
 #include <cstdio>
+#include <cctype>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -1427,6 +1428,16 @@ void save() {
         std::fprintf(f, "%s = \"%s\"\n", s.key, s.values[static_cast<std::size_t>(index)]);
     }
     host_bindings_save(f);
+    host_pad_long_save(f);
+    // [input]: exchange Cross and Circle (the pad's A and B, and the keyboard's and mouse's
+    // buttons with them). Not in any menu: it is set here, and a bbhost.toml [input] has the same key.
+    std::fprintf(f, "\n[input]\n");
+    std::fprintf(f, "# swap_ab: \"auto\" (Cross and Circle exchanged only for the Asian release, CUSA03023 or CUSA01363),\n");
+    std::fprintf(f, "# \"true\" (always) or \"false\" (never). Applies to the controller, the keyboard and the mouse.\n");
+    std::fprintf(f, "swap_ab = \"%s\"\n", config_swap_ab_setting().c_str());
+    std::fprintf(f, "# swap_ab_play: \"false\" (default): only the menus' decide and return follow swap_ab; in play the buttons stay\n");
+    std::fprintf(f, "# where the game has them. \"true\": Cross and Circle are exchanged in play as well.\n");
+    std::fprintf(f, "swap_ab_play = \"%s\"\n", config_swap_ab_play_setting().c_str());
     // The account: its name and token.
     if (net::account_logged_in()) {
         std::fprintf(f, "[account]\nname = \"%s\"\ntoken = \"%s\"\n", net::account_name().c_str(),
@@ -1689,6 +1700,8 @@ void host_options_load() {
         char line[512];
         bool keys = false;  // in [keys]: bindings, not settings
         bool pad = false;   // in [pad]: the controller's buttons
+        bool in_pl = false;  // in [pad_long]: the controller's short / long button
+        bool in_input = false;  // in [input]: swap_ab
         bool account = false;  // in [account]: the name and token
         std::string acct_name, acct_token;
         int file_version = 1;
@@ -1698,6 +1711,8 @@ void host_options_load() {
             if (line[0] == '[') {
                 keys = std::strncmp(line, "[keys]", 6) == 0;
                 pad = std::strncmp(line, "[pad]", 5) == 0;
+                in_pl = std::strncmp(line, "[pad_long]", 10) == 0;
+                in_input = std::strncmp(line, "[input]", 7) == 0;
                 account = std::strncmp(line, "[account]", 9) == 0;
                 continue;
             }
@@ -1726,6 +1741,25 @@ void host_options_load() {
             }
             if (pad) {
                 host_pad_parse(key.c_str(), val.c_str());
+                continue;
+            }
+            if (in_pl) {
+                host_pad_long_parse(key.c_str(), val.c_str());
+                continue;
+            }
+            if (in_input) {
+                if (key == "swap_ab") {
+                    std::string v = val;
+                    for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                    if (v == "auto" || v == "true" || v == "false") config_set_swap_ab_option(v);
+                    else host_log("options: [input] swap_ab = \"%s\" - not auto, true or false; ignored", val.c_str());
+                }
+                if (key == "swap_ab_play") {
+                    std::string v = val;
+                    for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                    if (v == "true" || v == "false") config_set_swap_ab_play_option(v);
+                    else host_log("options: [input] swap_ab_play = \"%s\" - not true or false; ignored", val.c_str());
+                }
                 continue;
             }
             if (account) {
