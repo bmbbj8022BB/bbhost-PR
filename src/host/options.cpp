@@ -47,6 +47,7 @@
 
 #if defined(BBHOST_HAVE_SDL3)
 #include "host/launcher_ui.h"
+#include "host/i18n.h"
 
 #include "imgui.h"
 
@@ -832,9 +833,9 @@ constexpr const char kRefusedText[] = "Your sign-in has expired, or this PC was 
 std::string signed_in_line() {
     // The game read its NpId when it went online, so a sign-in after that
     // names the account to the server but not to the game until the next run.
-    if (net::account_refused()) return std::string(kRefusedStatus) + " (" + net::account_name() + ")";
-    return "Signed in as " + net::account_name() +
-           (hle_np_context_started() ? " (in full on the next launch)" : "");
+    if (net::account_refused()) return i18n::tf("Sign-in expired (%s)", net::account_name().c_str());
+    return i18n::tf("Signed in as %s", net::account_name().c_str()) +
+           (hle_np_context_started() ? i18n::tr(" (in full on the next launch)") : "");
 }
 
 // Link with Discord: a code the player approves on the website's /link page,
@@ -844,13 +845,13 @@ void link_thread() {
     net::DeviceLink link;
     std::string err;
     if (!net::account_link_start(link, err)) {
-        set_account_lines("Link failed: " + err, "");
+        set_account_lines(i18n::tf("Link failed: %s", err.c_str()), "");
         g_acct_busy.store(false);
         return;
     }
     const std::string uri = link.verification_uri + "?code=" + link.user_code;
-    set_account_lines("Waiting for approval on the website...",
-                      "Code " + link.user_code + "  -  approve it at " + link.verification_uri);
+    set_account_lines(i18n::tr("Waiting for approval on the website..."),
+                      i18n::tf("Code %s  -  approve it at %s", link.user_code.c_str(), link.verification_uri.c_str()));
     SDL_OpenURL(uri.c_str());
     int interval = link.interval;
     for (int waited = 0; waited < link.expires_in && !g_link_cancel.load();) {
@@ -866,14 +867,14 @@ void link_thread() {
             set_account_lines(signed_in_line(), "");
             g_acct_save.store(true);
         } else {
-            set_account_lines(status == "denied" ? "The link was denied on the website"
-                              : status == "expired" ? "The code expired; link again"
-                                                    : "Link failed: " + err, "");
+            set_account_lines(status == "denied" ? i18n::tr("The link was denied on the website")
+                              : status == "expired" ? i18n::tr("The code expired; link again")
+                                                    : i18n::tf("Link failed: %s", err.c_str()), "");
         }
         g_acct_busy.store(false);
         return;
     }
-    set_account_lines(g_link_cancel.load() ? "Link cancelled" : "The code expired; link again", "");
+    set_account_lines(g_link_cancel.load() ? i18n::tr("Link cancelled") : i18n::tr("The code expired; link again"), "");
     g_acct_busy.store(false);
 }
 
@@ -901,32 +902,32 @@ void account_action(int which, const std::string& name, const std::string& code)
         g_link_cancel.store(true);
         std::thread([] {
             net::account_logout();
-            set_account_lines("Signed out", "");
+            set_account_lines(i18n::tr("Signed out"), "");
             g_acct_save.store(true);
         }).detach();
         return;
     }
     if (g_acct_busy.load()) return;
     if ((which == 1 || which == 2) && name.empty()) {
-        set_account_lines("Type a name first", "");
+        set_account_lines(i18n::tr("Type a name first"), "");
         return;
     }
     if (which == 2 && code.empty()) {
-        set_account_lines("Type the recovery code first", "");
+        set_account_lines(i18n::tr("Type the recovery code first"), "");
         return;
     }
     if (which == 3 && !net::account_logged_in()) {
-        set_account_lines("Sign in first", "");
+        set_account_lines(i18n::tr("Sign in first"), "");
         return;
     }
     g_acct_busy.store(true);
     g_link_cancel.store(false);
     if (which == 0) {
-        set_account_lines("Asking the server for a code...", "");
+        set_account_lines(i18n::tr("Asking the server for a code..."), "");
         std::thread(link_thread).detach();
         return;
     }
-    set_account_lines(which == 1 ? "Creating the account..." : which == 2 ? "Recovering..." : "Asking for a code...", "");
+    set_account_lines(which == 1 ? i18n::tr("Creating the account...") : which == 2 ? i18n::tr("Recovering...") : i18n::tr("Asking for a code..."), "");
     std::thread([which, name, code] {
         std::string err, out;
         bool ok = false;
@@ -940,12 +941,12 @@ void account_action(int which, const std::string& name, const std::string& code)
         if (!ok) {
             // A server without accounts says so itself; anything else is the
             // server's refusal (a name taken, a daily limit) in its words.
-            set_account_lines(err.find("no account service") != std::string::npos ? err : "Refused: " + err, "");
+            set_account_lines(err.find("no account service") != std::string::npos ? i18n::trs(err) : i18n::tf("Refused: %s", err.c_str()), "");
         } else if (which == 3) {
-            set_account_lines(signed_in_line(), "Website code " + out + "  -  use it on the account page within 10 minutes");
+            set_account_lines(signed_in_line(), i18n::tf("Website code %s  -  use it on the account page within 10 minutes", out.c_str()));
         } else {
             // The recovery code is shown here once and never written anywhere.
-            set_account_lines(signed_in_line(), "Recovery code " + out + "  -  write it down now; it is shown once");
+            set_account_lines(signed_in_line(), i18n::tf("Recovery code %s  -  write it down now; it is shown once", out.c_str()));
             g_field[1].clear();
             g_acct_save.store(true);
         }
@@ -957,10 +958,10 @@ std::string account_status() {
     std::lock_guard<std::mutex> lk(g_acct_mu);
     // A refusal outranks an older "Signed in as" from the last action.
     const bool refused = net::account_logged_in() && net::account_refused();
-    if (!g_acct_status.empty() && !(refused && !g_acct_busy.load() && g_acct_status.rfind("Signed in as ", 0) == 0))
+    if (!g_acct_status.empty() && !(refused && !g_acct_busy.load() && g_acct_status.rfind(i18n::tf("Signed in as %s", net::account_name().c_str()), 0) == 0))
         return g_acct_status;
-    if (refused) return std::string(kRefusedStatus) + " (" + net::account_name() + ")";
-    return net::account_logged_in() ? "Signed in as " + net::account_name() : "Not signed in";
+    if (refused) return i18n::tf("Sign-in expired (%s)", net::account_name().c_str());
+    return net::account_logged_in() ? i18n::tf("Signed in as %s", net::account_name().c_str()) : std::string(i18n::tr("Not signed in"));
 }
 
 std::string account_detail() {
@@ -2083,8 +2084,7 @@ std::string frame_rate_warning(int fps) {
     const int limit = fg_real_limit();
     if (limit <= 0 || fps == 0 || fps <= limit) return {};
     const int hz = limit * 2;
-    return "Frame generation doubles this: at most half your refresh rate (" + std::to_string(limit) + " at " + std::to_string(hz) +
-           " Hz).";
+    return i18n::tf("Frame generation doubles this: at most half your refresh rate (%d at %d Hz).", limit, hz);
 }
 
 // Frame generation's warning when the Frame rate is above half the refresh
@@ -2093,8 +2093,8 @@ std::string frame_generation_warning(int fps) {
     const int limit = fg_real_limit();
     if (limit <= 0 || fps == 0 || fps <= limit) return {};
     const std::string rate = std::to_string(fps) + " fps";
-    return "Frame rate " + rate + " is above half your " + std::to_string(limit * 2) + " Hz refresh rate: the game runs at " +
-           std::to_string(limit) + ", " + std::to_string(limit * 2) + " shown.";
+    return i18n::tf("Frame rate %s is above half your %d Hz refresh rate: the game runs at %d, %d shown.", rate.c_str(), limit * 2, limit,
+                    limit * 2);
 }
 
 // Frame rate's control, the setup window's and F10's alike, in `width`: the
@@ -2180,7 +2180,7 @@ void setting_row(int id, const char* label = nullptr, const char* note = nullptr
     }
     if (n == 2 && on_i >= 0 && off_i >= 0) {
         bool v = cur == on_i;
-        if (ui::toggle_row(label, restart ? "Applies at the next start" : nullptr, &v, note)) change(id, v ? on_i : off_i);
+        if (ui::toggle_row(i18n::tr(label), restart ? i18n::tr("Applies at the next start") : nullptr, &v, note)) change(id, v ? on_i : off_i);
         if (id == kFrameGeneration) {
             const std::string warn = frame_generation_warning(
                 frame_rate_of(shown_index(kFrameCap), shown_index(kFrameCapCustom), shown_index(kFrameCapCustomFps)));
@@ -2194,10 +2194,10 @@ void setting_row(int id, const char* label = nullptr, const char* note = nullptr
     const ImVec2 p = ImGui::GetCursorScreenPos();
     ImGui::BeginGroup();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(label);
+    ImGui::TextUnformatted(i18n::tr(label));
     if (restart) {
         ImGui::SameLine();
-        ui::pill("next start", ui::kWarn, ui::alpha(ui::kWarn, 38));
+        ui::pill(i18n::tr("next start"), ui::kWarn, ui::alpha(ui::kWarn, 38));
     }
     ImGui::EndGroup();
     if (note) ui::tooltip_for_item(label, note);
@@ -2211,8 +2211,8 @@ void setting_row(int id, const char* label = nullptr, const char* note = nullptr
         // of them is. A pick is one of the three, the player's own even when
         // the setting held it already (set_index).
         const HostEffectTimingRow et = host_effect_timing_row();
-        const char* labels[4] = {s.values[0], s.values[1], s.values[2], et.custom.c_str()};
-        const char* tips[4] = {kHostEffectTimingTips[0], kHostEffectTimingTips[1], kHostEffectTimingTips[2], et.tip.c_str()};
+        const char* labels[4] = {i18n::tr(s.values[0]), i18n::tr(s.values[1]), i18n::tr(s.values[2]), et.custom.c_str()};
+        const char* tips[4] = {i18n::tr(kHostEffectTimingTips[0]), i18n::tr(kHostEffectTimingTips[1]), i18n::tr(kHostEffectTimingTips[2]), et.tip.c_str()};
         const int shown = g_pending[static_cast<std::size_t>(id)] >= 0 ? cur : et.index;
         int pick = shown;
         ImGui::SetNextItemWidth(cw);
@@ -2310,10 +2310,10 @@ void action_button(const char* label, int which, bool primary, const char* name 
     const bool idle = action_idle(which);
     bool pressed = false;
     if (primary) {
-        pressed = ui::primary_button(label, ImVec2(0, 0), idle);
+        pressed = ui::primary_button(i18n::tr(label), ImVec2(0, 0), idle);
     } else {
         ImGui::BeginDisabled(!idle);
-        pressed = ui::ghost_button(label);
+        pressed = ui::ghost_button(i18n::tr(label));
         ImGui::EndDisabled();
     }
     const char* note = which < 5 ? kAccountNotes[which] : which == 10 ? "Asks GitHub for the newest release."
@@ -2340,28 +2340,28 @@ void account_page() {
         g_bufs_seeded = true;
         std::snprintf(g_name_buf, sizeof(g_name_buf), "%s", g_field[0].c_str());
     }
-    ui::card_begin("##account", ImVec2(w, 0), "SIGNED IN");
+    ui::card_begin("##account", ImVec2(w, 0), i18n::tr("SIGNED IN"));
     {
         const bool in = net::account_logged_in();
         ui::avatar(in ? net::account_name() : std::string(), std::round(46 * sc));
         ImGui::SameLine(0, 14 * sc);
         ImGui::BeginGroup();
         ImGui::PushFont(ui::font_strong(), 0.0f);
-        ImGui::TextUnformatted(account_status().c_str());
+        ImGui::TextUnformatted(i18n::trs(account_status()).c_str());
         ImGui::PopFont();
         ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
-        ImGui::TextUnformatted(hle_np_online_status().c_str());
+        ImGui::TextUnformatted(i18n::trs(hle_np_online_status()).c_str());
         ImGui::PopStyleColor();
         ImGui::EndGroup();
     }
     if (const std::string d = account_detail(); !d.empty()) {
         ImGui::Spacing();
-        ui::banner(ui::Icon::Info, ui::kIce, d);
+        ui::banner(ui::Icon::Info, ui::kIce, i18n::trs(d));
     }
     if (net::account_logged_in() && net::account_refused() && !g_acct_busy.load()) {
         ImGui::Spacing();
         ui::banner(ui::Icon::Warning, ui::kWarn,
-                   std::string(kRefusedText) + " Link with Discord again, or recover an account this PC holds with its recovery code below.");
+                   std::string(i18n::tr(kRefusedText)) + i18n::tr(" Link with Discord again, or recover an account this PC holds with its recovery code below."));
     }
     ImGui::Spacing();
     action_button("Link with Discord", 0, true);
@@ -2371,15 +2371,15 @@ void account_page() {
     action_button("Sign out", 4, false);
     ui::card_end();
     ImGui::Dummy(ImVec2(0, 6 * sc));
-    ui::card_begin("##own", ImVec2(w, 0), "AN ACCOUNT THIS PC HOLDS");
+    ui::card_begin("##own", ImVec2(w, 0), i18n::tr("AN ACCOUNT THIS PC HOLDS"));
     const float bw = std::round(250 * sc);
     const float fw = ImGui::GetContentRegionAvail().x - bw - ImGui::GetStyle().ItemSpacing.x;
     ImGui::SetNextItemWidth(fw);
-    ImGui::InputTextWithHint("##name", "Account name", g_name_buf, sizeof(g_name_buf));
+    ImGui::InputTextWithHint("##name", i18n::tr("Account name"), g_name_buf, sizeof(g_name_buf));
     ImGui::SameLine();
     action_button("Create account on this PC", 1, false, g_name_buf, g_code_buf);
     ImGui::SetNextItemWidth(fw);
-    ImGui::InputTextWithHint("##code", "Recovery code", g_code_buf, sizeof(g_code_buf));
+    ImGui::InputTextWithHint("##code", i18n::tr("Recovery code"), g_code_buf, sizeof(g_code_buf));
     ImGui::SameLine();
     action_button("Recover account", 2, false, g_name_buf, g_code_buf);
     ui::card_end();
@@ -2387,12 +2387,12 @@ void account_page() {
 
 void updates_page() {
     const float w = ImGui::GetContentRegionAvail().x;
-    ui::card_begin("##updates", ImVec2(w, 0), "THIS BBHOST");
+    ui::card_begin("##updates", ImVec2(w, 0), i18n::tr("THIS BBHOST"));
     ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextUnformatted(updater::status().c_str());
+    ImGui::TextUnformatted(i18n::trs(updater::status()).c_str());
     if (const std::string d = updater::detail(); !d.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, ui::kTextDim);
-        ImGui::TextUnformatted(d.c_str());
+        ImGui::TextUnformatted(i18n::trs(d).c_str());
         ImGui::PopStyleColor();
     }
     ImGui::PopTextWrapPos();
@@ -2428,10 +2428,10 @@ void preset_row() {
         const bool dlss = who[0] == 'D';
         std::string& n = notes[dlss ? 1 : 0];
         if (n.empty())
-            n = std::string("How much smaller than the Resolution the 3D is drawn before ") + who + " brings it back: " +
-                (dlss ? "DLAA" : "Native AA") +
-                " draws it full size (anti-aliasing only), Quality at two thirds, Balanced at about 59%, Performance at half "
-                "each way - faster, softer. The menus, the HUD and the post effects stay at the Resolution. Changes at once.";
+            n = i18n::tf("How much smaller than the Resolution the 3D is drawn before %s brings it back: %s draws it full size "
+                         "(anti-aliasing only), Quality at two thirds, Balanced at about 59%%, Performance at half each way - "
+                         "faster, softer. The menus, the HUD and the post effects stay at the Resolution. Changes at once.",
+                         who, dlss ? "DLAA" : "Native AA");
         return n.c_str();
     };
     if (u == 2 || u == 3) {
@@ -2500,9 +2500,10 @@ const char* upscaler_note() {
                "game's own anti-aliasing runs instead; Frame generation works without it.";
     } else if (dlss ? !caps.dlss : !caps.fsr) {
         const std::string why = dlss ? caps.dlss_reason : caps.fsr_reason;
-        note = std::string(dlss ? "DLSS" : "FSR") + " is not available here" + (why.empty() ? "" : " (" + why + ")") +
-               ": the game's own anti-aliasing runs instead. Frame generation works without it." +
-               (dlss ? " On an AMD or Intel GPU choose FSR 4 or FSR 3." : "");
+        note = (why.empty() ? i18n::tf("%s is not available here", dlss ? "DLSS" : "FSR")
+                            : i18n::tf("%s is not available here (%s)", dlss ? "DLSS" : "FSR", why.c_str())) +
+               i18n::tr(": the game's own anti-aliasing runs instead. Frame generation works without it.") +
+               (dlss ? i18n::tr(" On an AMD or Intel GPU choose FSR 4 or FSR 3.") : "");
     } else {
         return g_set[kUpscaler].note;
     }
@@ -2682,11 +2683,11 @@ HostEffectTimingRow host_effect_timing_row() {
     const bool env = std::strcmp(t.from, "BBHOST_SFX_STEP") == 0;
     r.index = kEffectTimingCount;
     r.custom = "Custom: " + v + (env ? " (BBHOST_SFX_STEP)" : " (bbhost.toml)");
-    r.tip = (v == "frame"    ? std::string("Effects move by each frame's own time")
-             : v == "smooth" ? std::string("Effects move at your frame rate while what the game counts keeps 30 a second (the old Smooth)")
-                             : "Effects step " + v + " times a second") +
-            (env ? ", as BBHOST_SFX_STEP asks: it wins over this setting while it is set."
-                 : ", as effect_steps in bbhost.toml asks. Choosing one of the others replaces it.");
+    r.tip = (v == "frame"    ? std::string(i18n::tr("Effects move by each frame's own time"))
+             : v == "smooth" ? std::string(i18n::tr("Effects move at your frame rate while what the game counts keeps 30 a second (the old Smooth)"))
+                             : i18n::tf("Effects step %s times a second", v.c_str())) +
+            (env ? i18n::tr(", as BBHOST_SFX_STEP asks: it wins over this setting while it is set.")
+                 : i18n::tr(", as effect_steps in bbhost.toml asks. Choosing one of the others replaces it."));
     return r;
 }
 
