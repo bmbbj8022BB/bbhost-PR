@@ -3139,3 +3139,33 @@ msgstr "게임 자체의 안티앨리어싱 대신 TAA(bbhost 자체 템포럴 �
 msgid "AMD FidelityFX frame generation: a frame made between each two of the game's, from the 3D alone - the HUD and the menus are never interpolated. Works with any Upscaling choice, Off included, on any GPU. While on, the game runs at most half your monitor's refresh rate and frame generation doubles it to the refresh rate (90 + 90 at 180 Hz): higher Frame rates are greyed out, and one set higher comes down to half as it turns on. Loading screens stay uncapped. Needs AMD's amd_fidelityfx_framegeneration_vk.dll and its loader beside bbhost.exe. Changes at once."
 msgstr "AMD FidelityFX 프레임 생성: 게임의 프레임 두 장 사이마다 3D 화면만으로 프레임을 한 장 만들어 넣습니다. HUD와 메뉴는 보간하지 않습니다. 업스케일링 선택과 상관없이(꺼짐 포함) 모든 GPU에서 쓸 수 있습니다. 켜져 있는 동안 게임은 모니터 주사율의 절반까지만 실행되고, 프레임 생성이 이를 주사율까지 두 배로 만듭니다(180Hz에서 90 + 90). 그보다 높은 프레임 레이트는 선택할 수 없게 회색으로 표시되며, 더 높게 설정해 둔 경우 켜는 순간 절반으로 내려갑니다. 로딩 화면은 제한 없이 실행됩니다. AMD의 amd_fidelityfx_framegeneration_vk.dll과 로더가 bbhost.exe 옆에 있어야 합니다. 즉시 적용됩니다."
 
+msgid "Dodge (tap only)"
+msgstr "회피 (탭 전용)"
+
+msgid "Circle, a short press: dodge only, holding it does not sprint."
+msgstr "동그라미. 짧게 누르는 입력으로 회피만 합니다. 누르고 있어도 달리지 않습니다."
+
+msgid "Dodge only press"
+msgstr "회피 전용 입력 시간"
+
+msgid "How long the Dodge (tap only) key holds the dodge button. Raise it if the dodge does not come out, lower it if it turns into a sprint."
+msgstr "회피(탭 전용) 키가 회피 버튼을 누르고 있는 시간입니다. 회피가 나가지 않으면 올리고, 달리기로 바뀌면 낮추세요."
+
+msgid "How long the Dodge (tap only) key holds the dodge button, 5 to 150 ms. Raise it if the dodge does not come out, lower it if it turns into a sprint."
+msgstr "회피(탭 전용) 키가 회피 버튼을 누르고 있는 시간입니다(5~150ms). 회피가 나가지 않으면 올리고, 달리기로 바뀌면 낮추세요."
+
+msgid "SHORT / LONG PRESS (CONTROLLER)"
+msgstr "짧게 / 길게 누르기 (컨트롤러)"
+
+msgid "The button of the short action gives that action when pressed briefly; held longer than the time, it gives the long action instead. Actions on L2 and R2 are not taken."
+msgstr "짧게 누르는 동작의 버튼은 짧게 누르면 그 동작을 하고, 정한 시간보다 오래 누르면 대신 길게 누르는 동작을 합니다. L2와 R2의 동작은 지원하지 않습니다."
+
+msgid "Short"
+msgstr "짧게"
+
+msgid "Long"
+msgstr "길게"
+
+msgid "Held longer than"
+msgstr "다음 시간보다 오래 누르면"
+

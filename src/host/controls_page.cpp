@@ -89,12 +89,12 @@ void pad_short_long_card() {
         if (host_pad_long_src_allowed(c)) {
             src_c[ns] = c;
             src_off[ns + 1] = trigger;
-            src_items[++ns] = host_pad_long_name(c);
+            src_items[++ns] = i18n::tr(host_pad_long_name(c));
         }
         if (host_pad_long_target_allowed(c)) {
             long_c[nl] = c;
             long_off[nl + 1] = trigger;
-            long_items[++nl] = host_pad_long_name(c);
+            long_items[++nl] = i18n::tr(host_pad_long_name(c));
         }
     }
     const auto index_of = [](const int* choices, int n, int choice) {
@@ -104,10 +104,10 @@ void pad_short_long_card() {
         return 0;
     };
     ImGui::Spacing();
-    ui::card_begin("##padlong", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f), "SHORT / LONG PRESS (CONTROLLER)");
+    ui::card_begin("##padlong", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f), i18n::tr("SHORT / LONG PRESS (CONTROLLER)"));
     ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextDisabled("The button of the short action gives that action when pressed briefly; held longer than the "
-                        "time, it gives the long action instead. Actions on L2 and R2 are not taken.");
+    ImGui::TextDisabled("%s", i18n::tr("The button of the short action gives that action when pressed briefly; held longer than the "
+                        "time, it gives the long action instead. Actions on L2 and R2 are not taken."));
     ImGui::PopTextWrapPos();
     ImGui::Spacing();
     int src = -1, lng = -1;
@@ -115,20 +115,20 @@ void pad_short_long_card() {
     int want_src = index_of(src_c, ns, src), want_lng = index_of(long_c, nl, lng);
     const int had_src = want_src, had_lng = want_lng;
     const ImGuiStyle& st = ImGui::GetStyle();
-    const float t_short = ImGui::CalcTextSize("Short").x, t_long = ImGui::CalcTextSize("Long").x;
-    const float t_held = ImGui::CalcTextSize("Held longer than").x;
+    const float t_short = ImGui::CalcTextSize(i18n::tr("Short")).x, t_long = ImGui::CalcTextSize(i18n::tr("Long")).x;
+    const float t_held = ImGui::CalcTextSize(i18n::tr("Held longer than")).x;
     const float gap = st.ItemSpacing.x;
     const float spare = ImGui::GetContentRegionAvail().x - t_short - t_long - t_held - ui::reset_width() - gap * 8.0f;
     const float cw = std::clamp(spare * 0.3f, 90.0f * sc, 200.0f * sc);
     const float sw = std::max(spare - 2.0f * cw, 80.0f * sc);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Short");
+    ImGui::TextUnformatted(i18n::tr("Short"));
     ImGui::SameLine();
     ImGui::SetNextItemWidth(cw);
     ui::combo("##plsrc", &want_src, src_items, ns + 1, nullptr, src_off);
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Long");
+    ImGui::TextUnformatted(i18n::tr("Long"));
     ImGui::SameLine();
     ImGui::SetNextItemWidth(cw);
     ui::combo("##pllong", &want_lng, long_items, nl + 1, nullptr, long_off);
@@ -136,7 +136,7 @@ void pad_short_long_card() {
         host_pad_long_set(want_src > 0 ? src_c[want_src - 1] : -1, want_lng > 0 ? long_c[want_lng - 1] : -1);
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Held longer than");
+    ImGui::TextUnformatted(i18n::tr("Held longer than"));
     ImGui::SameLine();
     ImGui::SetNextItemWidth(sw);
     int ms = host_pad_long_ms();
@@ -283,7 +283,7 @@ void controls_page_draw(bool setup_window) {
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextDisabled("    Dodge only press");
+                ImGui::TextDisabled("    %s", i18n::tr("Dodge only press"));
                 ui::tooltip_for_item("Dodge only press", "How long the Dodge (tap only) key holds the dodge button, 5 to 150 ms. "
                                                          "Raise it if the dodge does not come out, lower it if it turns into a sprint.");
                 ImGui::TableSetColumnIndex(1);
