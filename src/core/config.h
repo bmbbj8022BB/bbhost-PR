@@ -47,6 +47,13 @@ struct HostConfig {
     // video.shader_overrides / BBHOST_SHADER_OVERRIDES=0|1: edited shaders (<data>/bbhost/shaders)
     // and plugins' shader overrides apply (host/shader_overrides.h); false: none of them does.
     bool shader_overrides = true;
+    std::string ui_language = "en";   // ui.language: "en" or "ko" (the setup window and the F9/F10 screens)
+    std::string ui_font;              // ui.font: a font file with Hangul; empty: the system's (Malgun Gothic on Windows)
+
+    // [input] swap_ab: exchange Cross and Circle (the pad's A and B) - on the pad, the keyboard and the
+    // mouse alike. "auto" (the default) does so only for the Asian release, CUSA03023 or CUSA01363
+    // (config_swap_ab); "true" / "false" force it. bbhost-options.toml's [input] swap_ab has the last word.
+    std::string input_swap_ab = "auto";
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     // video.frame_clock: the Native frame clock setting's default (F10's DISPLAY,
     // the setup window's Game page), off; what they save in bbhost-options.toml
@@ -123,6 +130,14 @@ struct HostConfig {
 // that was explicitly requested).
 bool config_load(int argc, char** argv, HostConfig* out, std::string* error);
 const HostConfig& config();
+// Whether the pad's A and B (Cross and Circle) are exchanged, for the pad, the keyboard and the
+// mouse: input.swap_ab "true" or "false", or "auto" (the default) for the Asian release only
+// (TITLE_ID CUSA03023 or CUSA01363 in sce_sys/param.sfo; the title is read once per paths.app0).
+bool config_swap_ab();
+// The value bbhost-options.toml's [input] swap_ab holds, which wins over bbhost.toml's; "" for none.
+// Kept apart from the config, so a config read anew does not lose it (host/options.cpp).
+void config_set_swap_ab_option(const std::string& value);
+std::string config_swap_ab_setting();
 // The options screen (host/options.h) owns this one once it has read its own
 // file; the loader reads config().skip_intro after that.
 void config_set_skip_intro(bool on);

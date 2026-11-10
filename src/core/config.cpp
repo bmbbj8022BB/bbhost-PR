@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -160,9 +161,12 @@ void apply_values(const std::map<std::string, std::string>& kv, HostConfig* c) {
     str("update.token_file", &c->update_token_file);
     str("player.name", &c->player_name);
     str("player.ime", &c->ime_mode);
+    str("ui.language", &c->ui_language);
+    str("ui.font", &c->ui_font);
     num("video.width", &c->width);
     num("video.height", &c->height);
     num("video.fps_cap", &c->fps_cap);
+    str("input.swap_ab", &c->input_swap_ab);
     str("video.resolution", &c->resolution);
     str("video.window_mode", &c->window_mode);
     str("video.model_detail", &c->model_detail);
@@ -879,6 +883,52 @@ bool config_load(int argc, char** argv, HostConfig* out, std::string* error) {
 
 const HostConfig& config() { return g_cfg; }
 
+namespace {
+std::mutex g_swap_mu;
+std::string g_swap_option;  // bbhost-options.toml's [input] swap_ab
+}  // namespace
+
+void config_set_swap_ab_option(const std::string& value) {
+    std::lock_guard<std::mutex> lock(g_swap_mu);
+    g_swap_option = value;
+}
+
+std::string config_swap_ab_setting() {
+    std::lock_guard<std::mutex> lock(g_swap_mu);
+    return g_swap_option.empty() ? g_cfg.input_swap_ab : g_swap_option;
+}
+
+bool config_swap_ab() {
+    std::string m = config_swap_ab_setting();
+    for (char& ch : m) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    if (m == "true" || m == "1" || m == "on") return true;
+    if (m == "false" || m == "0" || m == "off") return false;
+    // auto: the Asian release, by the TITLE_ID of the update folder's param.sfo, else the game folder's.
+    static std::mutex mu;
+    static std::string cached_app0;
+    static bool have = false, result = false;
+    std::lock_guard<std::mutex> lock(mu);
+    const std::string app0 = g_cfg.app0;
+    if (!have || cached_app0 != app0) {
+        cached_app0 = app0;
+        have = true;
+        result = false;
+        const GameFolders g = config_game_folders(app0);
+        const std::string* dirs[2] = {&g.update, &g.base};
+        for (const std::string* dir : dirs) {
+            if (dir->empty()) continue;
+            std::map<std::string, SfoValue> sfo;
+            std::string err;
+            if (!sfo_read(*dir + "/sce_sys/param.sfo", &sfo, &err)) continue;
+            auto it = sfo.find("TITLE_ID");
+            if (it == sfo.end()) continue;
+            result = it->second.text.rfind("CUSA03023", 0) == 0 || it->second.text.rfind("CUSA01363", 0) == 0;
+            break;
+        }
+    }
+    return result;
+}
+
 std::string config_setup_help(const HostConfig& c) {
     std::string out;
     const auto line = [&out](const std::string& s) { out += s + "\n"; };
@@ -1093,7 +1143,10 @@ bool config_write_template(const std::string& path) {
            "# the network password - are typed in a box over the game (Enter\n"
            "# accepts, Escape cancels). auto: the name is `name` at once.\n"
            "ime = \"type\"\n"
-           "\n[video]\n"
+           "\n[ui]\n"
+           "# The setup window's language: \"en\" (default) or \"ko\" (Korean).\n"
+           "language = \"en\"\n"
+                      "\n[video]\n"
            "width = 1920\n"
            "height = 1080\n"
            "fps_cap = 30\n"

@@ -25,7 +25,7 @@ struct PadState;
 
 enum BindAction : int {
     // Movement
-    kBindMoveF, kBindMoveB, kBindMoveL, kBindMoveR, kBindWalk, kBindRoll, kBindLockOn,
+    kBindMoveF, kBindMoveB, kBindMoveL, kBindMoveR, kBindWalk, kBindRoll, kBindRollTap,
     // Combat
     kBindAttack, kBindStrong, kBindStrongMod, kBindTransform, kBindFirearm, kBindBloodVial, kBindUseItem,
     // Items and gestures
@@ -37,7 +37,7 @@ enum BindAction : int {
     // actions (host_binding_in_menus)
     kBindMenuPageL, kBindMenuPageR, kBindMenuShortL, kBindMenuShortR, kBindMenuDisplay, kBindMenuStatus,
     // Other
-    kBindL3, kBindZoomIn, kBindZoomOut, kBindZoomReset, kBindDebugMenu,
+    kBindLockOn, kBindL3, kBindZoomIn, kBindZoomOut, kBindZoomReset, kBindDebugMenu,
     kBindCount,
 };
 constexpr int kBindPages = 6, kBindPerPage = 7;
@@ -166,7 +166,7 @@ const char* host_mouse_name(int mouse);
 void host_bindings_reset_all();
 
 // The controller, rebindable as the keys are (the Controls page, F10): each
-// of a pad's sixteen buttons - the face buttons, the shoulders and triggers,
+// of a pad's seventeen buttons - the face buttons, the shoulders and triggers,
 // the sticks' presses, Options, the touchpad and the d-pad - gives the press
 // of the action it is bound to. In play only: in a menu every button is
 // itself, but for the menu's OK and Back, which go with the buttons whose play
@@ -178,6 +178,10 @@ void host_bindings_reset_all();
 enum PadInput : int {
     kPadCross, kPadCircle, kPadSquare, kPadTriangle, kPadL1, kPadR1, kPadL2, kPadR2,
     kPadL3, kPadR3, kPadOptions, kPadTouchpad, kPadUp, kPadDown, kPadLeft, kPadRight,
+    // Back / Select / Share: on its own it is the touchpad's left side, and it takes any action
+    // like the rest. It comes last so that the touchpad's own button stays the one the actions
+    // that sit on the touchpad are found on.
+    kPadBack,
     kPadInputs,
 };
 const char* host_pad_input_name(int input);   // "Cross", "R2", "D-pad Up"; nullptr past the end
@@ -206,3 +210,33 @@ void host_pad_capture_cancel();
 bool host_pad_capture_input(int input);
 // [pad] lines, `roll = "Cross"`: an action and the button it is on.
 bool host_pad_parse(const char* name, const char* value);
+
+// One controller button with a short and a long press, chosen by what it does
+// (the actions of the Controls page, as they are bound) rather than by its
+// name. The short action's button, let go inside long_ms, presses the action as
+// before (a short pulse, since the press is known only at the release); held
+// past long_ms, it presses the long action, for as long as it stays down. The
+// short and the long choice may be any action that has a controller button
+// (Gestures and Personal Effects too, the touchpad's left and right side) -
+// the short one also Back / Select / Share. An action on L2 or R2 (the
+// triggers) is not
+// taken. Read on every frame, so a change applies at once; written to
+// [pad_long] of the options file.
+constexpr int kPadLongDefaultMs = 450;
+constexpr int kPadLongBack = kBindCount;  // a choice besides the actions: the Back / Select / Share button
+bool host_pad_long_src_allowed(int choice);
+bool host_pad_long_target_allowed(int choice);
+const char* host_pad_long_name(int choice);
+void host_pad_long_get(int* src, int* lng);  // choices, or -1 for none
+void host_pad_long_set(int src, int lng);
+int host_pad_long_ms();
+void host_pad_long_set_ms(int ms);
+bool host_pad_long_at_default();
+void host_pad_long_reset();
+bool host_pad_long_parse(const char* name, const char* value);  // one line of [pad_long]
+void host_pad_long_save(std::FILE* f);
+// From the pad update, once for each pad (its index counting from 0) with its
+// buttons as read (Back / Select / Share is one of them): the short / long split
+// applied to them. Gestures and Personal Effects come out as *gestures and
+// *effects (the touchpad's left and right side).
+void host_pad_long_filter(int pad, bool held[kPadInputs], bool* gestures, bool* effects);

@@ -67,8 +67,19 @@ Hudless g_hudless[4];  // under g_hudless_mu
 
 // The presenter's side: the HUD-less picture at the swapchain's size, and the
 // flip being presented with whether everything for it is there.
+// A few of them in turn: AMD reads the one a frame was presented with on its
+// async compute queue while the game's next frame is already copying its own
+// HUD-less picture - into the same image there, with nothing ordering the two.
+// g_sc_hudless is the one the frame being recorded and presented uses.
+constexpr int kHudlessRing = 3;
+VkImage g_sc_hudless_ring[kHudlessRing] = {};
+VkDeviceMemory g_sc_hudless_mem_ring[kHudlessRing] = {};
+int g_hudless_idx = 0;
 VkImage g_sc_hudless = VK_NULL_HANDLE;
-VkDeviceMemory g_sc_hudless_mem = VK_NULL_HANDLE;
+// Set when generation starts again after a gap (a loading screen): the first
+// frame generated is told it follows a discontinuity, so no history of the
+// scene before is used.
+std::atomic<bool> g_fg_reset{true};
 std::uint64_t g_present_id = 0;
 bool g_present_ready = false;
 
@@ -106,36 +117,50 @@ bool load() {
     return ok;
 }
 
-// The swapchain-sized HUD-less image, device-local, made with the swapchain.
+void destroy_sc_hudless(VkDevice device) {
+    for (int i = 0; i < kHudlessRing; ++i) {
+        if (g_sc_hudless_ring[i]) vkDestroyImage(device, g_sc_hudless_ring[i], nullptr);
+        if (g_sc_hudless_mem_ring[i]) vkFreeMemory(device, g_sc_hudless_mem_ring[i], nullptr);
+        g_sc_hudless_ring[i] = VK_NULL_HANDLE;
+        g_sc_hudless_mem_ring[i] = VK_NULL_HANDLE;
+    }
+    g_sc_hudless = VK_NULL_HANDLE;
+}
+
+// The swapchain-sized HUD-less images, device-local, made with the swapchain.
 bool make_sc_hudless() {
-    VkImageCreateInfo ici{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-    ici.imageType = VK_IMAGE_TYPE_2D;
-    ici.format = g_sc_format;
-    ici.extent = {g_sc_extent.width, g_sc_extent.height, 1};
-    ici.mipLevels = ici.arrayLayers = 1;
-    ici.samples = VK_SAMPLE_COUNT_1_BIT;
-    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
-    ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    if (vkCreateImage(g_device, &ici, nullptr, &g_sc_hudless) != VK_SUCCESS) return false;
-    VkMemoryRequirements req{};
-    vkGetImageMemoryRequirements(g_device, g_sc_hudless, &req);
     VkPhysicalDeviceMemoryProperties mp{};
     vkGetPhysicalDeviceMemoryProperties(g_phys, &mp);
-    std::uint32_t type = ~0u;
-    for (std::uint32_t i = 0; i < mp.memoryTypeCount && type == ~0u; ++i) {
-        if ((req.memoryTypeBits & (1u << i)) && (mp.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) type = i;
+    for (int i = 0; i < kHudlessRing; ++i) {
+        VkImageCreateInfo ici{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        ici.imageType = VK_IMAGE_TYPE_2D;
+        ici.format = g_sc_format;
+        ici.extent = {g_sc_extent.width, g_sc_extent.height, 1};
+        ici.mipLevels = ici.arrayLayers = 1;
+        ici.samples = VK_SAMPLE_COUNT_1_BIT;
+        ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+        ici.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        if (vkCreateImage(g_device, &ici, nullptr, &g_sc_hudless_ring[i]) != VK_SUCCESS) {
+            destroy_sc_hudless(g_device);
+            return false;
+        }
+        VkMemoryRequirements req{};
+        vkGetImageMemoryRequirements(g_device, g_sc_hudless_ring[i], &req);
+        std::uint32_t type = ~0u;
+        for (std::uint32_t t = 0; t < mp.memoryTypeCount && type == ~0u; ++t) {
+            if ((req.memoryTypeBits & (1u << t)) && (mp.memoryTypes[t].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) type = t;
+        }
+        VkMemoryAllocateInfo mai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        mai.allocationSize = req.size;
+        mai.memoryTypeIndex = type;
+        if (type == ~0u || vkAllocateMemory(g_device, &mai, nullptr, &g_sc_hudless_mem_ring[i]) != VK_SUCCESS ||
+            vkBindImageMemory(g_device, g_sc_hudless_ring[i], g_sc_hudless_mem_ring[i], 0) != VK_SUCCESS) {
+            destroy_sc_hudless(g_device);
+            return false;
+        }
     }
-    VkMemoryAllocateInfo mai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
-    mai.allocationSize = req.size;
-    mai.memoryTypeIndex = type;
-    if (type == ~0u || vkAllocateMemory(g_device, &mai, nullptr, &g_sc_hudless_mem) != VK_SUCCESS ||
-        vkBindImageMemory(g_device, g_sc_hudless, g_sc_hudless_mem, 0) != VK_SUCCESS) {
-        vkDestroyImage(g_device, g_sc_hudless, nullptr);
-        g_sc_hudless = VK_NULL_HANDLE;
-        if (g_sc_hudless_mem) vkFreeMemory(g_device, g_sc_hudless_mem, nullptr);
-        g_sc_hudless_mem = VK_NULL_HANDLE;
-        return false;
-    }
+    g_hudless_idx = 0;
+    g_sc_hudless = g_sc_hudless_ring[0];
     return true;
 }
 
@@ -150,6 +175,7 @@ FfxApiResource resource(VkImage image, VkFormat format, std::uint32_t w, std::ui
 }
 
 ffxReturnCode_t dispatch_generation(ffxDispatchDescFrameGeneration* params, void* ctx) {
+    if (g_fg_reset.exchange(false)) params->reset = true;
     return g_dispatch(static_cast<ffxContext*>(ctx), &params->header);
 }
 
@@ -265,6 +291,9 @@ VkResult framegen_present(VkQueue queue, const VkPresentInfoKHR* info) {
         // Not while a loading screen is up: its frames run uncapped to load
         // faster, and there is nothing to smooth.
         const bool on = g_present_ready && !loading_screen_up();
+        static bool was_on = false;
+        if (on && !was_on) g_fg_reset.store(true);
+        was_on = on;
         ffxConfigureDescFrameGeneration cfg{};
         cfg.header.type = FFX_API_CONFIGURE_DESC_TYPE_FRAMEGENERATION;
         cfg.swapChain = g_swapchain;
@@ -430,6 +459,8 @@ void framegen_frame(VkCommandBuffer cmd, std::uint64_t display_va, VkOffset2D ds
         return;
     }
     g_present_id = h.id;
+    g_hudless_idx = (g_hudless_idx + 1) % kHudlessRing;
+    g_sc_hudless = g_sc_hudless_ring[g_hudless_idx];
     VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
     b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     b.image = g_sc_hudless;
@@ -500,9 +531,6 @@ void framegen_destroy_swapchain(VkDevice device) {
     // After the contexts, as AMD's replacement asks.
     g_fns.pOutDestroySwapchainFFXAPI(device, g_swapchain, nullptr, nullptr);
     g_swapchain = VK_NULL_HANDLE;
-    if (g_sc_hudless) vkDestroyImage(device, g_sc_hudless, nullptr);
-    if (g_sc_hudless_mem) vkFreeMemory(device, g_sc_hudless_mem, nullptr);
-    g_sc_hudless = VK_NULL_HANDLE;
-    g_sc_hudless_mem = VK_NULL_HANDLE;
+    destroy_sc_hudless(device);
     host_log("framegen: AMD's swapchain gone");
 }

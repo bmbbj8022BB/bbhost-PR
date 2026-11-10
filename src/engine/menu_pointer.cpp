@@ -5,6 +5,7 @@
 #include "engine/debug_menu.h"
 #include "engine/option_menu.h"
 
+#include "core/config.h"
 #include "core/elf.h"
 #include "core/memory.h"
 #include "core/thunk.h"
@@ -106,7 +107,7 @@ constexpr std::uint64_t kMenuFlow = 0x5980e38;     // ptr; blocked if *(u64*)(+0
 // button convention: region 5, what an answer of 0 gives, decides with Circle
 // and returns with Cross, Japan's way; the US disc's 2 gives region 1, which
 // decides with Cross.
-constexpr std::uint64_t kRegion = 0x5528948;
+[[maybe_unused]] constexpr std::uint64_t kRegion = 0x5528948;  // the game's own value; the buttons follow input.swap_ab now
 constexpr std::size_t kFlowStarted = 0xb11;        // 0 on the title, 1 once in the game
 // The open menu, if any. The flow's update (sub_1faf8c0) branches on it: zero
 // and it polls the buttons that open a menu, non-zero and it runs that menu's
@@ -924,11 +925,9 @@ void menu_pointer_install(ElfImage* image) {
 }
 
 std::uint32_t menu_region_confirm_button() {
-    std::int32_t region = -1;
-    if (!g_slide || !safe_read(guest(kRegion), &region, sizeof(region))) {
-        return 0x4000u;
-    }
-    return region == 5 ? 0x2000u : 0x4000u;
+    // input.swap_ab (auto / true / false) decides, so the pad, the keyboard and the mouse
+    // agree. In auto it is the Asian release, by its title id.
+    return config_swap_ab() ? 0x2000u : 0x4000u;
 }
 
 std::uint32_t menu_confirm_button() {

@@ -60,6 +60,7 @@ struct HostSettings {
     // plugged in, 1 always the bound key, 2 always the pad's glyph
     // (engine/key_prompts.h).
     int button_prompts = 0;
+    int dodge_tap_ms = 120;  // Dodge (tap only)'s press of the dodge button, 5..150 ms
     // The controller sticks' deadzones, left then right (host/window.cpp
     // stick_deadzone): inside `inner` of the full travel the stick is at
     // rest, from `outer` out it is pushed all the way.
