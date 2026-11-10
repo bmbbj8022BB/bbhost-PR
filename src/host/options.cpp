@@ -844,7 +844,6 @@ void set_account_lines(const std::string& status, const std::string& detail) {
 
 // The server no longer takes this PC's sign-in (net::account_refused): what
 // F10's account section (the Game page) and the setup window say about it.
-constexpr const char kRefusedStatus[] = "Sign-in expired";
 constexpr const char kRefusedText[] = "Your sign-in has expired, or this PC was signed out. Online play needs a new sign-in.";
 
 std::string signed_in_line() {
