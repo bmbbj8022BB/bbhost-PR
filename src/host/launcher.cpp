@@ -1651,18 +1651,25 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                         if (n1 != 0 || n2 != 0)
                             details += "\n" + tf("Pipelines from your earlier sessions and the shipped list: %llu of %llu", n1, n2);
                     } else {
-                        details += "\nPipelines " + pipelines + ".";
+                        details += "\n" + tf("Pipelines %s.", pipelines.c_str());
                     }
                 }
+                // A reason can end in " x35" (how many): translate the reason, keep the count.
+                auto counted_reason = [](const std::string& r) -> std::string {
+                    const std::size_t sp = r.rfind(" x");
+                    if (sp != std::string::npos && sp + 2 < r.size() && r.find_first_not_of("0123456789", sp + 2) == std::string::npos)
+                        return i18n::trs(r.substr(0, sp)) + r.substr(sp);
+                    return i18n::trs(r);
+                };
                 for (const std::string& r : failed) {
                     if (r.find("LDS use outside a compute shader") != std::string::npos)
                         details += "\n" + tf("Not compiled alone (%s): vertex shaders that write LDS, which only run inside another "
                                               "stage (tessellation); they are compiled when the game draws them.",
                                               r.substr(r.rfind(' ') + 1).c_str());
                     else
-                        details += "\n" + tf("Failed: %s", r.c_str());
+                        details += "\n" + tf("Failed: %s", counted_reason(r).c_str());
                 }
-                for (const std::string& r : lift) details += "\n" + tf("Kept the lift: %s", r.c_str());
+                for (const std::string& r : lift) details += "\n" + tf("Kept the lift: %s", counted_reason(r).c_str());
                 const std::string result_t =
                     res == "done" ? std::string(tr("Finished")) : res == "cancelled" ? std::string(tr("Cancelled")) : capitalised(res);
                 ImGui::AlignTextToFramePadding();
