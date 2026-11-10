@@ -47,6 +47,8 @@ struct HostConfig {
     // video.shader_overrides / BBHOST_SHADER_OVERRIDES=0|1: edited shaders (<data>/bbhost/shaders)
     // and plugins' shader overrides apply (host/shader_overrides.h); false: none of them does.
     bool shader_overrides = true;
+    std::string ui_language = "en";   // ui.language: "en" or "ko" (the setup window and the F9/F10 screens)
+    std::string ui_font;              // ui.font: a font file with Hangul; empty: the system's (Malgun Gothic on Windows)
     int vblank_hz = 0;         // video.vblank_hz: the flip clock's rate; 0 = the display's own
     // video.frame_clock: the Native frame clock setting's default (F10's DISPLAY,
     // the setup window's Game page), off; what they save in bbhost-options.toml
