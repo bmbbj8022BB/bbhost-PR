@@ -224,16 +224,30 @@ bool host_pad_parse(const char* name, const char* value);
 // [pad_long] of the options file.
 constexpr int kPadLongDefaultMs = 450;
 constexpr int kPadLongBack = kBindCount;  // a choice besides the actions: the Back / Select / Share button
+constexpr int kPadLongSets = 4;           // four short / long sets; they share long_ms
+// Why a set does nothing (the filter and the Controls page ask the same function).
+enum PadLongStatus {
+    kPadLongIdle = 0,    // short or long not chosen: nothing to say
+    kPadLongOk,          // works
+    kPadLongSameAction,  // short and long are the same action
+    kPadLongUnbound,     // an action is not on a controller button
+    kPadLongTrigger,     // an action is on L2 or R2
+    kPadLongSameButton,  // short and long are on the same button
+    kPadLongTaken        // an earlier set already uses one of the buttons (the earlier set wins)
+};
 bool host_pad_long_src_allowed(int choice);
 bool host_pad_long_target_allowed(int choice);
 const char* host_pad_long_name(int choice);
-void host_pad_long_get(int* src, int* lng);  // choices, or -1 for none
-void host_pad_long_set(int src, int lng);
+void host_pad_long_get(int set, int* src, int* lng);  // set 0..3; choices, or -1 for none
+void host_pad_long_set(int set, int src, int lng);
+void host_pad_long_get(int* src, int* lng);  // set 0
+void host_pad_long_set(int src, int lng);    // set 0
+int host_pad_long_status(int set);           // a PadLongStatus
 int host_pad_long_ms();
 void host_pad_long_set_ms(int ms);
-bool host_pad_long_at_default();
-void host_pad_long_reset();
-bool host_pad_long_parse(const char* name, const char* value);  // one line of [pad_long]
+bool host_pad_long_at_default();  // all sets and the time
+void host_pad_long_reset();       // all sets and the time
+bool host_pad_long_parse(const char* name, const char* value);  // one line of [pad_long]: short, long, short2..long4
 void host_pad_long_save(std::FILE* f);
 // From the pad update, once for each pad (its index counting from 0) with its
 // buttons as read (Back / Select / Share is one of them): the short / long split

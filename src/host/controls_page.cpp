@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include <string>
 #include <SDL3/SDL.h>
 
 #include <algorithm>
@@ -69,31 +70,67 @@ void save_if_changed() {
     }
 }
 
-// The controller's short / long press, on one line: an action, the action it
-// gives held past a time, and the time. Chosen by what they do (as the rows
-// above are), not by the buttons' names. Read on every frame, so a change
-// applies at once; the bindings' serial makes the page save it with the rest.
+// The controller's short / long press: four sets, each a short action and the action
+// it gives held past a time, and one time for all. Chosen by what they do (as the rows
+// above are), not by the buttons' names; each choice shows the button it is on now
+// (PlayStation / Xbox names). Read on every frame, so a change applies at once; the
+// bindings' serial makes the page save it with the rest.
+const char* pad_input_hint(int in) {
+    static const char* const kHint[kPadInputs] = {
+        "Cross / A", "Circle / B", "Square / X", "Triangle / Y", "L1 / LB", "R1 / RB", "L2 / LT", "R2 / RT",
+        "L3 / LS", "R3 / RS", "Options / Menu", "Touchpad", "D-pad Up", "D-pad Down", "D-pad Left", "D-pad Right",
+        "View"};
+    return in >= 0 && in < kPadInputs ? kHint[in] : nullptr;
+}
+
+const char* pad_long_status_text(int status) {
+    switch (status) {
+        case kPadLongSameAction: return "Short and long are the same action.";
+        case kPadLongUnbound: return "An action here is not on a controller button.";
+        case kPadLongTrigger: return "An action on L2 or R2 is not taken.";
+        case kPadLongSameButton: return "Short and long are on the same button.";
+        case kPadLongTaken: return "An earlier set already uses one of these buttons.";
+        default: return nullptr;
+    }
+}
+
 void pad_short_long_card() {
     const float sc = ui::scale();
     int src_c[kBindCount + 1], long_c[kBindCount + 1];
     bool src_off[kBindCount + 2] = {}, long_off[kBindCount + 2] = {};
     const char* src_items[kBindCount + 2];
     const char* long_items[kBindCount + 2];
+    std::string src_text[kBindCount + 2], long_text[kBindCount + 2];
     int ns = 0, nl = 0;
     src_items[0] = long_items[0] = "None";
     for (int c = 0; c <= kPadLongBack; ++c) {
         // An action on a trigger is shown greyed: the triggers are not taken.
         const int in = c == kPadLongBack ? -1 : host_pad_input_of(c);
         const bool trigger = in == kPadL2 || in == kPadR2;
-        if (host_pad_long_src_allowed(c)) {
+        const bool as_src = host_pad_long_src_allowed(c), as_long = host_pad_long_target_allowed(c);
+        std::string text;
+        if (as_src || as_long) {
+            text = host_pad_long_name(c);
+            const char* hint = c == kPadLongBack ? "View" : pad_input_hint(in);
+            if (hint) {
+                text += " (";
+                text += hint;
+                text += ")";
+            }
+        }
+        if (as_src) {
             src_c[ns] = c;
             src_off[ns + 1] = trigger;
-            src_items[++ns] = host_pad_long_name(c);
+            ++ns;
+            src_text[ns] = text;
+            src_items[ns] = src_text[ns].c_str();
         }
-        if (host_pad_long_target_allowed(c)) {
+        if (as_long) {
             long_c[nl] = c;
             long_off[nl + 1] = trigger;
-            long_items[++nl] = host_pad_long_name(c);
+            ++nl;
+            long_text[nl] = text;
+            long_items[nl] = long_text[nl].c_str();
         }
     }
     const auto index_of = [](const int* choices, int n, int choice) {
@@ -106,34 +143,48 @@ void pad_short_long_card() {
     ui::card_begin("##padlong", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f), "SHORT / LONG PRESS (CONTROLLER)");
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextDisabled("The button of the short action gives that action when pressed briefly; held longer than the "
-                        "time, it gives the long action instead. Actions on L2 and R2 are not taken.");
+                        "time, it gives the long action instead. Actions on L2 and R2 are not taken. If two sets "
+                        "use the same button, the earlier set wins.");
     ImGui::PopTextWrapPos();
     ImGui::Spacing();
-    int src = -1, lng = -1;
-    host_pad_long_get(&src, &lng);
-    int want_src = index_of(src_c, ns, src), want_lng = index_of(long_c, nl, lng);
-    const int had_src = want_src, had_lng = want_lng;
     const ImGuiStyle& st = ImGui::GetStyle();
-    const float t_short = ImGui::CalcTextSize("Short").x, t_long = ImGui::CalcTextSize("Long").x;
-    const float t_held = ImGui::CalcTextSize("Held longer than").x;
     const float gap = st.ItemSpacing.x;
-    const float spare = ImGui::GetContentRegionAvail().x - t_short - t_long - t_held - ui::reset_width() - gap * 8.0f;
-    const float cw = std::clamp(spare * 0.3f, 90.0f * sc, 200.0f * sc);
-    const float sw = std::max(spare - 2.0f * cw, 80.0f * sc);
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Short");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(cw);
-    ui::combo("##plsrc", &want_src, src_items, ns + 1, nullptr, src_off);
-    ImGui::SameLine();
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Long");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(cw);
-    ui::combo("##pllong", &want_lng, long_items, nl + 1, nullptr, long_off);
-    if (want_src != had_src || want_lng != had_lng)
-        host_pad_long_set(want_src > 0 ? src_c[want_src - 1] : -1, want_lng > 0 ? long_c[want_lng - 1] : -1);
-    ImGui::SameLine();
+    const float t_num = ImGui::CalcTextSize("4").x;
+    const float t_short = ImGui::CalcTextSize("Short").x, t_long = ImGui::CalcTextSize("Long").x;
+    const float row_spare = ImGui::GetContentRegionAvail().x - t_num - t_short - t_long - gap * 5.0f;
+    const float cw = std::max(row_spare * 0.5f, 90.0f * sc);
+    for (int set = 0; set < kPadLongSets; ++set) {
+        ImGui::PushID(set);
+        int src = -1, lng = -1;
+        host_pad_long_get(set, &src, &lng);
+        int want_src = index_of(src_c, ns, src), want_lng = index_of(long_c, nl, lng);
+        const int had_src = want_src, had_lng = want_lng;
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("%d", set + 1);
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Short");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(cw);
+        ui::combo("##plsrc", &want_src, src_items, ns + 1, nullptr, src_off);
+        ImGui::SameLine();
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("Long");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(cw);
+        ui::combo("##pllong", &want_lng, long_items, nl + 1, nullptr, long_off);
+        if (want_src != had_src || want_lng != had_lng)
+            host_pad_long_set(set, want_src > 0 ? src_c[want_src - 1] : -1, want_lng > 0 ? long_c[want_lng - 1] : -1);
+        if (const char* why = pad_long_status_text(host_pad_long_status(set))) {
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextDisabled("    %s", why);
+            ImGui::PopTextWrapPos();
+        }
+        ImGui::PopID();
+    }
+    ImGui::Spacing();
+    const float t_held = ImGui::CalcTextSize("Held longer than").x;
+    const float sw = std::max(ImGui::GetContentRegionAvail().x - t_held - ui::reset_width() - gap * 3.0f, 80.0f * sc);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Held longer than");
     ImGui::SameLine();
