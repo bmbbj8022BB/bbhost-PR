@@ -1032,13 +1032,60 @@ static void pad_save(std::FILE* f) {
 }
 
 
-// ---- Short / long press on one controller button (see bindings.h) -------------
+// ---- Short / long press on controller buttons (see bindings.h) ----------------
 namespace {
-std::atomic<int> g_pl_src{-1};
-std::atomic<int> g_pl_long{-1};
+std::atomic<int> g_pl_src[kPadLongSets] = {-1, -1, -1, -1};
+std::atomic<int> g_pl_long[kPadLongSets] = {-1, -1, -1, -1};
 std::atomic<int> g_pl_ms{kPadLongDefaultMs};
 bool pad_long_action(int a) { return a >= 0 && a < kBindCount && host_pad_input_of(a) >= 0; }
 bool pad_long_usable(int input) { return input >= 0 && input < kPadInputs && input != kPadL2 && input != kPadR2; }
+
+// One set as it stands now: the one judgement the filter and the Controls page share.
+struct PadLongPlan {
+    int status = kPadLongIdle;
+    int sin = -1;  // the button of the short choice
+    int lin = -1;  // the button of the long action (-1 for the touchpad's sides)
+    bool src_side = false;
+    bool side = false;
+};
+
+PadLongPlan pad_long_plan(int s, int l, std::uint32_t used) {
+    PadLongPlan p;
+    if (s < 0 || l < 0) return p;
+    // The buttons the actions are on now: a rebind moves them, and a trigger is not taken.
+    p.src_side = s == kBindGestures || s == kBindEffects;  // the touchpad's left or right side
+    p.side = l == kBindGestures || l == kBindEffects;
+    p.sin = s == kPadLongBack ? kPadBack : (!host_pad_long_src_allowed(s) ? -1 : host_pad_input_of(s));
+    p.lin = p.side || !host_pad_long_target_allowed(l) ? -1 : host_pad_input_of(l);
+    if (s == l) {
+        p.status = kPadLongSameAction;
+    } else if (p.sin < 0 || (!p.side && p.lin < 0)) {
+        p.status = kPadLongUnbound;
+    } else if (!pad_long_usable(p.sin) || (!p.side && !pad_long_usable(p.lin))) {
+        p.status = kPadLongTrigger;
+    } else if (!p.side && !p.src_side && p.sin == p.lin) {
+        p.status = kPadLongSameButton;
+    } else if ((used & (1u << p.sin)) != 0 || (p.lin >= 0 && (used & (1u << p.lin)) != 0)) {
+        p.status = kPadLongTaken;
+    } else {
+        p.status = kPadLongOk;
+    }
+    return p;
+}
+
+std::uint32_t pad_long_claim(const PadLongPlan& p) {
+    return (1u << p.sin) | (p.lin >= 0 ? (1u << p.lin) : 0u);
+}
+
+// "short" / "long" -> set 0; "short2".."short4" / "long2".."long4" -> sets 1..3; else -1.
+int pad_long_key_set(const char* name, const char* base) {
+    const std::size_t n = std::strlen(base);
+    if (std::strncmp(name, base, n) != 0) return -1;
+    const char* r = name + n;
+    if (*r == '\0') return 0;
+    if (r[0] >= '2' && r[0] < '1' + kPadLongSets && r[1] == '\0') return r[0] - '1';
+    return -1;
+}
 }  // namespace
 
 bool host_pad_long_src_allowed(int c) {
@@ -1052,15 +1099,33 @@ const char* host_pad_long_name(int c) {
     return c >= 0 && c < kBindCount ? kInfo[c].label : nullptr;
 }
 
-void host_pad_long_get(int* src, int* lng) {
-    if (src) *src = g_pl_src.load(std::memory_order_relaxed);
-    if (lng) *lng = g_pl_long.load(std::memory_order_relaxed);
+void host_pad_long_get(int set, int* src, int* lng) {
+    if (set < 0 || set >= kPadLongSets) set = 0;
+    if (src) *src = g_pl_src[set].load(std::memory_order_relaxed);
+    if (lng) *lng = g_pl_long[set].load(std::memory_order_relaxed);
 }
 
-void host_pad_long_set(int src, int lng) {
-    g_pl_src.store(host_pad_long_src_allowed(src) ? src : -1, std::memory_order_relaxed);
-    g_pl_long.store(host_pad_long_target_allowed(lng) ? lng : -1, std::memory_order_relaxed);
+void host_pad_long_set(int set, int src, int lng) {
+    if (set < 0 || set >= kPadLongSets) return;
+    g_pl_src[set].store(host_pad_long_src_allowed(src) ? src : -1, std::memory_order_relaxed);
+    g_pl_long[set].store(host_pad_long_target_allowed(lng) ? lng : -1, std::memory_order_relaxed);
     g_serial.fetch_add(1, std::memory_order_relaxed);
+}
+
+void host_pad_long_get(int* src, int* lng) { host_pad_long_get(0, src, lng); }
+
+void host_pad_long_set(int src, int lng) { host_pad_long_set(0, src, lng); }
+
+int host_pad_long_status(int set) {
+    if (set < 0 || set >= kPadLongSets) return kPadLongIdle;
+    std::uint32_t used = 0;
+    for (int k = 0; k <= set; ++k) {
+        const PadLongPlan p = pad_long_plan(g_pl_src[k].load(std::memory_order_relaxed),
+                                            g_pl_long[k].load(std::memory_order_relaxed), used);
+        if (k == set) return p.status;
+        if (p.status == kPadLongOk) used |= pad_long_claim(p);
+    }
+    return kPadLongIdle;
 }
 
 int host_pad_long_ms() { return g_pl_ms.load(std::memory_order_relaxed); }
@@ -1071,12 +1136,15 @@ void host_pad_long_set_ms(int ms) {
 }
 
 bool host_pad_long_at_default() {
-    return g_pl_src.load(std::memory_order_relaxed) < 0 && g_pl_long.load(std::memory_order_relaxed) < 0 &&
-           g_pl_ms.load(std::memory_order_relaxed) == kPadLongDefaultMs;
+    for (int k = 0; k < kPadLongSets; ++k) {
+        if (g_pl_src[k].load(std::memory_order_relaxed) >= 0 || g_pl_long[k].load(std::memory_order_relaxed) >= 0)
+            return false;
+    }
+    return g_pl_ms.load(std::memory_order_relaxed) == kPadLongDefaultMs;
 }
 
 void host_pad_long_reset() {
-    host_pad_long_set(-1, -1);
+    for (int k = 0; k < kPadLongSets; ++k) host_pad_long_set(k, -1, -1);
     host_pad_long_set_ms(kPadLongDefaultMs);
 }
 
@@ -1087,14 +1155,16 @@ bool host_pad_long_parse(const char* name, const char* value) {
         if (n > 0) g_pl_ms.store(n < 100 ? 100 : (n > 2000 ? 2000 : n), std::memory_order_relaxed);
         return true;
     }
-    const bool is_src = std::strcmp(name, "short") == 0;
-    if (is_src || std::strcmp(name, "long") == 0) {
+    int set = pad_long_key_set(name, "short");
+    const bool is_src = set >= 0;
+    if (!is_src) set = pad_long_key_set(name, "long");
+    if (set >= 0) {
         const bool none = std::strcmp(value, "none") == 0;
         int c = none ? -1 : (std::strcmp(value, "back") == 0 ? kPadLongBack : action_named(value));
         if (c < 0 && !none) host_log("pad: [pad_long] %s = \"%s\" - not an action; ignored", name, value);
         // The actions' buttons are known when the filter runs; here only the kind is checked.
         if (!(c == kPadLongBack ? is_src : (c >= 0 && c < kBindCount))) c = -1;
-        (is_src ? g_pl_src : g_pl_long).store(c, std::memory_order_relaxed);
+        (is_src ? g_pl_src : g_pl_long)[set].store(c, std::memory_order_relaxed);
         return true;
     }
     host_log("pad: [pad_long] has no setting \"%s\"; ignored", name);
@@ -1102,57 +1172,60 @@ bool host_pad_long_parse(const char* name, const char* value) {
 }
 
 void host_pad_long_save(std::FILE* f) {
-    const int s = g_pl_src.load(std::memory_order_relaxed), l = g_pl_long.load(std::memory_order_relaxed);
     const auto token = [](int c) { return c == kPadLongBack ? "back" : (c >= 0 && c < kBindCount ? kInfo[c].key : "none"); };
     std::fprintf(f, "\n[pad_long]\n");
-    std::fprintf(f, "# One controller button, short and long: held longer than long_ms, it gives the long action.\n");
+    std::fprintf(f, "# Controller buttons, short and long: held longer than long_ms, a button gives the long action.\n");
+    std::fprintf(f, "# Four sets (short/long, short2/long2 ...); an earlier set wins a button two sets share.\n");
     std::fprintf(f, "long_ms = \"%d\"\n", g_pl_ms.load(std::memory_order_relaxed));
-    std::fprintf(f, "short = \"%s\"\n", token(s));
-    std::fprintf(f, "long = \"%s\"\n", token(l));
+    for (int k = 0; k < kPadLongSets; ++k) {
+        const int s = g_pl_src[k].load(std::memory_order_relaxed), l = g_pl_long[k].load(std::memory_order_relaxed);
+        const char* suffix = k == 0 ? "" : (k == 1 ? "2" : (k == 2 ? "3" : "4"));
+        std::fprintf(f, "short%s = \"%s\"\n", suffix, token(s));
+        std::fprintf(f, "long%s = \"%s\"\n", suffix, token(l));
+    }
 }
 
 void host_pad_long_filter(int pad, bool held[kPadInputs], bool* gestures, bool* effects) {
     using clk = std::chrono::steady_clock;
     constexpr int kPads = 4;
-    static bool was_down[kPads];
-    static clk::time_point down_since[kPads], pulse_until[kPads];
+    static bool was_down[kPadLongSets][kPads];
+    static clk::time_point down_since[kPadLongSets][kPads], pulse_until[kPadLongSets][kPads];
     if (pad < 0 || pad >= kPads) return;
-    const int s = g_pl_src.load(std::memory_order_relaxed), l = g_pl_long.load(std::memory_order_relaxed);
-    // The buttons the actions are on now: a rebind moves them, and a trigger is not taken.
-    const bool src_back = s == kPadLongBack;
-    const int sin = src_back ? kPadBack : (!host_pad_long_src_allowed(s) ? -1 : host_pad_input_of(s));
-    const bool src_side = s == kBindGestures || s == kBindEffects;  // the touchpad's left or right side
-    const bool side = l == kBindGestures || l == kBindEffects;
-    const int lin = side || !host_pad_long_target_allowed(l) ? -1 : host_pad_input_of(l);
-    const bool src_ok = pad_long_usable(sin);
-    const bool long_ok = side || pad_long_usable(lin);
-    if (!src_ok || !long_ok || s == l || (!side && !src_side && sin == lin)) {
-        was_down[pad] = false;
-        return;
-    }
     const auto now = clk::now();
     const auto limit = std::chrono::milliseconds(g_pl_ms.load(std::memory_order_relaxed));
-    const bool down = held[sin];
-    // The short press: the button's own press, or - for Gestures and Personal Effects, which sit
-    // on the touchpad's one press - that side's finger as well.
-    const auto give = [&](bool on) {
-        if (src_side && on) {
-            (s == kBindGestures ? *gestures : *effects) = true;
-            return;
+    std::uint32_t used = 0;
+    for (int k = 0; k < kPadLongSets; ++k) {
+        const int s = g_pl_src[k].load(std::memory_order_relaxed), l = g_pl_long[k].load(std::memory_order_relaxed);
+        const PadLongPlan p = pad_long_plan(s, l, used);
+        if (p.status != kPadLongOk) {
+            was_down[k][pad] = false;
+            continue;
         }
-        held[sin] = on;
-    };
-    if (down && !was_down[pad]) down_since[pad] = now;
-    if (!down && was_down[pad] && now - down_since[pad] < limit) pulse_until[pad] = now + std::chrono::milliseconds(120);
-    was_down[pad] = down;
-    if (down) {
-        give(false);
-        if (now - down_since[pad] >= limit) {
-            if (l == kBindGestures) *gestures = true;
-            else if (l == kBindEffects) *effects = true;
-            else held[lin] = true;
+        used |= pad_long_claim(p);
+        const int sin = p.sin, lin = p.lin;
+        const bool down = held[sin];
+        // The short press: the button's own press, or - for Gestures and Personal Effects, which sit
+        // on the touchpad's one press - that side's finger as well.
+        const auto give = [&](bool on) {
+            if (p.src_side && on) {
+                (s == kBindGestures ? *gestures : *effects) = true;
+                return;
+            }
+            held[sin] = on;
+        };
+        if (down && !was_down[k][pad]) down_since[k][pad] = now;
+        if (!down && was_down[k][pad] && now - down_since[k][pad] < limit)
+            pulse_until[k][pad] = now + std::chrono::milliseconds(120);
+        was_down[k][pad] = down;
+        if (down) {
+            give(false);
+            if (now - down_since[k][pad] >= limit) {
+                if (l == kBindGestures) *gestures = true;
+                else if (l == kBindEffects) *effects = true;
+                else held[lin] = true;
+            }
+        } else if (now < pulse_until[k][pad]) {
+            give(true);
         }
-    } else if (now < pulse_until[pad]) {
-        give(true);
     }
 }
