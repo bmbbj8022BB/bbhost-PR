@@ -118,8 +118,8 @@ const char* pad_face(int input) {
     }
 }
 
-// The tag (after "KG_") to show in place of `tag`, or nullptr to leave the game's own.
-const char* pad_glyph(const char* tag, bool menu) {
+// The tag (after "KG_") another button's job puts in place of `tag`, or nullptr to leave it.
+const char* pad_remapped(const char* tag, bool menu) {
     const PadTag* me = nullptr;
     for (const PadTag& t : kPadTags) {
         if (std::strcmp(t.name, tag) == 0) me = &t;
@@ -133,6 +133,12 @@ const char* pad_glyph(const char* tag, bool menu) {
         return to && std::strcmp(to, tag) != 0 ? to : nullptr;
     }
     return nullptr;
+}
+// The tag (after "KG_") to show in place of `tag`, or nullptr to leave the game's own:
+// the remapped button's. With an Xbox pad at start the game's file already holds the
+// Xbox pictures under these same names (engine/xb_glyphs.h), so no other name is needed.
+const char* pad_glyph(const char* tag, bool menu) {
+    return pad_remapped(tag, menu);
 }
 bool pad_differs(bool menu) {
     for (const PadTag& t : kPadTags) {
@@ -761,7 +767,7 @@ GUEST_ABI std::int64_t lookup_hook(std::uint64_t, const std::uint64_t* saved) {
     // A binding changed, or the player picked up the other device: the game's
     // own text goes back, and whatever is looked up next is built again - with
     // the new key, or left as the pad's glyph.
-    const std::uint64_t serial = host_bindings_serial() * 4 + (config_swap_ab() ? 2 : 0) + (wanted ? 1 : 0);
+    const std::uint64_t serial = host_bindings_serial() * 8 + (host_pad_is_xbox() ? 4 : 0) + (config_swap_ab() ? 2 : 0) + (wanted ? 1 : 0);
     if (serial != g_msg_serial) {
         for (const Patched& p : g_patched) {
             std::memcpy(reinterpret_cast<void*>(static_cast<std::uintptr_t>(p.slot)), &p.was, 8);

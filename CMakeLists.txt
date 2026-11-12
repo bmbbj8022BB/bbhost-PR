@@ -130,6 +130,7 @@ add_executable(bbhost
   src/engine/dream_mirror_layout.cpp
   src/engine/chara_id.cpp
   src/engine/five_players.cpp
+  src/engine/xb_glyphs.cpp
   src/engine/phantom_hp.cpp
   src/engine/auto_replenish.cpp
   src/engine/maiden_events.cpp

@@ -34,6 +34,7 @@
 #include "engine/change_appearance.h"
 #include "engine/rebirth.h"
 #include "engine/five_players.h"
+#include "engine/xb_glyphs.h"
 #include "engine/chara_id.h"
 #include "engine/lua_events.h"
 #include "engine/params.h"
@@ -426,6 +427,8 @@ void hle_patch_guest(ElfImage* image) {
     // The Altar of Despair's "Rebirth in the Nightmare" (engine/rebirth.h).
     rebirth_install(image);
     five_players_install(image);
+    // The Xbox button pictures the pad-glyph switch shows (engine/xb_glyphs.h).
+    xb_glyphs_install(hle_fs_data_root());
     // The game's functions as our source, in its place (decomp/, docs/decomp.md).
     decomp_add_areas();
     decomp_install(image);

@@ -8,6 +8,7 @@
 #include "engine/menu_pointer.h"
 #include "engine/mouse_camera_step.h"
 #include "engine/option_menu.h"
+#include "engine/xb_glyphs.h"
 #include "hle/modules.h"
 #include "host/bindings.h"
 #include "host/framegen.h"
@@ -210,6 +211,22 @@ std::uint32_t mouse_bit(std::uint8_t sdl_button) {
 // mutex is for rumble, which the game's pad thread asks for.
 std::vector<SDL_Gamepad*> g_pads;
 std::mutex g_pads_mu;
+std::atomic<bool> g_pad_xbox{false};
+// The face the prompts give the pad: PlayStation for a PS3/PS4/PS5 pad, Xbox for any other.
+// BBHOST_PAD_GLYPHS=ps or =xbox forces one. Called with g_pads_mu held.
+void update_pad_style() {
+    bool xbox = false;
+    if (!g_pads.empty()) {
+        const SDL_GamepadType t = SDL_GetGamepadType(g_pads.front());
+        xbox = !(t == SDL_GAMEPAD_TYPE_PS3 || t == SDL_GAMEPAD_TYPE_PS4 || t == SDL_GAMEPAD_TYPE_PS5);
+        static const int forced = [] {
+            const char* e = getenv("BBHOST_PAD_GLYPHS");
+            return !e ? -1 : !strcmp(e, "ps") ? 0 : !strcmp(e, "xbox") ? 1 : -1;
+        }();
+        if (forced >= 0) xbox = forced == 1;
+    }
+    g_pad_xbox.store(xbox, std::memory_order_relaxed);
+}
 bool pads_ignored() {
     static const bool no_pad = [] {
         const char* e = std::getenv("BBHOST_NO_GAMEPAD");
@@ -279,6 +296,10 @@ void pad_open(SDL_JoystickID id) {
         host_log("gamepad: %s connected (id %u, %s; %zu in all)", SDL_GetGamepadName(g), static_cast<unsigned>(id),
                  path ? path : "no path", g_pads.size());
         note_deck_outside_steam(g);
+        update_pad_style();
+        host_log("gamepad: prompts use the %s face (SDL type %d; BBHOST_PAD_GLYPHS=ps or xbox forces one)",
+                 g_pad_xbox.load(std::memory_order_relaxed) ? "Xbox" : "PlayStation", static_cast<int>(SDL_GetGamepadType(g)));
+        xb_glyphs_pad(g_pad_xbox.load(std::memory_order_relaxed));
     }
 }
 void pad_close(SDL_JoystickID id) {
@@ -288,6 +309,7 @@ void pad_close(SDL_JoystickID id) {
             host_log("gamepad: %s disconnected (id %u)", SDL_GetGamepadName(*it), static_cast<unsigned>(id));
             SDL_CloseGamepad(*it);
             g_pads.erase(it);
+            update_pad_style();
             return;
         }
     }
@@ -3293,6 +3315,14 @@ bool host_pad_present() {
 #if defined(BBHOST_HAVE_SDL3)
     std::lock_guard<std::mutex> lock(g_pads_mu);
     return !g_pads.empty();
+#else
+    return false;
+#endif
+}
+
+bool host_pad_is_xbox() {
+#if defined(BBHOST_HAVE_SDL3)
+    return g_pad_xbox.load(std::memory_order_relaxed);
 #else
     return false;
 #endif
