@@ -229,6 +229,8 @@ void host_pad_rumble(std::uint8_t small, std::uint8_t large);
 // A gamepad is open. What the port shows for a button prompt follows it when
 // the setting is on Auto (engine/key_prompts.h).
 bool host_pad_present();
+// The face the prompts give the pad's buttons: true for an Xbox-style pad, false for a PlayStation one.
+bool host_pad_is_xbox();
 // The device the player last used (DS3's switch): the latest key, click,
 // wheel or mouse movement makes it the keyboard and mouse, the latest pad
 // button or stick or trigger past its dead zone a controller. The serial
