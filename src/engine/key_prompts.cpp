@@ -1,3 +1,4 @@
+#include "core/config.h"
 #include "guest_abi.h"
 #include "engine/key_prompts.h"
 
@@ -96,6 +97,12 @@ constexpr PadTag kPadTags[] = {
 };
 // The tag of a pad slot's own picture; null: none here.
 const char* pad_face(int input) {
+    // input.swap_ab: the pad's Cross and Circle slots are read from the physical B and A the other
+    // way round (window.cpp pad_sdl_button), so the picture of the button that gives a slot is the other one's.
+    if (config_swap_ab()) {
+        if (input == kPadCross) input = kPadCircle;
+        else if (input == kPadCircle) input = kPadCross;
+    }
     switch (input) {
         case kPadCross: return "Cancel";
         case kPadCircle: return "OK";
@@ -754,7 +761,7 @@ GUEST_ABI std::int64_t lookup_hook(std::uint64_t, const std::uint64_t* saved) {
     // A binding changed, or the player picked up the other device: the game's
     // own text goes back, and whatever is looked up next is built again - with
     // the new key, or left as the pad's glyph.
-    const std::uint64_t serial = host_bindings_serial() * 2 + (wanted ? 1 : 0);
+    const std::uint64_t serial = host_bindings_serial() * 4 + (config_swap_ab() ? 2 : 0) + (wanted ? 1 : 0);
     if (serial != g_msg_serial) {
         for (const Patched& p : g_patched) {
             std::memcpy(reinterpret_cast<void*>(static_cast<std::uintptr_t>(p.slot)), &p.was, 8);
