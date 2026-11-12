@@ -83,6 +83,57 @@ const Tag kTags[] = {
     {"TP_R", {kBindEffects, kNone, kNone, kNone}},
 };
 
+// --- a controller in use ------------------------------------------------
+// The game's own picture stays, unless a rebind on the Controls page has moved
+// the job it names to another button.
+struct PadTag {
+    const char* name;  // after "KG_"
+    int input;         // the PadInput whose picture it is
+};
+constexpr PadTag kPadTags[] = {
+    {"OK", kPadCircle}, {"Cancel", kPadCross}, {"R_L", kPadSquare}, {"R_U", kPadTriangle},
+    {"L1", kPadL1}, {"R1", kPadR1}, {"L2", kPadL2}, {"R2", kPadR2}, {"L3", kPadL3}, {"R3", kPadR3},
+};
+// The tag of a pad slot's own picture; null: none here.
+const char* pad_face(int input) {
+    switch (input) {
+        case kPadCross: return "Cancel";
+        case kPadCircle: return "OK";
+        case kPadSquare: return "R_L";
+        case kPadTriangle: return "R_U";
+        case kPadL1: return "L1";
+        case kPadR1: return "R1";
+        case kPadL2: return "L2";
+        case kPadR2: return "R2";
+        case kPadL3: return "L3";
+        case kPadR3: return "R3";
+        default: return nullptr;
+    }
+}
+
+// The tag (after "KG_") to show in place of `tag`, or nullptr to leave the game's own.
+const char* pad_glyph(const char* tag, bool menu) {
+    const PadTag* me = nullptr;
+    for (const PadTag& t : kPadTags) {
+        if (std::strcmp(t.name, tag) == 0) me = &t;
+    }
+    if (!me) return nullptr;
+    const std::uint32_t want = host_pad_input_bit(me->input);
+    for (int p = 0; p < kPadInputs; ++p) {
+        if ((menu ? host_pad_menu_bit(p) : host_pad_play_bit(p)) != want) continue;
+        const int face = p;
+        const char* to = pad_face(face);
+        return to && std::strcmp(to, tag) != 0 ? to : nullptr;
+    }
+    return nullptr;
+}
+bool pad_differs(bool menu) {
+    for (const PadTag& t : kPadTags) {
+        if (pad_glyph(t.name, menu)) return true;
+    }
+    return false;
+}
+
 std::atomic<std::uint64_t> g_rewritten{0}, g_unknown{0};
 // The tags seen without an action, logged once each so a missing one shows up
 // in a run rather than in a reading of this file.
@@ -396,7 +447,21 @@ GUEST_ABI std::int64_t formatter_hook(std::uint64_t, std::uint64_t* saved) {
     if (!arg) return 0;
     char tag[24];
     if (!tag_ascii(arg, tag, sizeof(tag)) || std::strncmp(tag, "KG_", 3) != 0) return 0;
-    if (!prompts_wanted()) return 0;
+    if (!prompts_wanted()) {
+        // A controller in use: the game's picture, unless another button does its job now.
+        const bool menu_now = menu_pointer_in_menu();
+        const char* const to = pad_glyph(tag + 3, menu_now);
+        if (to) {
+            char full[24];
+            std::snprintf(full, sizeof(full), "KG_%s", to);
+            static thread_local char16_t swapped[24];
+            widen(full, swapped, sizeof(swapped) / sizeof(swapped[0]));
+            saved[3] = reinterpret_cast<std::uint64_t>(swapped);
+            static std::atomic<std::uint64_t> logged{0};
+            if (logged.fetch_add(1, std::memory_order_relaxed) == 0) host_log("key prompts: pad glyph %s is now %s", tag, full);
+        }
+        return 0;
+    }
     const Tag* found = nullptr;
     for (const Tag& t : kTags) {
         if (std::strcmp(t.name, tag + 3) == 0) {
@@ -646,10 +711,39 @@ std::uint64_t entry_slot(std::uint64_t repo, std::uint32_t version, std::uint32_
     return 0;
 }
 
+// A message's own glyph tags with a controller in use: each as the picture of the
+// button that does its job now (pad_glyph). True when any changed.
+bool retag(const char16_t* in, std::u16string& out) {
+    bool any = false;
+    out.clear();
+    for (std::size_t i = 0; in[i];) {
+        if (in[i] == u'K' && in[i + 1] == u'G' && in[i + 2] == u'_') {
+            char name[24];
+            std::size_t j = i + 3, n = 0;
+            while (in[j] && n + 1 < sizeof(name) &&
+                   ((in[j] >= u'A' && in[j] <= u'Z') || (in[j] >= u'a' && in[j] <= u'z') ||
+                    (in[j] >= u'0' && in[j] <= u'9') || in[j] == u'_')) {
+                name[n++] = static_cast<char>(in[j++]);
+            }
+            name[n] = '\0';
+            if (const char* to = pad_glyph(name, false)) {
+                out += u"KG_";
+                for (const char* c = to; *c; ++c) out += static_cast<char16_t>(*c);
+                i = j;
+                any = true;
+                continue;
+            }
+        }
+        out += in[i++];
+    }
+    return any;
+}
+
 GUEST_ABI std::int64_t lookup_hook(std::uint64_t, const std::uint64_t* saved) {
     g_lookups.fetch_add(1, std::memory_order_relaxed);
     const bool wanted = prompts_wanted();
-    if (!wanted && g_patched_n.load(std::memory_order_relaxed) == 0) return 0;
+    const bool retagging = !wanted && pad_differs(false);  // a controller, and a button's job on another
+    if (!wanted && !retagging && g_patched_n.load(std::memory_order_relaxed) == 0) return 0;
     std::uint64_t block = 0;
     const std::uint64_t slot = entry_slot(saved[5], static_cast<std::uint32_t>(saved[4]),
                                           static_cast<std::uint32_t>(saved[3]),
@@ -670,7 +764,7 @@ GUEST_ABI std::int64_t lookup_hook(std::uint64_t, const std::uint64_t* saved) {
         g_examined.clear();
         g_msg_serial = serial;
     }
-    if (!wanted) return 0;
+    if (!wanted && !retagging) return 0;
     if (!g_examined.emplace(slot, 1).second) return 0;
     const std::uint64_t seen = g_examined_n.fetch_add(1, std::memory_order_relaxed);
     const std::uint64_t off = rd<std::uint64_t>(slot);
@@ -683,7 +777,7 @@ GUEST_ABI std::int64_t lookup_hook(std::uint64_t, const std::uint64_t* saved) {
                  static_cast<unsigned>(saved[2]), was);
     }
     std::u16string built;
-    if (!rewrite(text, built)) return 0;
+    if (wanted ? !rewrite(text, built) : !retag(text, built)) return 0;
     auto* kept = new std::u16string(built);
     g_strings.push_back(kept);
     const std::uint64_t at = reinterpret_cast<std::uint64_t>(kept->c_str());
