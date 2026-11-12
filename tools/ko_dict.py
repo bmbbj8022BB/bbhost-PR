@@ -1137,6 +1137,21 @@ KO.update({
 "Held longer than": "다음 시간보다 오래 누르면",
 })
 
+# --- 짧게/길게 누르기 4세트 ---
+KO.update({
+"None": "없음",
+"The button of the short action gives that action when pressed briefly; held longer than the time, it gives the long action instead. Actions on L2 and R2 are not taken. If two sets use the same button, the earlier set wins.":
+    "짧게 누르는 동작의 버튼은 짧게 누르면 그 동작을 하고, "
+    "정한 시간보다 오래 누르면 대신 길게 누르는 동작을 합니다. "
+    "L2와 R2의 동작은 지원하지 않습니다. "
+    "두 세트가 같은 버튼을 쓰면 앞 세트가 우선합니다.",
+"Short and long are the same action.": "짧게와 길게가 같은 동작입니다.",
+"An action here is not on a controller button.": "컨트롤러 버튼에 지정되지 않은 동작입니다.",
+"An action on L2 or R2 is not taken.": "L2 또는 R2의 동작은 지원하지 않습니다.",
+"Short and long are on the same button.": "짧게와 길게가 같은 버튼입니다.",
+"An earlier set already uses one of these buttons.": "앞 세트가 이미 이 버튼 중 하나를 사용합니다.",
+})
+
 
 # --- v0.2.30 추가 (apply_ko_entries.py) ---
 KO.update({
