@@ -3059,7 +3059,7 @@ bool host_window_pump() {
                 if (host_pad_input_bit(ok) != menu_confirm_button() || host_pad_input_bit(back) != menu_back_button()) {
                     static char moved[96];
                     std::snprintf(moved, sizeof moved, "%s accepts    %s cancels    Type on a keyboard",
-                                  host_pad_input_name(ok), host_pad_input_name(back));
+                                  host_pad_input_label(ok), host_pad_input_label(back));
                     help = moved;
                 }
             }
@@ -3566,6 +3566,40 @@ bool host_pad_present() {
 #else
     return false;
 #endif
+}
+
+// The face button a slot is read from, by where it sits on the pad (pad_sdl_button follows input.swap_ab).
+int host_pad_face_pos(int input) {
+#if defined(BBHOST_HAVE_SDL3)
+    switch (pad_sdl_button(input)) {
+        case SDL_GAMEPAD_BUTTON_SOUTH: return 0;
+        case SDL_GAMEPAD_BUTTON_EAST: return 1;
+        case SDL_GAMEPAD_BUTTON_WEST: return 2;
+        case SDL_GAMEPAD_BUTTON_NORTH: return 3;
+        default: return -1;
+    }
+#else
+    return input >= kPadCross && input <= kPadTriangle ? input : -1;
+#endif
+}
+
+bool host_pad_is_xbox() {
+#if defined(BBHOST_HAVE_SDL3)
+    std::lock_guard<std::mutex> lock(g_pads_mu);
+    if (g_pads.empty()) return false;
+    const SDL_GamepadType t = SDL_GetGamepadType(g_pads.front());
+    return t == SDL_GAMEPAD_TYPE_XBOX360 || t == SDL_GAMEPAD_TYPE_XBOXONE;
+#else
+    return false;
+#endif
+}
+
+const char* host_pad_input_label(int input) {
+    static const char* const kPs[4] = {"Cross", "Circle", "Square", "Triangle"};
+    static const char* const kXb[4] = {"A", "B", "X", "Y"};
+    const int pos = host_pad_face_pos(input);
+    if (pos < 0) return host_pad_input_name(input);
+    return host_pad_is_xbox() ? kXb[pos] : kPs[pos];
 }
 
 void host_pad_rumble(std::uint8_t small, std::uint8_t large) {
