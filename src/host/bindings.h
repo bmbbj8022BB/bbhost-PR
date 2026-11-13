@@ -185,6 +185,16 @@ enum PadInput : int {
     kPadInputs,
 };
 const char* host_pad_input_name(int input);   // "Cross", "R2", "D-pad Up"; nullptr past the end
+// How the screens name and draw the controller's face buttons. They are in window.cpp, which has the pads
+// in hand, so bindings.cpp (and the tests that link it alone) does not call them. host_pad_face_pos: the
+// face button a slot is read from, 0 bottom, 1 right, 2 left, 3 top, following input.swap_ab (the Asian
+// release reads Cross from the right button and Circle from the bottom one); -1 for any other slot.
+// host_pad_is_xbox: the pad in hand is an Xbox one, whose buttons are A B X Y; any other, or none, is
+// named the PlayStation way. host_pad_input_label: host_pad_input_name for the screens, a face button by
+// the name it has on the pad in hand. [pad]'s tokens stay as they were.
+int host_pad_face_pos(int input);
+bool host_pad_is_xbox();
+const char* host_pad_input_label(int input);
 std::uint32_t host_pad_input_bit(int input);  // the pad bit the button is, as a menu reads it
 std::uint32_t host_pad_play_bit(int input);   // the pad bit it gives in play
 // The pad bit it gives in a menu: itself, unless it is the button the menu's

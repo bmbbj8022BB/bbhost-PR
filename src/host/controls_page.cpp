@@ -46,7 +46,7 @@ constexpr Section kSections[] = {
 const char* pad_fixed(int a) {
     if (a >= kBindMoveF && a <= kBindMoveR) return i18n::tr("Left stick");
     if (a >= kBindLookU && a <= kBindLookR) return i18n::tr("Right stick");
-    if (const int m = host_pad_menu_input(a); m >= 0) return host_pad_input_name(m);
+    if (const int m = host_pad_menu_input(a); m >= 0) return host_pad_input_label(m);
     return nullptr;
 }
 
@@ -63,6 +63,44 @@ bool cell(const char* id, const char* text, bool choosing, float w, bool enabled
     return clicked && enabled;
 }
 
+// A PlayStation face button's symbol, drawn rather than typed: the font's own symbols differ in size
+// (and may be missing), these four share one box. pos: 0 bottom (cross), 1 right (circle), 2 left
+// (square), 3 top (triangle). c: the centre, r: half the box.
+void draw_face_shape(ImDrawList* dl, ImVec2 c, float r, int pos, ImU32 col) {
+    const float th = std::max(1.5f, r * 0.22f);
+    switch (pos) {
+        case 0: {
+            const float e = r * 0.78f;
+            dl->AddLine(ImVec2(c.x - e, c.y - e), ImVec2(c.x + e, c.y + e), col, th);
+            dl->AddLine(ImVec2(c.x - e, c.y + e), ImVec2(c.x + e, c.y - e), col, th);
+            break;
+        }
+        case 1: dl->AddCircle(c, r * 0.90f, col, 0, th); break;
+        case 2: {
+            const float e = r * 0.78f;
+            dl->AddRect(ImVec2(c.x - e, c.y - e), ImVec2(c.x + e, c.y + e), col, 0.0f, 0, th);
+            break;
+        }
+        default: {
+            const float w = r * 0.92f, h = r * 0.82f;  // as wide as the circle, centred on its box
+            dl->AddTriangle(ImVec2(c.x, c.y - h), ImVec2(c.x - w, c.y + h), ImVec2(c.x + w, c.y + h), col, th);
+            break;
+        }
+    }
+}
+
+// The controller column's cell for a pad slot: a PlayStation face button as its symbol, any other
+// button, and an Xbox pad's face buttons (A B X Y), by name. The face buttons follow input.swap_ab.
+bool pad_cell(const char* id, int input, bool choosing, float w, bool enabled) {
+    const int pos = host_pad_face_pos(input);
+    if (choosing || pos < 0 || host_pad_is_xbox()) return cell(id, host_pad_input_label(input), choosing, w, enabled);
+    const bool clicked = cell(id, "", false, w, enabled);
+    const ImVec2 a = ImGui::GetItemRectMin(), b = ImGui::GetItemRectMax();
+    draw_face_shape(ImGui::GetWindowDrawList(), ImVec2((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f), ImGui::GetFontSize() * 0.5f,
+                    pos, ImGui::GetColorU32(enabled ? ImGuiCol_Text : ImGuiCol_TextDisabled));
+    return clicked;
+}
+
 void save_if_changed() {
     if (host_bind_capturing() >= 0 || host_pad_capturing() >= 0) return;
     if (const std::uint64_t s = host_bindings_serial(); s != g_saved_serial) {
@@ -77,6 +115,9 @@ void save_if_changed() {
 // (PlayStation / Xbox names). Read on every frame, so a change applies at once; the
 // bindings' serial makes the page save it with the rest.
 const char* pad_input_hint(int in) {
+    // The face buttons by where they sit (input.swap_ab exchanges two of them).
+    static const char* const kFace[4] = {"Cross / A", "Circle / B", "Square / X", "Triangle / Y"};
+    if (const int pos = host_pad_face_pos(in); pos >= 0) return kFace[pos];
     static const char* const kHint[kPadInputs] = {
         "Cross / A", "Circle / B", "Square / X", "Triangle / Y", "L1 / LB", "R1 / RB", "L2 / LT", "R2 / RT",
         "L3 / LS", "R3 / RS", "Options / Menu", "Touchpad", "D-pad Up", "D-pad Down", "D-pad Left", "D-pad Right",
@@ -303,15 +344,20 @@ void controls_page_draw(bool setup_window) {
             ImGui::TableSetColumnIndex(3);
             const int pad = host_pad_input_of(a);
             if (pad >= 0) {
-                if (cell("##pad", host_pad_input_name(pad), pad_choosing == a, cw, true)) {
+                if (pad_cell("##pad", pad, pad_choosing == a, cw, true)) {
                     host_pad_capture_begin(a);
                     g_page_capture = true;
                 }
                 if (a == kBindGestures || a == kBindEffects)
                     ui::tooltip_for_item(info.label, "Gestures and Personal Effects are the touchpad's two sides: they move together.");
             } else {
-                const char* fixed = pad_fixed(a);
-                cell("##pad", fixed ? fixed : "-", false, cw, false);
+                const int menu_in = host_pad_menu_input(a);
+                if (menu_in >= 0 && host_pad_face_pos(menu_in) >= 0) {
+                    pad_cell("##pad", menu_in, false, cw, false);
+                } else {
+                    const char* fixed = pad_fixed(a);
+                    cell("##pad", fixed ? fixed : "-", false, cw, false);
+                }
                 if (a == kBindConfirm || a == kBindBack)
                     ui::tooltip_for_item(info.label, "Follows the button the game's own OK or Back is on in play "
                                                      "(Interact or Dodge): move that action to move this.");

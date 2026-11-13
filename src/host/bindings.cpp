@@ -942,7 +942,14 @@ namespace {
 int pad_function_of(int action) {
     if (action < 0 || action >= kBindCount || host_binding_in_menus(action) > 0) return -1;
     if (action == kBindRollTap) return -1;  // Circle's press like Dodge / Sprint's: it follows that row's button, not a second one
-    return pad_input_of_bit(kInfo[action].button);
+    // The rows are actions, so under swap_ab their Cross and Circle are exchanged, as host_bindings_apply
+    // does for the keyboard: in the Asian release the button that gives Dodge is the one that gives Cross.
+    std::uint32_t bit = kInfo[action].button;
+    if (menu_region_confirm_button() == kCircle) {
+        if (bit == kCross) bit = kCircle;
+        else if (bit == kCircle) bit = kCross;
+    }
+    return pad_input_of_bit(bit);
 }
 }  // namespace
 
