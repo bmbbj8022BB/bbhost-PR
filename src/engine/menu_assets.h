@@ -21,7 +21,9 @@
 // platform. Its first version was checked byte-identical to the Python tools
 // it replaced (2fc0d74).
 
+#include <cstdint>
 #include <string>
+#include <vector>
 
 // System > PC Settings' slots (engine/option_menu.cpp's g_toggles and its
 // Texture Quality and Frame Rate lists): the movie's PCSetting section has
@@ -45,6 +47,18 @@ constexpr int kPcUpscaleSlots = 7;
 constexpr int kPcUpscaleSlots = 6;
 #endif
 
+// The room the generated bundle leaves in the message the host fills in
+// memory (engine/plugin_dialog.cpp): the question a plugin's CONFIRM row asks
+// (920002), in UTF-16 characters.
+constexpr std::size_t kPluginQuestionRoom = 200;
+
 // Makes the assets if they are missing or stale and registers the directory
 // with the FS. False, with the reason logged, when the dump lacks a source.
 bool menu_assets_ensure();
+
+// A plugin's own menu message bundle (/dvdroot_ps4/msg/<language>/menu.msgbnd.dcx,
+// as it hands it to overlay_file, not yet DCX-compressed) gets the port's message
+// ids added, so the PC rows of the System menu have their text when the plugin's
+// bundle is the one the game reads. Any other path, or a bundle that cannot take
+// them, is left as it is (the reason logged).
+void menu_assets_extend_plugin_bundle(const std::string& path, std::vector<std::uint8_t>& plain);

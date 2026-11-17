@@ -11,6 +11,7 @@
 #include "host/slow_calls.h"
 
 #include <atomic>
+#include <cmath>
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -52,6 +53,29 @@ VkDeviceSize g_vbo_bytes = 0;
 VkFormat g_format = VK_FORMAT_UNDEFINED;
 
 constexpr VkDeviceSize kVboBytes = 256u * 1024u;  // ~5.4k triangles a frame
+
+// A plugin's image (host_overlay_image_set). The pixels wait in g_img_pending (under g_mu) until the presenter's next
+// host_overlay_prepare copies them into g_img_stage and on into g_img. The presenter's fence is waited before it
+// records (host/present_pass.h), so the last frame's draw is done with both.
+VkImage g_img = VK_NULL_HANDLE;
+VkDeviceMemory g_img_mem = VK_NULL_HANDLE;
+VkImageView g_img_view = VK_NULL_HANDLE;
+VkDescriptorSet g_img_dset = VK_NULL_HANDLE;
+VkPipeline g_img_pipeline = VK_NULL_HANDLE;
+VkBuffer g_img_stage = VK_NULL_HANDLE;
+VkDeviceMemory g_img_stage_mem = VK_NULL_HANDLE;
+void* g_img_stage_map = nullptr;
+bool g_img_laid_out = false;                 // g_img has been in SHADER_READ_ONLY_OPTIMAL (presenter thread)
+std::uint32_t g_img_cur_w = 0, g_img_cur_h = 0;  // the uploaded image's size (presenter thread)
+std::vector<std::uint8_t> g_img_pending;     // under g_mu
+std::uint32_t g_img_pending_w = 0, g_img_pending_h = 0;
+bool g_img_dirty = false;                    // under g_mu
+struct ImagePlace {
+    float x = 0, y = 0, w = 0, h = 0, alpha = 0;
+};
+ImagePlace g_img_place;                      // under g_mu
+std::atomic<bool> g_img_visible{false};      // placed with alpha > 0
+std::atomic<std::uint32_t> g_area_w{0}, g_area_h{0};
 
 // The atlas texel that is fully lit: a plain rectangle points every corner at
 // it, so one pipeline draws rectangles and glyphs alike.
@@ -101,7 +125,9 @@ void host_overlay_commit() {
     g_shown_count.store(g_shown.size(), std::memory_order_release);
 }
 
-bool host_overlay_empty() { return g_shown_count.load(std::memory_order_acquire) == 0; }
+bool host_overlay_empty() {
+    return g_shown_count.load(std::memory_order_acquire) == 0 && !g_img_visible.load(std::memory_order_acquire);
+}
 
 void host_overlay_tri(float x0, float y0, float x1, float y1, float x2, float y2, std::uint32_t rgba) {
     std::lock_guard<std::mutex> lk(g_mu);
@@ -231,9 +257,9 @@ bool upload_atlas(VkDevice device, VkPhysicalDevice phys, VkQueue queue, std::ui
     sci.addressModeU = sci.addressModeV = sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     if (vkCreateSampler(device, &sci, nullptr, &g_sampler) != VK_SUCCESS) return false;
 
-    VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1};
+    VkDescriptorPoolSize ps{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2};  // the atlas's set and the plugin image's
     VkDescriptorPoolCreateInfo dpci{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-    dpci.maxSets = 1;
+    dpci.maxSets = 2;
     dpci.poolSizeCount = 1;
     dpci.pPoolSizes = &ps;
     if (vkCreateDescriptorPool(device, &dpci, nullptr, &g_dpool) != VK_SUCCESS) return false;
@@ -250,6 +276,161 @@ bool upload_atlas(VkDevice device, VkPhysicalDevice phys, VkQueue queue, std::ui
     w.pImageInfo = &dii;
     vkUpdateDescriptorSets(device, 1, &w, 0, nullptr);
     return true;
+}
+
+// The plugin image's resources: a fixed-size RGBA8 image (a smaller picture uses its corner), its staging buffer, its
+// view and a descriptor set. Failing here only leaves plugin images off; the rest of the overlay is unaffected.
+static bool build_image(VkDevice device, VkPhysicalDevice phys) {
+    const bool srgb = g_format == VK_FORMAT_B8G8R8A8_SRGB || g_format == VK_FORMAT_R8G8B8A8_SRGB;
+    // The plugin's bytes are the colours as authored (sRGB). An sRGB swapchain encodes what the shader writes, so the
+    // image is decoded on sampling; a UNORM one takes them as they are.
+    const VkFormat fmt = srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
+    VkImageCreateInfo ici{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    ici.imageType = VK_IMAGE_TYPE_2D;
+    ici.format = fmt;
+    ici.extent = {kOverlayImageMaxW, kOverlayImageMaxH, 1};
+    ici.mipLevels = 1;
+    ici.arrayLayers = 1;
+    ici.samples = VK_SAMPLE_COUNT_1_BIT;
+    ici.tiling = VK_IMAGE_TILING_OPTIMAL;
+    ici.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    ici.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if (vkCreateImage(device, &ici, nullptr, &g_img) != VK_SUCCESS) return false;
+    VkMemoryRequirements ireq{};
+    vkGetImageMemoryRequirements(device, g_img, &ireq);
+    VkMemoryAllocateInfo imai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    imai.allocationSize = ireq.size;
+    imai.memoryTypeIndex = memory_type(phys, ireq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (imai.memoryTypeIndex == UINT32_MAX || vkAllocateMemory(device, &imai, nullptr, &g_img_mem) != VK_SUCCESS) return false;
+    if (vkBindImageMemory(device, g_img, g_img_mem, 0) != VK_SUCCESS) return false;
+    VkImageViewCreateInfo ivci{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    ivci.image = g_img;
+    ivci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    ivci.format = fmt;
+    ivci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    if (vkCreateImageView(device, &ivci, nullptr, &g_img_view) != VK_SUCCESS) return false;
+
+    VkBufferCreateInfo sbci{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    sbci.size = static_cast<VkDeviceSize>(kOverlayImageMaxW) * kOverlayImageMaxH * 4;
+    sbci.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    sbci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    if (vkCreateBuffer(device, &sbci, nullptr, &g_img_stage) != VK_SUCCESS) return false;
+    VkMemoryRequirements sreq{};
+    vkGetBufferMemoryRequirements(device, g_img_stage, &sreq);
+    VkMemoryAllocateInfo smai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    smai.allocationSize = sreq.size;
+    smai.memoryTypeIndex = memory_type(phys, sreq.memoryTypeBits,
+                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (smai.memoryTypeIndex == UINT32_MAX || vkAllocateMemory(device, &smai, nullptr, &g_img_stage_mem) != VK_SUCCESS) return false;
+    if (vkBindBufferMemory(device, g_img_stage, g_img_stage_mem, 0) != VK_SUCCESS) return false;
+    if (vkMapMemory(device, g_img_stage_mem, 0, sreq.size, 0, &g_img_stage_map) != VK_SUCCESS) return false;
+
+    VkDescriptorSetAllocateInfo dsai{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+    dsai.descriptorPool = g_dpool;
+    dsai.descriptorSetCount = 1;
+    dsai.pSetLayouts = &g_dsl;
+    if (vkAllocateDescriptorSets(device, &dsai, &g_img_dset) != VK_SUCCESS) return false;
+    VkDescriptorImageInfo dii{g_sampler, g_img_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkWriteDescriptorSet w{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+    w.dstSet = g_img_dset;
+    w.descriptorCount = 1;
+    w.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    w.pImageInfo = &dii;
+    vkUpdateDescriptorSets(device, 1, &w, 0, nullptr);
+    return true;
+}
+
+static void destroy_image(VkDevice device) {
+    if (g_img_stage_map) vkUnmapMemory(device, g_img_stage_mem);
+    if (g_img_stage) vkDestroyBuffer(device, g_img_stage, nullptr);
+    if (g_img_stage_mem) vkFreeMemory(device, g_img_stage_mem, nullptr);
+    if (g_img_view) vkDestroyImageView(device, g_img_view, nullptr);
+    if (g_img) vkDestroyImage(device, g_img, nullptr);
+    if (g_img_mem) vkFreeMemory(device, g_img_mem, nullptr);
+    if (g_img_pipeline) vkDestroyPipeline(device, g_img_pipeline, nullptr);
+    g_img_stage_map = nullptr;
+    g_img_stage = VK_NULL_HANDLE;
+    g_img_stage_mem = VK_NULL_HANDLE;
+    g_img_view = VK_NULL_HANDLE;
+    g_img = VK_NULL_HANDLE;
+    g_img_mem = VK_NULL_HANDLE;
+    g_img_pipeline = VK_NULL_HANDLE;
+    g_img_dset = VK_NULL_HANDLE;  // freed with the pool
+    g_img_laid_out = false;
+    g_img_cur_w = g_img_cur_h = 0;
+}
+
+int host_overlay_image_set(const std::uint8_t* rgba, std::uint32_t w, std::uint32_t h) {
+    if (!rgba || w == 0 || h == 0 || w > kOverlayImageMaxW || h > kOverlayImageMaxH) return 1;
+    const std::size_t bytes = static_cast<std::size_t>(w) * h * 4;
+    std::lock_guard<std::mutex> lk(g_mu);
+    g_img_pending.assign(rgba, rgba + bytes);
+    g_img_pending_w = w;
+    g_img_pending_h = h;
+    g_img_dirty = true;
+    return 0;
+}
+
+int host_overlay_image_place(float x, float y, float w, float h, float alpha) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    if (g_img_pending_w == 0) return 1;  // no image was ever set
+    if (!(alpha > 0.0f) || !(w > 0.0f) || !(h > 0.0f)) {
+        g_img_place = ImagePlace{};
+        g_img_visible.store(false, std::memory_order_release);
+        return 0;
+    }
+    g_img_place = ImagePlace{x, y, w, h, alpha > 1.0f ? 1.0f : alpha};
+    g_img_visible.store(true, std::memory_order_release);
+    return 0;
+}
+
+void host_overlay_area_size(std::uint32_t* w, std::uint32_t* h) {
+    if (w) *w = g_area_w.load(std::memory_order_relaxed);
+    if (h) *h = g_area_h.load(std::memory_order_relaxed);
+}
+
+void host_overlay_prepare(VkCommandBuffer cmd, VkRect2D area) {
+    g_area_w.store(area.extent.width, std::memory_order_relaxed);
+    g_area_h.store(area.extent.height, std::memory_order_relaxed);
+    if (!g_img || !g_img_stage_map || !g_img_pipeline || g_img_stage == VK_NULL_HANDLE) return;
+    std::uint32_t w = 0, h = 0;
+    {
+        std::lock_guard<std::mutex> lk(g_mu);
+        if (!g_img_dirty) return;
+        w = g_img_pending_w;
+        h = g_img_pending_h;
+        if (w == 0 || h == 0 || g_img_pending.size() < static_cast<std::size_t>(w) * h * 4) {
+            g_img_dirty = false;
+            return;
+        }
+        std::memcpy(g_img_stage_map, g_img_pending.data(), static_cast<std::size_t>(w) * h * 4);
+        g_img_dirty = false;
+    }
+    VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.image = g_img;
+    b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    // Into transfer destination: from UNDEFINED the first time, afterwards from where a draw read it.
+    b.oldLayout = g_img_laid_out ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED;
+    b.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.srcAccessMask = g_img_laid_out ? VK_ACCESS_SHADER_READ_BIT : 0;
+    b.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, g_img_laid_out ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+    VkBufferImageCopy region{};
+    region.bufferRowLength = w;
+    region.bufferImageHeight = h;
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent = {w, h, 1};
+    vkCmdCopyBufferToImage(cmd, g_img_stage, g_img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    b.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    b.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+    g_img_laid_out = true;
+    g_img_cur_w = w;
+    g_img_cur_h = h;
 }
 
 float host_overlay_text_width(float scale, const char* text) {
@@ -382,6 +563,15 @@ bool host_overlay_init(VkDevice device, VkPhysicalDevice phys, VkFormat colour_f
     gp.pDynamicState = &ds;
     gp.layout = g_layout;
     const VkResult r = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gp, nullptr, &g_pipeline);
+    // The plugin image's pipeline: the same state and layout, its own fragment stage. If it cannot be made, images
+    // are off and the rest of the overlay works as before.
+    VkShaderModule fs_img = make_module(device, overlay_spv::kImageFrag, sizeof(overlay_spv::kImageFrag) / 4);
+    if (r == VK_SUCCESS && fs_img) {
+        stages[1].module = fs_img;
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gp, nullptr, &g_img_pipeline) != VK_SUCCESS)
+            g_img_pipeline = VK_NULL_HANDLE;
+    }
+    if (fs_img) vkDestroyShaderModule(device, fs_img, nullptr);
     vkDestroyShaderModule(device, vs, nullptr);
     vkDestroyShaderModule(device, fs, nullptr);
     if (r != VK_SUCCESS) return false;
@@ -401,11 +591,16 @@ bool host_overlay_init(VkDevice device, VkPhysicalDevice phys, VkFormat colour_f
     vkBindBufferMemory(device, g_vbo, g_vbo_mem, 0);
     if (vkMapMemory(device, g_vbo_mem, 0, req.size, 0, &g_vbo_map) != VK_SUCCESS) return false;
     g_vbo_bytes = req.size;
-    return upload_atlas(device, phys, queue, family);
+    if (!upload_atlas(device, phys, queue, family)) return false;
+    if (g_img_pipeline && !build_image(device, phys)) {
+        destroy_image(device);  // images off; the overlay itself is fine
+    }
+    return true;
 }
 
 void host_overlay_shutdown(VkDevice device) {
     if (!device) return;
+    destroy_image(device);
     if (g_vbo_map) vkUnmapMemory(device, g_vbo_mem);
     if (g_vbo) vkDestroyBuffer(device, g_vbo, nullptr);
     if (g_vbo_mem) vkFreeMemory(device, g_vbo_mem, nullptr);
@@ -433,17 +628,37 @@ void host_overlay_shutdown(VkDevice device) {
 std::uint32_t host_overlay_record(VkCommandBuffer cmd, VkRect2D area, float display_w, float display_h) {
     if (host_overlay_empty() || !g_pipeline || !g_vbo_map || display_w <= 0.0f || display_h <= 0.0f) return 0;
     std::uint32_t count = 0;
+    bool image = false;
     {
         // Straight into the vertex buffer: the presenter's fence says the GPU
         // is done with what the last frame drew from it.
         std::lock_guard<std::mutex> lk(g_mu);
         const VkDeviceSize bytes = g_shown.size() * sizeof(Vertex);
-        if (g_shown.empty() || bytes > g_vbo_bytes) return 0;
-        std::memcpy(g_vbo_map, g_shown.data(), bytes);
-        count = static_cast<std::uint32_t>(g_shown.size());
+        if (!g_shown.empty() && bytes <= g_vbo_bytes) {
+            std::memcpy(g_vbo_map, g_shown.data(), bytes);
+            count = static_cast<std::uint32_t>(g_shown.size());
+        }
+        // A plugin's image after the rest: a quad snapped to the picture's whole pixels, so that an image made at the
+        // picture's own size lands texel on pixel and stays sharp.
+        if (g_img_visible.load(std::memory_order_acquire) && g_img_pipeline && g_img_dset && g_img_cur_w && g_img_cur_h &&
+            area.extent.width && area.extent.height && count * sizeof(Vertex) + 6 * sizeof(Vertex) <= g_vbo_bytes) {
+            const float aw = static_cast<float>(area.extent.width), ah = static_cast<float>(area.extent.height);
+            const float px0 = std::round(g_img_place.x * aw), py0 = std::round(g_img_place.y * ah);
+            const float px1 = std::round((g_img_place.x + g_img_place.w) * aw), py1 = std::round((g_img_place.y + g_img_place.h) * ah);
+            if (px1 > px0 && py1 > py0) {
+                const float kx = display_w / aw, ky = display_h / ah;  // picture pixels -> display coordinates
+                const float x0 = px0 * kx, y0 = py0 * ky, x1 = px1 * kx, y1 = py1 * ky;
+                const float u1 = static_cast<float>(g_img_cur_w) / static_cast<float>(kOverlayImageMaxW);
+                const float v1 = static_cast<float>(g_img_cur_h) / static_cast<float>(kOverlayImageMaxH);
+                const float al = g_img_place.alpha;
+                const Vertex quad[6] = {{x0, y0, 0, 0, 1, 1, 1, al}, {x1, y0, u1, 0, 1, 1, 1, al}, {x0, y1, 0, v1, 1, 1, 1, al},
+                                        {x1, y0, u1, 0, 1, 1, 1, al}, {x1, y1, u1, v1, 1, 1, 1, al}, {x0, y1, 0, v1, 1, 1, 1, al}};
+                std::memcpy(static_cast<char*>(g_vbo_map) + count * sizeof(Vertex), quad, sizeof(quad));
+                image = true;
+            }
+        }
     }
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_layout, 0, 1, &g_dset, 0, nullptr);
+    if (count == 0 && !image) return 0;
     VkViewport vp{static_cast<float>(area.offset.x), static_cast<float>(area.offset.y), static_cast<float>(area.extent.width),
                   static_cast<float>(area.extent.height), 0.0f, 1.0f};
     VkRect2D sc = area;
@@ -453,7 +668,17 @@ std::uint32_t host_overlay_record(VkCommandBuffer cmd, VkRect2D area, float disp
     vkCmdPushConstants(cmd, g_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(inv), inv);
     const VkDeviceSize off = 0;
     vkCmdBindVertexBuffers(cmd, 0, 1, &g_vbo, &off);
-    vkCmdDraw(cmd, count, 1, 0, 0);
+    if (count) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_layout, 0, 1, &g_dset, 0, nullptr);
+        vkCmdDraw(cmd, count, 1, 0, 0);
+    }
+    if (image) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_img_pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_layout, 0, 1, &g_img_dset, 0, nullptr);
+        vkCmdDraw(cmd, 6, 1, count, 0);
+        count += 6;
+    }
     return count;
 }
 

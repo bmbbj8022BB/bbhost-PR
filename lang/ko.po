@@ -3622,3 +3622,588 @@ msgstr "공개 포트 "
 msgid " and "
 msgstr " 및 "
 
+msgid "access denied"
+msgstr "접근 거부됨"
+
+msgid "address in use"
+msgstr "주소가 이미 사용 중임"
+
+msgid "the network is down"
+msgstr "네트워크가 끊어져 있음"
+
+msgid "the network is unreachable"
+msgstr "네트워크에 연결할 수 없음"
+
+msgid "the host is unreachable"
+msgstr "호스트에 연결할 수 없음"
+
+msgid "no buffer space"
+msgstr "버퍼 공간이 부족함"
+
+msgid "In your router's settings, forward UDP port %s to this PC."
+msgstr "공유기 설정에서 UDP 포트 %s을(를) 이 PC로 포워딩합니다."
+
+msgid "In your router's settings, forward UDP port %s to this PC (%s)."
+msgstr "공유기 설정에서 UDP 포트 %s을(를) 이 PC(%s)로 포워딩합니다."
+
+msgid "Allow bbhost.exe in Windows Firewall (Private and Public)."
+msgstr "Windows 방화벽에서 bbhost.exe를 허용합니다 (개인 및 공용 네트워크)."
+
+msgid "If this PC runs a firewall, allow UDP port %s in it."
+msgstr "이 PC에서 방화벽을 쓰는 경우 UDP 포트 %s을(를) 허용합니다."
+
+msgid "Then press Test again."
+msgstr "그런 다음 다시 테스트를 누릅니다."
+
+msgid "Incoming: other hunters can connect to you directly, even those whose routers change ports."
+msgstr "수신: 공유기가 포트를 바꾸는 사냥꾼도 직접 연결할 수 있습니다."
+
+msgid "Incoming: hunters whose routers change ports can't connect to you directly, so they reach you through the relay."
+msgstr "수신: 공유기가 포트를 바꾸는 사냥꾼은 직접 연결할 수 없으므로 중계 서버를 거쳐 접속합니다."
+
+msgid "Incoming: open - a packet the server sent unasked, from a port bbhost never sent to, reached UDP port %s, but your router changes ports for what the game sends, so other hunters still can't connect directly."
+msgstr "수신: 열림 - 서버가 요청 없이 보낸 패킷이, bbhost가 보낸 적 없는 포트에서 UDP 포트 %s에 도달했습니다. 하지만 공유기가 게임이 보내는 패킷의 포트를 바꾸므로 다른 사냥꾼은 여전히 직접 연결할 수 없습니다."
+
+msgid "Incoming: open - a packet the server sent unasked, from a port bbhost never sent to, reached UDP port %s."
+msgstr "수신: 열림 - 서버가 요청 없이 보낸 패킷이, bbhost가 보낸 적 없는 포트에서 UDP 포트 %s에 도달했습니다."
+
+msgid "Incoming: closed - your router or this PC's firewall stopped a packet the server sent unasked to UDP port %s."
+msgstr "수신: 닫힘 - 서버가 요청 없이 UDP 포트 %s로 보낸 패킷을 공유기나 이 PC의 방화벽이 막았습니다."
+
+msgid "Incoming: not checked - this server has no port check."
+msgstr "수신: 확인하지 않음 - 이 서버에는 포트 확인 기능이 없습니다."
+
+msgid "Incoming: not checked - the port check got no answer."
+msgstr "수신: 확인하지 않음 - 포트 확인에 대한 응답이 없었습니다."
+
+msgid "Allow bbhost.exe in your firewall or antivirus, then press Test again."
+msgstr "방화벽이나 백신 프로그램에서 bbhost.exe를 허용한 다음 다시 테스트를 누르세요."
+
+msgid "Your network allows direct connections"
+msgstr "이 네트워크는 직접 연결을 허용합니다"
+
+msgid "Your router keeps one port for the game."
+msgstr "공유기가 게임에 포트 하나를 유지합니다."
+
+msgid "Sign in (above) to play online."
+msgstr "온라인으로 플레이하려면 위에서 로그인하세요."
+
+msgid "The relay is on, so co-op and PvP go through it."
+msgstr "중계가 켜져 있어 협동과 PvP는 중계 서버를 거칩니다."
+
+msgid "To connect directly instead, turn the relay off below."
+msgstr "대신 직접 연결하려면 아래에서 중계를 끄세요."
+
+msgid "To connect directly instead:"
+msgstr "대신 직접 연결하려면:"
+
+msgid "Then press Test again; then you can turn the relay off below."
+msgstr "그런 다음 다시 테스트를 누르면 아래에서 중계를 끌 수 있습니다."
+
+msgid "Online play works directly"
+msgstr "온라인 플레이가 직접 연결로 동작합니다"
+
+msgid "Co-op and PvP can connect straight to other hunters, without the server's relay."
+msgstr "협동과 PvP가 서버 중계 없이 다른 사냥꾼에게 바로 연결할 수 있습니다."
+
+msgid "To let them connect directly:"
+msgstr "다른 사냥꾼이 직접 연결할 수 있게 하려면:"
+
+msgid "Other hunters may not reach you with the relay off"
+msgstr "중계를 끄면 다른 사냥꾼이 접속하지 못할 수 있습니다"
+
+msgid "You turned the relay off, but your router or this PC's firewall stops the first packets other hunters send you, so direct connections can fail."
+msgstr "중계를 껐지만 다른 사냥꾼이 처음 보내는 패킷을 공유기나 이 PC의 방화벽이 막아서 직접 연결이 실패할 수 있습니다."
+
+msgid "Forward the port, or turn the relay back on below:"
+msgstr "포트를 포워딩하거나 아래에서 중계를 다시 켜세요:"
+
+msgid "Online play works through the relay"
+msgstr "온라인 플레이가 중계로 동작합니다"
+
+msgid "Your router changes ports for each connection, so co-op and PvP go through the server's relay, with a little more delay."
+msgstr "공유기가 연결마다 포트를 바꾸므로 협동과 PvP는 서버 중계를 거치며, 지연이 조금 늘어납니다."
+
+msgid "You turned the relay off, but your router changes ports for each connection, so direct connections to you fail."
+msgstr "중계를 껐지만 공유기가 연결마다 포트를 바꾸므로 이 PC로의 직접 연결은 실패합니다."
+
+msgid "Turn the relay back on below."
+msgstr "아래에서 중계를 다시 켜세요."
+
+msgid "Sign in (above), then press Test again, so the server knows to relay you."
+msgstr "위에서 로그인한 뒤 다시 테스트를 눌러 서버가 중계해야 함을 알 수 있게 하세요."
+
+msgid "The test server wasn't found"
+msgstr "테스트 서버를 찾을 수 없습니다"
+
+msgid "Its name didn't resolve, so the test couldn't run."
+msgstr "서버 이름을 확인하지 못해 테스트를 실행할 수 없었습니다."
+
+msgid "Check this PC's internet connection and the server chosen above, then press Test again."
+msgstr "이 PC의 인터넷 연결과 위에서 선택한 서버를 확인한 뒤 다시 테스트를 누르세요."
+
+msgid "The game's port is in use"
+msgstr "게임 포트가 사용 중입니다"
+
+msgid "Another program has UDP port %s, which the test sends from - most likely bbhost itself, running the game."
+msgstr "다른 프로그램이 UDP 포트 %s을(를) 사용 중입니다. 테스트는 이 포트에서 보내므로, 게임을 실행 중인 bbhost 자신일 가능성이 큽니다."
+
+msgid "Close the game, or choose another P2P port below, then press Test again."
+msgstr "게임을 닫거나 아래에서 다른 P2P 포트를 선택한 뒤 다시 테스트를 누르세요."
+
+msgid "The system says: %s."
+msgstr "시스템 메시지: %s."
+
+msgid "The test couldn't use UDP port %s"
+msgstr "테스트가 UDP 포트 %s을(를) 사용하지 못했습니다"
+
+msgid "This PC didn't let bbhost open the game's port, so nothing was tested."
+msgstr "이 PC가 bbhost의 게임 포트 열기를 허용하지 않아 아무것도 테스트하지 못했습니다."
+
+msgid "Choose another P2P port below, then press Test again."
+msgstr "아래에서 다른 P2P 포트를 선택한 뒤 다시 테스트를 누르세요."
+
+msgid "The test was stopped"
+msgstr "테스트가 중단되었습니다"
+
+msgid "It ended before it finished, so it tells nothing yet."
+msgstr "끝나기 전에 종료되어 아직 알 수 있는 것이 없습니다."
+
+msgid "Press Test again."
+msgstr "다시 테스트를 누르세요."
+
+msgid "Something on this PC is blocking bbhost"
+msgstr "이 PC의 무언가가 bbhost를 막고 있습니다"
+
+msgid "This PC couldn't send anything"
+msgstr "이 PC가 아무것도 보내지 못했습니다"
+
+msgid "This PC refused every packet bbhost tried to send, so co-op and PvP can't work."
+msgstr "bbhost가 보내려던 모든 패킷을 이 PC가 거부해서 협동과 PvP가 동작하지 않습니다."
+
+msgid "Check this PC's internet connection. If it works, allow bbhost.exe in your firewall or antivirus, then press Test again."
+msgstr "이 PC의 인터넷 연결을 확인하세요. 연결에 문제가 없다면 방화벽이나 백신 프로그램에서 bbhost.exe를 허용한 뒤 다시 테스트를 누르세요."
+
+msgid "The test was incomplete"
+msgstr "테스트가 완료되지 않았습니다"
+
+msgid "One of the server's two answers didn't come back, so the test can't tell yet whether co-op and PvP connect directly or through the relay."
+msgstr "서버의 응답 두 개 중 하나가 돌아오지 않아, 협동과 PvP가 직접 연결인지 중계인지 아직 알 수 없습니다."
+
+msgid "Something is blocking bbhost"
+msgstr "무언가가 bbhost를 막고 있습니다"
+
+msgid "A firewall or antivirus on this PC, or this network, stops bbhost's packets or the answers to them, so co-op and PvP can't work."
+msgstr "이 PC의 방화벽이나 백신 프로그램, 또는 이 네트워크가 bbhost의 패킷이나 그 응답을 막고 있어 협동과 PvP가 동작하지 않습니다."
+
+msgid "Sign in (above), then press Test again to find out which."
+msgstr "위에서 로그인한 뒤 다시 테스트를 눌러 어느 쪽인지 확인하세요."
+
+msgid "Press Test again later to find out which: the server takes 10 tests an hour."
+msgstr "서버는 한 시간에 10번까지 테스트를 받습니다. 나중에 다시 테스트를 눌러 어느 쪽인지 확인하세요."
+
+msgid "Sign in again (above), then press Test again to find out which."
+msgstr "위에서 다시 로그인한 뒤 다시 테스트를 눌러 어느 쪽인지 확인하세요."
+
+msgid "This server can't tell which, so start with this PC: allow bbhost.exe in your firewall or antivirus, then press Test again."
+msgstr "이 서버는 어느 쪽인지 알 수 없으므로 이 PC부터 확인하세요. 방화벽이나 백신 프로그램에서 bbhost.exe를 허용한 뒤 다시 테스트를 누르세요."
+
+msgid "Press Test again to find out which: the server couldn't tell this time."
+msgstr "이번에는 서버가 알려주지 못했습니다. 다시 테스트를 눌러 어느 쪽인지 확인하세요."
+
+msgid "Online play is blocked"
+msgstr "온라인 플레이가 차단되어 있습니다"
+
+msgid "None of bbhost's packets reached the server, so co-op and PvP can't work from here."
+msgstr "bbhost의 패킷이 서버에 하나도 도달하지 않아 이곳에서는 협동과 PvP가 동작하지 않습니다."
+
+msgid "If the website's connection test fails too, this network blocks online play (school and work networks can)."
+msgstr "웹사이트의 연결 테스트도 실패한다면 이 네트워크가 온라인 플레이를 막고 있는 것입니다 (학교나 회사 네트워크가 그럴 수 있습니다)."
+
+msgid "Answers aren't reaching bbhost"
+msgstr "응답이 bbhost에 도달하지 않습니다"
+
+msgid "The server got bbhost's packets, but none of its answers came back, so co-op and PvP can't work: a firewall or antivirus on this PC is most likely stopping them."
+msgstr "서버는 bbhost의 패킷을 받았지만 그 응답이 하나도 돌아오지 않아 협동과 PvP가 동작하지 않습니다. 이 PC의 방화벽이나 백신 프로그램이 막고 있을 가능성이 큽니다."
+
+msgid "A VPN or proxy may be in the way"
+msgstr "VPN이나 프록시가 방해하고 있을 수 있습니다"
+
+msgid "Your sign-in reached the server from one address and bbhost's packets from another, so online play may fail."
+msgstr "로그인은 한 주소에서, bbhost의 패킷은 다른 주소에서 서버에 도달했으므로 온라인 플레이가 실패할 수 있습니다."
+
+msgid "Turn off any VPN or proxy, then press Test again."
+msgstr "VPN이나 프록시를 끈 뒤 다시 테스트를 누르세요."
+
+msgid "This PC refused all %d packets bbhost tried to send from UDP port %s (%s)."
+msgstr "이 PC가 패킷 %d개를 모두 거부했습니다. bbhost가 UDP 포트 %s에서 보내려던 패킷입니다 (%s)."
+
+msgid "Tested from UDP port %s, the game's P2P port: no answer came back from the test ports."
+msgstr "게임의 P2P 포트인 UDP 포트 %s에서 테스트했습니다. 테스트 포트에서 응답이 돌아오지 않았습니다."
+
+msgid "Tested from UDP port %s, the game's P2P port: the server saw %s."
+msgstr "게임의 P2P 포트인 UDP 포트 %s에서 테스트했습니다. 서버가 확인한 값: %s."
+
+msgid "%s; saved to your account for this network (test again on another one)."
+msgstr "%s; 이 네트워크에 대한 결과로 계정에 저장되었습니다 (다른 네트워크에서는 다시 테스트하세요)."
+
+msgid "%s; this PC's own reading, not saved to your account (sign in above to keep it)."
+msgstr "%s; 이 PC 자체의 판단이며 계정에 저장되지 않았습니다 (저장하려면 위에서 로그인하세요)."
+
+msgid "%s; not saved to your account: %s."
+msgstr "%s; 계정에 저장되지 않았습니다: %s."
+
+msgid "One of the server's answers didn't come back to bbhost - a lost packet, most likely; the server saw both requests."
+msgstr "서버의 응답 하나가 bbhost에 돌아오지 않았습니다. 패킷 유실일 가능성이 큽니다. 서버는 두 요청을 모두 받았습니다."
+
+msgid "The server says %s; this PC's own reading was %s. The server compares what reached it from the address this request came from, and a VPN or a proxy for web traffic can make the two differ."
+msgstr "서버 판정은 %s, 이 PC 자체의 판단은 %s입니다. 서버는 이 요청이 온 주소에서 도달한 내용을 비교하므로, 웹 트래픽용 VPN이나 프록시가 있으면 두 결과가 달라질 수 있습니다."
+
+msgid "The server heard bbhost and reads this network as %s."
+msgstr "서버가 bbhost의 패킷을 받았으며 이 네트워크를 %s(으)로 판단합니다."
+
+msgid "The test ports answered bbhost, so its packets get through, but the server kept \"blocked\" for your account: none of them came from the address your request came from."
+msgstr "테스트 포트가 bbhost에 응답했으므로 패킷은 통과하지만, 서버는 계정에 \"차단\"을 저장했습니다. 요청이 온 주소에서 도달한 패킷이 하나도 없었기 때문입니다."
+
+msgid "This PC refused %d of the %d packets bbhost tried to send (%s): if a firewall or antivirus asked about bbhost.exe, allow it."
+msgstr "이 PC가 %d개를 거부했습니다. bbhost가 보내려던 패킷은 전체 %d개입니다 (%s). 방화벽이나 백신 프로그램이 bbhost.exe에 대해 물으면 허용하세요."
+
+msgid "This PC's address on its network: %s."
+msgstr "이 PC의 네트워크 내 주소: %s."
+
+msgid "The relay is off for your account."
+msgstr "계정의 중계가 꺼져 있습니다."
+
+msgid "The P2P port is now %d: press Test again."
+msgstr "P2P 포트가 %d(으)로 바뀌었습니다. 다시 테스트를 누르세요."
+
+msgid "Nothing from your account's last test reached the server, so co-op and PvP couldn't work from there."
+msgstr "계정의 마지막 테스트에서 보낸 패킷이 서버에 하나도 도달하지 않아 그곳에서는 협동과 PvP가 동작하지 못했습니다."
+
+msgid "Press Test again to check this PC."
+msgstr "이 PC를 확인하려면 다시 테스트를 누르세요."
+
+msgid "Your account's last test, %s, from UDP port %d, this PC's P2P port."
+msgstr "계정의 마지막 테스트, %s, 이 PC의 P2P 포트인 UDP 포트 %d에서 실행."
+
+msgid "Your account's last test, %s, from UDP port %d; this PC's P2P port is UDP %d."
+msgstr "계정의 마지막 테스트, %s, UDP 포트 %d에서 실행. 이 PC의 P2P 포트는 UDP %d입니다."
+
+msgid "Your account's last test, %s, on the website or from another PC."
+msgstr "계정의 마지막 테스트, %s, 웹사이트 또는 다른 PC에서 실행."
+
+msgid "The test checks whether other hunters can connect to this PC directly, or whether co-op and PvP go through the server's relay."
+msgstr "다른 사냥꾼이 이 PC에 직접 연결할 수 있는지, 아니면 협동과 PvP가 서버 중계를 거치는지 확인하는 테스트입니다."
+
+msgid "You turned the relay off: press Test connection to check that other hunters can reach you."
+msgstr "중계를 껐습니다. 연결 테스트를 눌러 다른 사냥꾼이 접속할 수 있는지 확인하세요."
+
+msgid "It sends a few packets from UDP port %d, the game's P2P port, and takes a few seconds; the game must be closed."
+msgstr "게임의 P2P 포트인 UDP 포트 %d에서 패킷을 몇 개 보내며 몇 초 걸립니다. 게임을 닫아야 합니다."
+
+msgid "Signed in, the result is kept for your account."
+msgstr "로그인한 상태라 결과가 계정에 저장됩니다."
+
+msgid "Sign in (above) to keep the result for your account."
+msgstr "결과를 계정에 저장하려면 위에서 로그인하세요."
+
+msgid "Without the relay, other hunters must reach this PC directly. "
+msgstr "중계가 없으면 다른 사냥꾼이 이 PC에 직접 연결해야 합니다. "
+
+msgid "This PC's last test says your router changes ports for each connection, so they can't, and forwarding a port doesn't change that."
+msgstr "이 PC의 마지막 테스트에서 공유기가 연결마다 포트를 바꾸는 것으로 나와 직접 연결할 수 없으며, 포트를 포워딩해도 달라지지 않습니다."
+
+msgid "This PC's last test didn't get through, so online play may not work at all."
+msgstr "이 PC의 마지막 테스트가 통과하지 못해 온라인 플레이가 전혀 되지 않을 수 있습니다."
+
+msgid "No test has checked that they can."
+msgstr "아직 어떤 테스트도 연결 가능 여부를 확인하지 않았습니다."
+
+msgid "This PC's last test found that your router or firewall stops the first packets they send."
+msgstr "이 PC의 마지막 테스트에서 공유기나 방화벽이 상대가 처음 보내는 패킷을 막는 것으로 확인되었습니다."
+
+msgid "This PC's last test couldn't check whether they can get in."
+msgstr "이 PC의 마지막 테스트로는 연결 가능 여부를 확인하지 못했습니다."
+
+msgid "Choose a port from 1024 to 65535."
+msgstr "1024부터 65535 사이의 포트를 선택하세요."
+
+msgid "UDP %d is one of the server's test ports: choose another."
+msgstr "UDP %d은(는) 서버의 테스트 포트 중 하나입니다. 다른 포트를 선택하세요."
+
+msgid "The UDP port other hunters reach this PC on. Forward this port on your router. Two copies of bbhost on one PC need different ports."
+msgstr "다른 사냥꾼이 이 PC에 접속할 때 쓰는 UDP 포트입니다. 공유기에서 이 포트를 포워딩하세요. 한 PC에서 bbhost를 두 개 실행하면 서로 다른 포트가 필요합니다."
+
+msgid "1024 to 65535; 9307 unless changed. The test runs from it at once; Save or Play keeps it, and the game opens it as it starts, so a change made while the game runs applies from its next start."
+msgstr "1024부터 65535까지이며 따로 바꾸지 않으면 9307입니다. 테스트는 이 포트에서 바로 실행되고, 저장 또는 플레이를 누르면 유지되며 게임은 시작할 때 이 포트를 엽니다. 게임을 실행하는 중에 바꾼 포트는 다음 시작부터 적용됩니다."
+
+msgid "P2P port"
+msgstr "P2P 포트"
+
+msgid "Saved with Save or Play; the game opens it as it starts."
+msgstr "저장 또는 플레이를 누르면 저장되며, 게임은 시작할 때 이 포트를 엽니다."
+
+msgid "The port other hunters reach this PC on."
+msgstr "다른 사냥꾼이 이 PC에 접속하는 포트입니다."
+
+msgid "Relay"
+msgstr "중계"
+
+msgid "Co-op and PvP go through the server's relay, which works on every network. If the test says direct connections work, you can turn the relay off and connect to other hunters directly. Hunters who keep the relay still reach you through it. Everyone who plays from your connection (your home network) needs it off for it to apply."
+msgstr "협동과 PvP가 모든 네트워크에서 동작하는 서버 중계를 거칩니다. 테스트에서 직접 연결이 가능하다고 나오면 중계를 끄고 다른 사냥꾼과 직접 연결할 수 있습니다. 중계를 유지한 사냥꾼도 중계를 통해 접속할 수 있습니다. 같은 인터넷 연결(집 네트워크)에서 플레이하는 모든 사람이 꺼야 적용됩니다."
+
+msgid "Your account's setting, the same as the website's account page has."
+msgstr "계정 설정이며 웹사이트의 계정 페이지와 같은 설정입니다."
+
+msgid "Works on every network: co-op and PvP go through the server's relay."
+msgstr "모든 네트워크에서 동작합니다. 협동과 PvP가 서버 중계를 거칩니다."
+
+msgid "Direct connections only: your router must let other hunters in (the test's Incoming says whether it does)."
+msgstr "직접 연결만 사용합니다. 공유기가 다른 사냥꾼의 접속을 허용해야 합니다 (허용 여부는 테스트의 수신 항목에 나옵니다)."
+
+msgid "Off: direct connections only; your router must let other hunters in."
+msgstr "꺼짐: 직접 연결만 사용하며 공유기가 다른 사냥꾼의 접속을 허용해야 합니다."
+
+msgid "On: works on every network."
+msgstr "켜짐: 모든 네트워크에서 동작합니다."
+
+msgid "Saving..."
+msgstr "저장하는 중..."
+
+msgid "Not changed: the server didn't answer (%s)."
+msgstr "변경되지 않음: 서버가 응답하지 않았습니다 (%s)."
+
+msgid "Not changed: %s."
+msgstr "변경되지 않음: %s."
+
+msgid "Saved; reading it back..."
+msgstr "저장했습니다. 다시 읽는 중..."
+
+msgid "Saved: the relay is off for your account."
+msgstr "저장됨: 계정의 중계가 꺼졌습니다."
+
+msgid "Saved: the relay is on for your account."
+msgstr "저장됨: 계정의 중계가 켜졌습니다."
+
+msgid "Keep the relay"
+msgstr "중계 유지"
+
+msgid "Leaves the relay on: co-op and PvP keep working on every network."
+msgstr "중계를 켜 둡니다. 협동과 PvP가 모든 네트워크에서 계속 동작합니다."
+
+msgid "Turn it off anyway"
+msgstr "그래도 끄기"
+
+msgid "Turns the relay off for your account now. You can turn it back on here at any time."
+msgstr "지금 계정의 중계를 끕니다. 여기에서 언제든 다시 켤 수 있습니다."
+
+msgid "Its settings are in its own panel, over the game."
+msgstr "설정은 게임 화면 위에 뜨는 자체 패널에 있습니다."
+
+msgid "Open %s"
+msgstr "%s 열기"
+
+msgid "Closes this menu and shows %s's %s menu over the game. Circle or Escape closes it."
+msgstr "이 메뉴를 닫고 게임 화면 위에 %s의 %s 메뉴를 표시합니다. ○ 버튼이나 Esc 키로 닫습니다."
+
+msgid "Join the Discord"
+msgstr "Discord 참여"
+
+msgid "Opens the community's Discord invite in your browser: news, help with bbhost, and other hunters to play with."
+msgstr "브라우저에서 커뮤니티 Discord 초대 링크를 엽니다. 소식, bbhost 관련 도움, 함께 플레이할 다른 헌터를 만날 수 있습니다."
+
+msgid "Opens thehuntersdream.com in your browser: the world map, the leaderboards, and your account."
+msgstr "브라우저에서 thehuntersdream.com을 엽니다. 월드 지도, 순위표, 내 계정을 볼 수 있습니다."
+
+msgid "Every row here back to its default."
+msgstr "여기 있는 모든 항목을 기본값으로 되돌립니다."
+
+msgid "Every row on this page back to its default."
+msgstr "이 페이지의 모든 항목을 기본값으로 되돌립니다."
+
+msgid "Every row on this page back to its default?"
+msgstr "이 페이지의 모든 항목을 기본값으로 되돌립니까?"
+
+msgid "Quake and Isometric don't work together: both take over the camera. Turn one of them off."
+msgstr "Quake와 Isometric은 함께 사용할 수 없습니다. 둘 다 카메라를 가져갑니다. 하나를 끄십시오."
+
+msgid "Quake and Hunter Cam don't work together: both take over the camera. Turn one of them off."
+msgstr "Quake와 Hunter Cam은 함께 사용할 수 없습니다. 둘 다 카메라를 가져갑니다. 하나를 끄십시오."
+
+msgid "Isometric and Hunter Cam don't work together: both take over the camera. Turn one of them off."
+msgstr "Isometric과 Hunter Cam은 함께 사용할 수 없습니다. 둘 다 카메라를 가져갑니다. 하나를 끄십시오."
+
+msgid "Hide the technical lines."
+msgstr "기술적인 줄을 숨깁니다."
+
+msgid "The ports, what the server saw, and whether the result was kept."
+msgstr "포트, 서버가 확인한 내용, 결과 저장 여부입니다."
+
+msgid "this server has no relay switch"
+msgstr "이 서버에는 중계 스위치가 없습니다"
+
+msgid "nothing was sent"
+msgstr "아무것도 보내지 않았습니다"
+
+msgid "not known"
+msgstr "알 수 없음"
+
+msgid "L1 R1: page"
+msgstr "L1 R1: 페이지"
+
+msgid ": page"
+msgstr ": 페이지"
+
+msgid "Q E: page"
+msgstr "Q E: 페이지"
+
+msgid "d-pad: choose and change"
+msgstr "십자키: 선택·변경"
+
+msgid "Cross: OK"
+msgstr "엑스: 확인"
+
+msgid "Circle: back"
+msgstr "동그라미: 뒤로"
+
+msgid "Circle: close"
+msgstr "동그라미: 닫기"
+
+msgid "arrows: choose and change"
+msgstr "방향키: 선택·변경"
+
+msgid "Enter: OK"
+msgstr "Enter: 확인"
+
+msgid "Esc: back"
+msgstr "Esc: 뒤로"
+
+msgid "Esc: close"
+msgstr "Esc: 닫기"
+
+msgid "no answer"
+msgstr "응답 없음"
+
+msgid "refused"
+msgstr "거부됨"
+
+msgid "this server has no account settings (HTTP %s"
+msgstr "이 서버에는 계정 설정이 없습니다 (HTTP %s"
+
+msgid "The hunter from closer in: an over-the-shoulder camera (right or left, swapped with a key, zoomed with the wheel) or first person with only the arms and weapons drawn; the hunter can always face where the camera looks, the right stick's speed is yours, and the dodge can be a roll or a sidestep."
+msgstr "헌터를 더 가까이에서 보는 시점입니다. 어깨 너머 카메라(오른쪽 또는 왼쪽, 키로 전환, 휠로 확대·축소)나 팔과 무기만 그려지는 1인칭을 고를 수 있습니다. 헌터가 항상 카메라가 보는 방향을 향하게 하거나, 오른쪽 스틱 속도를 정하거나, 회피를 구르기 또는 스텝으로 바꿀 수 있습니다."
+
+msgid "Over the shoulder"
+msgstr "어깨 너머"
+
+msgid "The camera keeps the game's turning, lock-on and aim; only where it stands moves. The wheel zooms it, the middle button resets the zoom."
+msgstr "카메라는 게임의 회전, 락온, 조준을 그대로 유지하고 위치만 바뀝니다. 휠로 확대·축소하고 가운데 버튼으로 초기화합니다."
+
+msgid "Over-the-shoulder camera"
+msgstr "어깨 너머 카메라"
+
+msgid "The view from close behind one of the hunter's shoulders. Off: the game's own camera."
+msgstr "헌터의 한쪽 어깨 바로 뒤에서 보는 시점입니다. 끄면 게임 기본 카메라를 사용합니다."
+
+msgid "The shoulder the camera looks over."
+msgstr "카메라가 넘겨다보는 쪽 어깨입니다."
+
+msgid "Swap shoulder key"
+msgstr "어깨 전환 키"
+
+msgid "Swaps shoulders while playing (keyboard and mouse). Pick a key nothing else is bound to."
+msgstr "플레이 중 어깨를 전환합니다(키보드와 마우스). 다른 곳에 지정되지 않은 키를 고르십시오."
+
+msgid "Metres behind the shoulder; the wheel zooms from here."
+msgstr "어깨 뒤쪽 거리(미터)입니다. 휠 확대·축소는 이 값에서 시작합니다."
+
+msgid "Side offset"
+msgstr "좌우 위치"
+
+msgid "Metres to the side of the hunter's middle."
+msgstr "헌터 중심에서 옆으로 떨어진 거리(미터)입니다."
+
+msgid "Metres above the point the game's camera looks at."
+msgstr "게임 카메라가 바라보는 지점 위로의 높이(미터)입니다."
+
+msgid "Field of view (+%)"
+msgstr "시야각 (+%)"
+
+msgid "How much wider the camera sees, as F10's Field of view widens it: 0 is the game's (with F10's own on top); +50 about 97 degrees across."
+msgstr "F10의 시야각처럼 카메라가 얼마나 더 넓게 보는지 정합니다. 0은 게임 기본값(F10의 설정이 그 위에 더해집니다)이고, +50은 가로 약 97도입니다."
+
+msgid "Swap time"
+msgstr "전환 시간"
+
+msgid "Seconds the camera takes to move to the other shoulder."
+msgstr "카메라가 반대쪽 어깨로 옮겨 가는 데 걸리는 시간(초)입니다."
+
+msgid "The view from the hunter's eyes: only their weapons are drawn."
+msgstr "헌터의 눈높이 시점입니다. 무기만 그려집니다."
+
+msgid "Starts in first person. The hunter always faces where they look there."
+msgstr "1인칭으로 시작합니다. 1인칭에서는 헌터가 항상 바라보는 방향을 향합니다."
+
+msgid "First person key"
+msgstr "1인칭 전환 키"
+
+msgid "Switches between first person and the camera above while playing (keyboard and mouse)."
+msgstr "플레이 중 1인칭과 위의 카메라를 전환합니다(키보드와 마우스)."
+
+msgid "Head bob"
+msgstr "머리 흔들림"
+
+msgid "The view rides on the hunter's head: it bobs, sways and dips as the head does when they run, roll and swing. Off: a steady view at the Eye height."
+msgstr "시점이 헌터의 머리를 따라갑니다. 달리기, 구르기, 휘두르기를 할 때 머리처럼 위아래·좌우로 흔들립니다. 끄면 '눈 높이'에 고정된 안정적인 시점이 됩니다."
+
+msgid "Eye height"
+msgstr "눈 높이"
+
+msgid "Metres above the hunter's feet (Head bob off)."
+msgstr "헌터 발 위로의 높이(미터)입니다(머리 흔들림을 껐을 때)."
+
+msgid "First-person field of view (+%)"
+msgstr "1인칭 시야각 (+%)"
+
+msgid "How much wider the view from the eyes is, as F10's Field of view widens it: 0 takes the Field of view above."
+msgstr "눈에서 보는 시점이 얼마나 더 넓은지 정합니다. 0이면 위의 시야각을 따릅니다."
+
+msgid "Look up/down limit"
+msgstr "상하 시선 제한"
+
+msgid "Degrees the view turns up or down from level in first person."
+msgstr "1인칭에서 수평 기준으로 시점이 위아래로 꺾이는 각도(도)입니다."
+
+msgid "Right stick speed"
+msgstr "오른쪽 스틱 속도"
+
+msgid "How fast the right stick turns the camera, times the game's own (its Camera speed option still applies)."
+msgstr "오른쪽 스틱이 카메라를 돌리는 속도입니다. 게임 기본 속도에 곱해지며, 게임의 카메라 속도 옵션도 그대로 적용됩니다."
+
+msgid "Mouse sensitivity (facing the camera)"
+msgstr "마우스 감도 (카메라 방향 보기)"
+
+msgid "How far the mouse turns the view in first person and with Always face the camera, on F10's Mouse sensitivity scale (50 its default); elsewhere F10's own applies."
+msgstr "1인칭과 '항상 카메라 방향 보기'일 때 마우스가 시점을 얼마나 돌리는지 F10의 마우스 감도 척도(기본값 50)로 정합니다. 그 외에는 F10의 설정이 적용됩니다."
+
+msgid "Reverse mouse Y-axis (facing the camera)"
+msgstr "마우스 상하 반전 (카메라 방향 보기)"
+
+msgid "Reverses the mouse's up and down there, as F10's Reverse mouse Y-axis does elsewhere."
+msgstr "그 상태에서 마우스의 위아래를 반전합니다. 다른 곳에서는 F10의 마우스 Y축 반전이 적용됩니다."
+
+msgid "Always face the camera"
+msgstr "항상 카메라 방향 보기"
+
+msgid "The hunter always faces where the camera looks and strafes by the stick, at full speed (they run and sprint as when locked on)."
+msgstr "헌터가 항상 카메라가 보는 방향을 향하고 스틱 방향으로 최고 속도로 이동합니다(락온했을 때처럼 달리고 질주합니다)."
+
+msgid "The monocular's sight at the middle of the screen while the hunter faces the camera (and in first person)."
+msgstr "헌터가 카메라 방향을 볼 때(그리고 1인칭에서) 단안경의 조준이 화면 가운데에 표시됩니다."
+
+msgid "Dodge (0 Roll, 1 Sidestep)"
+msgstr "회피 (0 구르기, 1 스텝)"
+
+msgid "0: always the roll, locked on too. 1: a quick sidestep in the stick's direction, as when locked on, without a lock. The Modern Movement Lite patch keeps working beside it."
+msgstr "0: 락온 중에도 항상 구르기. 1: 락온하지 않아도 락온 때처럼 스틱 방향으로 빠른 스텝. Modern Movement Lite 패치는 함께 계속 동작합니다."
+
