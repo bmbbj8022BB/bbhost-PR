@@ -39,6 +39,10 @@ static const BbHostApi* api;
 static char data_path[1024];     /* <data>/trophies.txt */
 static char plat_path[1024];     /* <plugin dir>/platinum.txt */
 static char wav_path[1024];      /* <plugin dir>/trophy.wav */
+static char mp3_path[1024];  /* <plugin dir>/trophy.mp3, played through MCI */
+static int have_mp3;
+static char plat_mp3_path[1024];  /* <plugin dir>/trophy_platinum.mp3 */
+static int have_plat_mp3;
 
 static char known[N_TROPHIES];
 static long long when[N_TROPHIES];
@@ -143,6 +147,12 @@ static void scale_custom(float vol) {
 }
 
 static void load_custom_wav(void) {
+    {
+        FILE* m = fopen(mp3_path, "rb");
+        if (m) { fclose(m); have_mp3 = 1; api->log("trophies: using %s", mp3_path); }
+        FILE* pm = fopen(plat_mp3_path, "rb");
+        if (pm) { fclose(pm); have_plat_mp3 = 1; api->log("trophies: platinum uses %s", plat_mp3_path); }
+    }
     FILE* f = fopen(wav_path, "rb");
     if (!f) return;
     fseek(f, 0, SEEK_END);
@@ -157,11 +167,27 @@ static void load_custom_wav(void) {
     if (custom_wav) api->log("trophies: using %s", wav_path);
 }
 
-static void play_chime(void) {
+#ifdef _WIN32
+static void play_mp3(const char* path, float vol) {
+    wchar_t wpath[1024], cmd[1100];
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, 1024);
+    for (wchar_t* c = wpath; *c; c++) if (*c == L'/') *c = L'\\';
+    mciSendStringW(L"close trophy_snd", NULL, 0, NULL);
+    wsprintfW(cmd, L"open \"%s\" type mpegvideo alias trophy_snd", wpath);
+    if (mciSendStringW(cmd, NULL, 0, NULL)) return;
+    wsprintfW(cmd, L"setaudio trophy_snd volume to %d", (int)(vol * 1000.0f));
+    mciSendStringW(cmd, NULL, 0, NULL);
+    mciSendStringW(L"play trophy_snd from 0", NULL, 0, NULL);
+}
+#endif
+
+static void play_chime(int plat) {
     float vol = cfg_float("trophies.volume", 0.7f);
     if (vol < 0) vol = 0;
     if (vol > 1) vol = 1;
 #ifdef _WIN32
+    if (plat && have_plat_mp3) { play_mp3(plat_mp3_path, vol); return; }
+    if (have_mp3) { play_mp3(mp3_path, vol); return; }
     if (!play_wav || vol != play_vol) {
         PlaySoundW(NULL, NULL, 0); /* stop before the buffer goes */
         free(play_wav);
@@ -171,7 +197,7 @@ static void play_chime(void) {
     }
     if (play_wav) PlaySoundW((LPCWSTR)play_wav, NULL, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
 #else
-    (void)vol; /* no sound off Windows */
+    (void)vol; (void)plat; /* no sound off Windows */
 #endif
 }
 
@@ -246,7 +272,7 @@ static void announce(int id) {
     int shown = cfg_bool("trophies.popup", 1) && start_popup(id, ko, sec);
     if (!shown && cfg_bool("trophies.notify", 1)) api->show_message(text, sec);
     if (shown || cfg_bool("trophies.notify", 1)) next_show = time(NULL) + (time_t)sec + 1;
-    if (cfg_bool("trophies.sound", 1)) play_chime();
+    if (cfg_bool("trophies.sound", 1)) play_chime(t->grade == 'P');
     api->log("trophies: unlocked %d (%s)", id, t->en_name);
 }
 
@@ -350,6 +376,8 @@ BB_PLUGIN_EXPORT int bb_plugin_image(const BbHostApi* host) {
     const char* pd = api->plugin_dir("trophies");
     snprintf(plat_path, sizeof(plat_path), "%s/platinum.txt", pd);
     snprintf(wav_path, sizeof(wav_path), "%s/trophy.wav", pd);
+    snprintf(mp3_path, sizeof(mp3_path), "%s/trophy.mp3", pd);
+    snprintf(plat_mp3_path, sizeof(plat_mp3_path), "%s/trophy_platinum.mp3", pd);
 
     FILE* f = fopen(plat_path, "r");
     if (f) {
