@@ -1,5 +1,6 @@
 #include "host/plugins.h"
 #include "host/plugin_address.h"
+#include "host/overlay.h"
 
 #include "bbhost_plugin.h"
 #include "core/config.h"
@@ -841,6 +842,16 @@ int api_show_message(const char* text, float seconds) {
 int api_show_text(const char* text, float seconds, float x, float y, float scale, std::uint32_t align) {
     if (!text) return 1;
     host_text_show(text, seconds, x, y, scale, align);
+    return 0;
+}
+
+// Version 30: an image drawn over the finished frame (host/overlay.h).
+int api_overlay_image_set(const std::uint8_t* rgba, std::uint32_t w, std::uint32_t h) { return host_overlay_image_set(rgba, w, h); }
+int api_overlay_image_place(float x, float y, float w, float h, float alpha) {
+    return host_overlay_image_place(x, y, w, h, alpha);
+}
+int api_overlay_area(std::uint32_t* w, std::uint32_t* h) {
+    host_overlay_area_size(w, h);
     return 0;
 }
 
@@ -1846,6 +1857,7 @@ const BbHostApi g_api = {
     &api_panel_show, &api_panel_state, &api_option_set, &api_input_take_as, &api_input_as,
     &api_panel_rows, &api_panel_value, &api_panel_open,
     &api_cutscene,
+    &api_overlay_image_set, &api_overlay_image_place, &api_overlay_area,
 };
 
 std::string read_file(const std::string& path) {

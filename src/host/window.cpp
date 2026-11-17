@@ -1293,6 +1293,8 @@ bool vk_present() {
     const bool bars = shown.extent.width != g_vk.extent.width || shown.extent.height != g_vk.extent.height;
     const float overlay_w = static_cast<float>(display_w ? display_w : g_vk.extent.width);
     const float overlay_h = static_cast<float>(display_h ? display_h : g_vk.extent.height);
+    // A plugin's overlay image set since the last present is uploaded here, outside any rendering (host/overlay.cpp).
+    host_overlay_prepare(g_vk.cmd, area);
     // The swapchain image is written from the stage its acquire is waited at.
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
     bool recorded = false;

@@ -24,8 +24,23 @@ void host_overlay_tri(float x0, float y0, float x1, float y1, float x2, float y2
 // A pointer with its tip at (x, y): a filled arrow with a dark outline, so it
 // reads against both a bright menu and a dark one.
 void host_overlay_cursor(float x, float y);
-// Nothing committed to draw: one atomic load, no lock.
+// Nothing committed to draw: one atomic load, no lock. (A plugin's image, below, counts as something.)
 bool host_overlay_empty();
+
+// A plugin's RGBA8 image (plugin API 30: overlay_image_set / overlay_image_place), drawn over the finished frame -
+// after the game's post-processing and HUD, so it is not blurred or colour-fringed - sharp at the picture's own
+// pixels. One image at a time, at most kImageMaxW x kImageMaxH. Any thread.
+constexpr std::uint32_t kOverlayImageMaxW = 1280, kOverlayImageMaxH = 576;
+// Copies `rgba` (w*h*4 bytes, R first, straight alpha, sRGB) to be uploaded by the next present. 0 on success.
+int host_overlay_image_set(const std::uint8_t* rgba, std::uint32_t w, std::uint32_t h);
+// Where the image is drawn, as fractions of the game's picture (x, y its top-left, w, h its size; the picture's own
+// pixels when they come to whole pixels). `alpha` 0 hides it. 0 on success, 1 before an image was set.
+int host_overlay_image_place(float x, float y, float w, float h, float alpha);
+// The picture's size in the window, in pixels, as the last present saw it (0, 0 before the first).
+void host_overlay_area_size(std::uint32_t* w, std::uint32_t* h);
+// Presenter side, once per present, with the command buffer recording and outside any rendering: uploads a newly
+// set image, and remembers `area` (where the picture is in the swapchain image).
+void host_overlay_prepare(VkCommandBuffer cmd, VkRect2D area);
 
 // Presenter side. `init` is safe to call repeatedly; `draw` records into a
 // command buffer that is already in dynamic rendering's expected layout and
