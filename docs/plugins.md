@@ -206,6 +206,26 @@ gives the Binary Ninja address.
   cutscene leaves the hunter (Quake, Hunter Cam and Isometric do). `on_view` is
   not called during one; `on_camera` still is.
 
+**An image over the finished frame** (v30)
+
+A trophy card, a toast: an RGBA image drawn in the presenter, where bbhost's own
+overlay is, after the game's post-processing and its HUD, so they do not blur it
+or fringe its colour.
+
+- `overlay_image_set(rgba, w, h)`: `rgba` is w*h*4 bytes, R first, straight alpha,
+  sRGB, copied. The next present uploads it, and it stays until another is set.
+  One image at a time, at most 1280 x 576. 0 on success; 1 for a null pointer or
+  a size over the limit. Any thread.
+- `overlay_image_place(x, y, w, h, alpha)`: where it is drawn, as fractions of the
+  game's picture: x, y its top-left corner, w, h its size (they may run past the
+  picture's edge, and the edge cuts them). Snapped to whole pixels of the
+  picture, so an image made at the picture's own size lands texel on pixel and
+  stays sharp. `alpha` 0..1 fades it; 0 hides it. Call it again for each frame it
+  moves. 0 on success; 1 before any image was set. Any thread.
+- `overlay_area(&w, &h)`: the picture's size in the window, in pixels, as the last
+  present saw it (0, 0 before the first present): the size to make an image at.
+  Any thread.
+
 **The world held still, the controller, who else is in the world, the HUD, the look and a panel** (v29)
 
 What a photo mode needs: the world stopped while its own camera flies, the
