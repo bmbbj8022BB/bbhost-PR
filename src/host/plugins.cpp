@@ -25,6 +25,7 @@
 #include "engine/plugin_dialog.h"
 #include "engine/world_chr.h"
 #include "engine/lua_events.h"
+#include "engine/menu_assets.h"
 #include "engine/loading.h"
 #include "engine/menu_pointer.h"
 #include "engine/world_pause.h"
@@ -1042,6 +1043,7 @@ int api_overlay_file(const char* name, const char* path, const void* data, std::
     std::vector<std::uint8_t> bytes(static_cast<const std::uint8_t*>(data), static_cast<const std::uint8_t*>(data) + size);
     const std::string p = path;
     const std::vector<std::uint8_t> raw = bytes;
+    menu_assets_extend_plugin_bundle(p, bytes);
     // Level 1: written at run time too (a re-seed between maps); the game
     // reads any level, and 22 layouts take ~0.3 s instead of ~3.
     if (p.size() > 4 && p.compare(p.size() - 4, 4, ".dcx") == 0) bytes = gcn::dcx_compress(bytes, 1);
