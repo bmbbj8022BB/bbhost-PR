@@ -508,6 +508,7 @@ bool plugin_panel_native_page(plugin_dialog::Page& out) {
             r.label = l.name;
             r.help = native_help(l.help + ".", "");
             r.presses = true;
+            r.value = "Open";
             out.rows.push_back(std::move(r));
         }
         return !out.rows.empty();
