@@ -16,6 +16,7 @@
 #include "engine/gx_resources.h"
 #include "engine/texture_origin.h"
 #include "host/fill_pending.h"
+#include "host/tex_update.h"
 #include "host/gxvk.h"
 
 #include "core/write_watch.h"
@@ -3169,6 +3170,7 @@ void textures_follow_quality_locked() {
 // memory's previous owner's image is never handed to the resource after it.
 std::atomic<std::uint64_t> g_view_other_gen{0}, g_view_other_gen_kept{0}, g_view_other_gen_adopted{0};
 void take_pending_fill_locked(const Surface& sf);  // below, beside textures_fill_surfaces_locked
+void take_pending_updates_locked(const Surface& sf);  // below, after take_pending_fill_locked
 VkImageView texture_view_uncached(const std::uint32_t* w, bool storage, bool& dims_ok, std::uint32_t& dim, bool& arrayed,
                          bool shader_arrayed, bool r128, std::uint64_t expect_gen = 0) {
     dims_ok = true;
@@ -3599,7 +3601,10 @@ VkImageView texture_view_uncached(const std::uint32_t* w, bool storage, bool& di
         }
         it = g_surfaces.emplace(base, sf).first;
         note_surface_added(it->second);
-        if (!carried) take_pending_fill_locked(it->second);
+        if (!carried) {
+            take_pending_fill_locked(it->second);
+            take_pending_updates_locked(it->second);
+        }
         if (!t_force_async) {
             ++g_bind_made;
             g_bind_made_bytes += it->second.memory.size;
@@ -4505,7 +4510,11 @@ VkSampler sampler_anisotropic(VkSampler base, int level) {
     return out;
 }
 
-VkSampler sampler_nearest(VkSampler base) {
+namespace {
+// sampler_nearest and sampler_linear: `base` with its texel filter changed,
+// each its own memo and map (a template's statics are per instance).
+template <bool kLinear>
+VkSampler sampler_filtered(VkSampler base) {
     if (!base) return base;
     // The answer for this thread's last few, in front of the map (samplers
     // are never destroyed, so an entry never goes stale).
@@ -4529,13 +4538,19 @@ VkSampler sampler_nearest(VkSampler base) {
         // would take the hardware's four-sample blend away.
         if (rec != g_sampler_records.end() && !rec->second.compareEnable) {
             const VkSamplerCreateInfo& was = rec->second;
-            if (was.magFilter != VK_FILTER_NEAREST || was.minFilter != VK_FILTER_NEAREST || was.mipmapMode != VK_SAMPLER_MIPMAP_MODE_NEAREST ||
-                was.anisotropyEnable) {
+            const bool change = kLinear ? was.magFilter != VK_FILTER_LINEAR || was.minFilter != VK_FILTER_LINEAR
+                                        : was.magFilter != VK_FILTER_NEAREST || was.minFilter != VK_FILTER_NEAREST ||
+                                              was.mipmapMode != VK_SAMPLER_MIPMAP_MODE_NEAREST || was.anisotropyEnable;
+            if (change) {
                 VkSamplerCreateInfo sci = was;
-                sci.magFilter = sci.minFilter = VK_FILTER_NEAREST;
-                sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-                sci.anisotropyEnable = VK_FALSE;
-                sci.maxAnisotropy = 1.0f;
+                if (kLinear) {
+                    sci.magFilter = sci.minFilter = VK_FILTER_LINEAR;  // the mip mode and anisotropy as they were
+                } else {
+                    sci.magFilter = sci.minFilter = VK_FILTER_NEAREST;
+                    sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+                    sci.anisotropyEnable = VK_FALSE;
+                    sci.maxAnisotropy = 1.0f;
+                }
                 if (vkCreateSampler(g.device, &sci, nullptr, &out) == VK_SUCCESS)
                     g_sampler_records[out] = sci;
                 else
@@ -4549,6 +4564,10 @@ VkSampler sampler_nearest(VkSampler base) {
     m.out = out;
     return out;
 }
+}  // namespace
+
+VkSampler sampler_nearest(VkSampler base) { return sampler_filtered<false>(base); }
+VkSampler sampler_linear(VkSampler base) { return sampler_filtered<true>(base); }
 
 // Stage 4b.1a's reader path (under cache_rw's shared lock): the sampler made
 // for these words, null when it is not made yet.
@@ -4760,6 +4779,103 @@ void take_pending_fill_locked(const Surface& sf) {
         host_log("texture: 0x%llx %ux%u made after the fill its GX resource was cleared with, which met no image: cleared to %g %g %g %g, "
                  "not the memory the fill never wrote",
                  static_cast<unsigned long long>(sf.base), sf.width, sf.height, rgba[0], rgba[1], rgba[2], rgba[3]);
+    }
+}
+
+// YEBIS's texture updates, kept until their texture is made
+// (host/tex_update.h): queued by the game's thread (textures_yebis_update),
+// taken under the renderer's lock by the texture made for them. A texture
+// made before its update came - the update of a texture in use, which YEBIS
+// does not make - keeps today's path.
+// BBHOST_YEBIS_UPDATE_AT_MAKE=0: none kept (gx_resources.cpp tells the cache
+// of the update as of a Map instead).
+const bool g_update_at_make = [] {
+    const char* e = std::getenv("BBHOST_YEBIS_UPDATE_AT_MAKE");
+    return !(e && e[0] == '0');
+}();
+std::mutex g_tex_updates_mu;
+std::deque<TexUpdate> g_tex_updates;  // under g_tex_updates_mu, in the order they came
+std::size_t g_tex_update_bytes = 0;   // their texels', under g_tex_updates_mu
+std::atomic<std::uint64_t> g_tex_updates_kept{0}, g_tex_updates_taken{0}, g_tex_updates_refused{0}, g_tex_updates_dropped{0};
+// No texture made for these yet after this many: the oldest go (a resource
+// destroyed before it was ever bound is let go with its retirement).
+constexpr std::size_t kTexUpdatesMax = 4096, kTexUpdateBytesMax = 64u << 20;
+bool textures_yebis_update(TexUpdate&& u) {
+    if (!g_update_at_make || !u.gen || !u.memory) return false;
+    std::lock_guard<std::mutex> lk(g_tex_updates_mu);
+    g_tex_update_bytes += u.rows.size();
+    g_tex_updates.push_back(std::move(u));
+    while (g_tex_updates.size() > kTexUpdatesMax || g_tex_update_bytes > kTexUpdateBytesMax) {
+        g_tex_update_bytes -= g_tex_updates.front().rows.size();
+        g_tex_updates.pop_front();
+        g_tex_updates_dropped.fetch_add(1, std::memory_order_relaxed);
+    }
+    g_tex_updates_kept.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+// A resource retired (textures_retire): its updates no texture took go.
+void drop_tex_updates(std::uint64_t gen) {
+    if (!gen) return;
+    std::lock_guard<std::mutex> lk(g_tex_updates_mu);
+    for (auto it = g_tex_updates.begin(); it != g_tex_updates.end();) {
+        if (it->gen != gen) {
+            ++it;
+            continue;
+        }
+        g_tex_update_bytes -= it->rows.size();
+        it = g_tex_updates.erase(it);
+    }
+}
+// A texture just made from its memory takes its resource's updates, in the
+// order they came, as rows into its image (the upload token's path): the
+// texels the game gave YEBIS, not the memory its lost copies never reached.
+void take_pending_updates_locked(const Surface& sf) {
+    if (!g_update_at_make || !sf.total_src || sf.block != 1 || sf.drop) return;
+    GxResourceInfo r;
+    if (!gx_resource_at(sf.base, 1, &r) || r.memory != sf.base || r.type < 2) return;
+    const std::uint64_t base = sf.base;
+    const std::uint32_t layers = sf.type == 10 ? 1 : sf.layers, levels = static_cast<std::uint32_t>(sf.levels.size());
+    // Its resource's updates of the levels and layers this image has; one of a level it lacks (a T# of fewer levels
+    // made it) stays for an image of the whole chain made later.
+    std::vector<TexUpdate> mine;
+    {
+        std::lock_guard<std::mutex> lk(g_tex_updates_mu);
+        if (g_tex_updates.empty()) return;
+        for (auto it = g_tex_updates.begin(); it != g_tex_updates.end();) {
+            if (it->gen != r.gen || it->memory != base || it->mip >= levels || it->slice >= layers) {
+                ++it;
+                continue;
+            }
+            g_tex_update_bytes -= it->rows.size();
+            mine.push_back(std::move(*it));
+            it = g_tex_updates.erase(it);
+        }
+    }
+    const std::uint32_t width = sf.width, height = sf.height, esize = sf.esize;
+    for (const TexUpdate& u : mine) {
+        // (`sf` may move as the upload's lookups run: what the rule reads was copied above.)
+        const std::uint32_t mw = std::max(1u, width >> std::min(u.mip, 31u)), mh = std::max(1u, height >> std::min(u.mip, 31u));
+        if (!tex_update_takes(u, base, r.gen, levels, layers, mw, mh, esize)) {
+            g_tex_updates_refused.fetch_add(1, std::memory_order_relaxed);
+            continue;
+        }
+        const std::vector<std::uint8_t> rows = tex_update_packed(u, esize);
+        if (!textures_upload_region_locked(base, nullptr, u.mip, u.slice, u.x, u.y, u.w, u.h, rows.data(), rows.size(), u.w * esize)) {
+            g_tex_updates_refused.fetch_add(1, std::memory_order_relaxed);
+            continue;
+        }
+        g_tex_updates_taken.fetch_add(1, std::memory_order_relaxed);
+        // Written by the update's own submission (TexUpdate::submitted), not the one making the texture now: a texture
+        // its resource's death retires (and the next resource at its memory does not adopt) as it would the copy's image.
+        if (const auto me = g_surfaces.find(base); me != g_surfaces.end()) me->second.written_seq = u.submitted + 1;
+        tex_event(base, sf.total_src, "texture 0x%llx made after its resource's update: took the update's %ux%u texels at %u,%u of mip %u layer %u",
+                  static_cast<unsigned long long>(base), u.w, u.h, u.x, u.y, u.mip, u.slice);
+        static std::atomic<int> logs{0};
+        if (logs.fetch_add(1, std::memory_order_relaxed) < 8) {
+            host_log("texture: 0x%llx %ux%u made after its YEBIS update (generation %llu): took the update's %ux%u texels of mip %u layer %u, "
+                     "not the memory its copy had not reached",
+                     static_cast<unsigned long long>(base), width, height, static_cast<unsigned long long>(r.gen), u.w, u.h, u.mip, u.slice);
+        }
     }
 }
 
@@ -5100,10 +5216,17 @@ bool textures_copy_image_region_locked(const GpuImageCopy& c) {
     // Depth layouts (render.cpp): a depth target is copied in GENERAL, as every image here.
     if (src.rt) rt_set_layout_locked(*src.rt, VK_IMAGE_LAYOUT_GENERAL);
     if (dst.rt) rt_set_layout_locked(*dst.rt, VK_IMAGE_LAYOUT_GENERAL);
+    // The barriers and the copy as the stream's ops (host/recorder.cpp): recorded in place, each copy token drained
+    // the recorder - 13 a flip at Old Yharnam and Central Yharnam. BBHOST_STREAM_COPY_TOKEN=0: in place, as before.
+    static const bool as_ops = [] {
+        const char* e = std::getenv("BBHOST_STREAM_COPY_TOKEN");
+        return !(e && e[0] == '0');
+    }();
     VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
     mb.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
     mb.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT;
-    vkCmdPipelineBarrier(g_cmd(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    if (as_ops) rec().pipeline_barrier(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    else vkCmdPipelineBarrier(g_cmd(), VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
     const VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
     VkImageCopy r{};
     r.srcSubresource = {aspect, c.src_mip - src.drop, c.src_layer, 1};
@@ -5117,11 +5240,13 @@ bool textures_copy_image_region_locked(const GpuImageCopy& c) {
         std::snprintf(key, sizeof(key), "img-copy-%ux%u-f%d", c.w, c.h, static_cast<int>(dst.format));
         profile_begin_locked(&profile_names.emplace(key, key).first->second);
     }
-    vkCmdCopyImage(g_cmd(), src.image, VK_IMAGE_LAYOUT_GENERAL, dst.image, VK_IMAGE_LAYOUT_GENERAL, 1, &r);
+    if (as_ops) rec().copy_image(src.image, VK_IMAGE_LAYOUT_GENERAL, dst.image, VK_IMAGE_LAYOUT_GENERAL, 1, &r);
+    else vkCmdCopyImage(g_cmd(), src.image, VK_IMAGE_LAYOUT_GENERAL, dst.image, VK_IMAGE_LAYOUT_GENERAL, 1, &r);
     if (g.profile) profile_end_locked();
     mb.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     mb.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
-    vkCmdPipelineBarrier(g_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    if (as_ops) rec().pipeline_barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    else vkCmdPipelineBarrier(g_cmd(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
     if (dst.surface) {
         surface_written(*dst.surface);
         static_changed(*dst.surface);
@@ -5373,6 +5498,7 @@ std::uint64_t textures_forget_region_locked(std::uint64_t lo, std::uint64_t hi) 
 
 void textures_retire(std::uint64_t base, std::size_t bytes, std::uint64_t after_submitted, std::uint64_t gen) {
     const bool rebuild = g_targets_rebuild.load(std::memory_order_relaxed);
+    drop_tex_updates(gen);  // updates no texture took (host/tex_update.h)
     std::lock_guard<std::mutex> lk(g_retire_mu);
     g_retire_pending.push_back({base, bytes, after_submitted, gen, rebuild});
 }
@@ -6932,6 +7058,14 @@ void textures_report() {
              static_cast<unsigned long long>(g_region_uploads.load()), static_cast<unsigned long long>(g_region_bytes.load() >> 20),
              static_cast<unsigned long long>(g_region_created.load()), static_cast<unsigned long long>(g_region_no_surface.load()),
              static_cast<unsigned long long>(g_region_out_of_range.load()));
+    {
+        std::lock_guard<std::mutex> lk(g_tex_updates_mu);
+        host_log("texture: YEBIS updates kept for the texture made for them (host/tex_update.h): %llu kept, %llu taken as the texture was made, "
+                 "%llu refused, %llu dropped for room; waiting now %zu (%zu KiB)",
+                 static_cast<unsigned long long>(g_tex_updates_kept.load()), static_cast<unsigned long long>(g_tex_updates_taken.load()),
+                 static_cast<unsigned long long>(g_tex_updates_refused.load()), static_cast<unsigned long long>(g_tex_updates_dropped.load()),
+                 g_tex_updates.size(), g_tex_update_bytes >> 10);
+    }
     {
         std::uint64_t now_reduced = 0, now_saved = 0;
         std::uint64_t by_origin[kOriginCount][2] = {};  // surfaces of each origin, and of them reduced

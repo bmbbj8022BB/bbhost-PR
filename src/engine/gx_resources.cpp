@@ -50,6 +50,7 @@
 #include "host/gxvk.h"
 #include "host/gxvk_homes.h"
 #include "host/rt_extent.h"
+#include "host/run_lookups.h"
 #include "log.h"
 
 #if !defined(_WIN32)
@@ -229,6 +230,7 @@ thread_local std::vector<Pending> t_pending;
 // The T# the builder produced on this thread, for the creator's return.
 thread_local std::uint32_t t_tsharp[8];
 thread_local bool t_tsharp_valid = false;
+thread_local std::uint8_t t_new_cpu = 0;  // the CPU access of the texture being registered (1 write, 2 read)
 // BBHOST_GX_TEX_AHEAD=0: do not create textures ahead of their first bind.
 const bool g_tex_ahead = [] {
     const char* e = std::getenv("BBHOST_GX_TEX_AHEAD");
@@ -256,7 +258,14 @@ std::uint64_t g_slide = 0;
 std::mutex g_mu;
 std::unordered_map<std::uint64_t, Entry> g_by_holder;      // under g_mu
 std::map<std::uint64_t, std::uint64_t> g_by_memory;        // memory base -> holder, live entries only
-std::atomic<std::uint64_t> g_write_seq{1};
+// The registry's shape (host/run_lookups.h): its memory index, its holders,
+// and each entry's memory, size, type and liveness - what gx_buffer_end's
+// answer is made of. Moved under g_mu after each change of it, before anything
+// else in that change (run_lookups' helpers), with release order; read with
+// acquire. A line of its own: every vertex record whose extent is asked reads
+// it, and the counters beside the maps are written at every Map and lookup.
+alignas(64) std::atomic<std::uint64_t> g_shape_gen{1};
+alignas(64) std::atomic<std::uint64_t> g_write_seq{1};
 std::atomic<std::uint64_t> g_gen_next{1};  // GxResourceInfo::gen
 
 // Counters.
@@ -489,6 +498,8 @@ void register_holder(std::uint64_t key, std::uint64_t holder, Kind kind, bool in
         return;
     }
     rd(holder + 0x3b, &e.info.bind);
+    t_new_cpu = 0;
+    rd(holder + 0x3a, &t_new_cpu);
     e.info.gen = g_gen_next.fetch_add(1, std::memory_order_relaxed);
     e.info.created_submit = hle_gnm_submitted_total();
     e.info.id = id & 0xffffff;
@@ -542,6 +553,25 @@ void register_holder(std::uint64_t key, std::uint64_t holder, Kind kind, bool in
     register_entry(key, e);
 }
 
+// BBHOST_TEX_POISON=1 (checks): a texture GX or YEBIS makes without data
+// starts with 0xff in every byte of its memory - what memory nothing wrote
+// often holds (YEBIS's private heap starts so, yebis_startup's fill): NaN in a
+// float texture, white in an 8-bit one - so a texture read before anything
+// writes it reads the same in every run. Not one the CPU reads back (staging,
+// or CPU-read access: the game's own reads would change).
+const bool g_tex_poison = [] {
+    const char* e = std::getenv("BBHOST_TEX_POISON");
+    return e && e[0] == '1';
+}();
+std::atomic<std::uint64_t> g_tex_poisoned{0};
+void poison_new_texture(const GxResourceInfo& r, std::uint8_t cpu) {
+    if (!g_tex_poison || r.type < 2 || r.type > 4 || r.initial_data || !r.memory || !r.bytes || r.usage == 3 || (cpu & 2) ||
+        !hle_kernel_va_mapped(r.memory, r.bytes))
+        return;
+    std::memset(reinterpret_cast<void*>(static_cast<std::uintptr_t>(r.memory)), 0xff, r.bytes);
+    if (g_tex_poisoned.fetch_add(1, std::memory_order_relaxed) == 0)
+        host_log("gx-resources: textures made without data start as 0xff in memory (BBHOST_TEX_POISON)");
+}
 // The registry takes a resource under `key`: indexed by its memory, a live
 // one there before it dead as far as the memory goes, the mirrors told.
 void register_entry(std::uint64_t key, Entry& e) {
@@ -549,8 +579,9 @@ void register_entry(std::uint64_t key, Entry& e) {
     if (auto old = g_by_holder.find(key); old != g_by_holder.end()) {
         // The holder's address reused before its destructor was seen.
         g_replaced_holder.fetch_add(1, std::memory_order_relaxed);
-        if (auto m = g_by_memory.find(old->second.info.memory); m != g_by_memory.end() && m->second == key) g_by_memory.erase(m);
-        g_by_holder.erase(old);
+        if (auto m = g_by_memory.find(old->second.info.memory); m != g_by_memory.end() && m->second == key)
+            run_lookups::erase_moved(g_by_memory, m, g_shape_gen);
+        run_lookups::erase_moved(g_by_holder, old, g_shape_gen);
     }
     if (e.info.memory && e.info.bytes) {
         // The census: live resources the new one's memory overlaps other than
@@ -591,11 +622,11 @@ void register_entry(std::uint64_t key, Entry& e) {
                          static_cast<unsigned long long>(old != g_by_holder.end() ? old->second.created_flip : 0), static_cast<unsigned long long>(m->second));
             }
             if (const auto old = g_by_holder.find(m->second); old != g_by_holder.end() && old->second.info.type == 1) gxvk::buffer_replaced(m->second);
-            if (old_holder_alive(m->second)) g_by_holder.erase(m->second);
+            if (old_holder_alive(m->second)) run_lookups::erase_moved(g_by_holder, g_by_holder.find(m->second), g_shape_gen);
         }
-        g_by_memory[e.info.memory] = key;
+        run_lookups::set_moved(g_by_memory, e.info.memory, key, g_shape_gen);
     }
-    g_by_holder.emplace(key, e);
+    run_lookups::emplace_moved(g_by_holder, key, e, g_shape_gen);
     const std::uint64_t live = g_by_memory.size();
     if (live > g_peak_live.load(std::memory_order_relaxed)) g_peak_live.store(live, std::memory_order_relaxed);
     // A resource made: with data, its creator copied the data in before
@@ -606,6 +637,7 @@ void register_entry(std::uint64_t key, Entry& e) {
     // (host_gpu_shadow_gx_created takes a lock of its own, never the
     // registry's).
     if (e.info.memory && e.info.bytes) host_gpu_shadow_gx_created(e.info.memory, e.info.bytes);
+    poison_new_texture(e.info, t_new_cpu);
 }
 
 // Textures made ahead of their first bind are made on a thread of their own,
@@ -724,8 +756,9 @@ void unregister_holder(std::uint64_t holder) {
             buffer_bytes = it->second.info.bytes;
             buffer_gen = it->second.info.gen;
         }
-        if (auto m = g_by_memory.find(it->second.info.memory); m != g_by_memory.end() && m->second == holder) g_by_memory.erase(m);
-        g_by_holder.erase(it);
+        if (auto m = g_by_memory.find(it->second.info.memory); m != g_by_memory.end() && m->second == holder)
+            run_lookups::erase_moved(g_by_memory, m, g_shape_gen);
+        run_lookups::erase_moved(g_by_holder, it, g_shape_gen);
         g_last_copy.erase(holder);
     }
     retire_memory(memory, bytes, gen);
@@ -773,9 +806,11 @@ void note_map(std::uint64_t holder, std::uint64_t type, std::uint64_t mapped_out
                 moved_from = e.info.memory;
                 moved_bytes = e.info.bytes;
             }
-            if (auto m = g_by_memory.find(e.info.memory); m != g_by_memory.end() && m->second == holder) g_by_memory.erase(m);
+            if (auto m = g_by_memory.find(e.info.memory); m != g_by_memory.end() && m->second == holder)
+                run_lookups::erase_moved(g_by_memory, m, g_shape_gen);
             e.info.memory = memory;
-            g_by_memory[memory] = holder;
+            run_lookups::shape_moved(g_shape_gen);
+            run_lookups::set_moved(g_by_memory, memory, holder, g_shape_gen);
         }
         if (e.info.type >= 2 && e.info.type <= 4) {
             texture_memory = e.info.memory;
@@ -1018,10 +1053,63 @@ GUEST_ABI std::int64_t yebis_map_hook(std::uint64_t, const std::uint64_t* saved)
     const_cast<std::uint64_t*>(saved)[6] = reinterpret_cast<std::uint64_t>(&gx_res_ret);
     return 0;
 }
+// UpdateSubresource of a YEBIS 2D texture (0x15d8d70: ctx, resource,
+// subresource, box*, data, row pitch): the texels are copied by a compute
+// copy YEBIS records, which some of its starts never run - the texture cache
+// keeps them for the texture made for this resource (host/tex_update.h). The
+// D3D11 description at +0x188: width, height, mips, array, format; block-
+// compressed formats (BC1-5 70-84, BC6H/BC7 94-99) are left to the copy.
+void yebis_written(std::uint64_t object, bool after_map, bool tell_cache);  // below
+bool keep_yebis_update(const std::uint64_t* saved) {
+    const std::uint64_t object = saved[4], box = saved[2], data = saved[1];
+    const std::uint32_t subresource = static_cast<std::uint32_t>(saved[3]), pitch = static_cast<std::uint32_t>(saved[0]);
+    std::uint32_t d[5] = {};
+    if (!g_res_yebis || !object || !data || !pitch || yebis_kind(object) != 3 ||
+        !host_read_safe(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(object + 0x188)), d, sizeof(d)))
+        return false;
+    if ((d[4] >= 70 && d[4] <= 84) || (d[4] >= 94 && d[4] <= 99)) return false;
+    std::uint64_t memory = 0, gen = 0;
+    {
+        std::lock_guard<std::mutex> lk(g_mu);
+        const auto it = g_by_holder.find(kYebisKey | object);
+        if (it == g_by_holder.end() || !it->second.info.alive) return false;
+        memory = it->second.info.memory;
+        gen = it->second.info.gen;
+    }
+    const std::uint32_t mips = std::max(1u, d[2]), mip = subresource % mips, slice = subresource / mips;
+    const std::uint32_t mw = std::max(1u, d[0] >> std::min(mip, 31u)), mh = std::max(1u, d[1] >> std::min(mip, 31u));
+    std::uint32_t x = 0, y = 0, w = mw, h = mh;
+    if (box) {
+        std::uint32_t b[6] = {};  // D3D11_BOX: left, top, front, right, bottom, back
+        if (!host_read_safe(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(box)), b, sizeof(b)) || b[3] <= b[0] || b[4] <= b[1]) return false;
+        x = b[0];
+        y = b[1];
+        w = b[3] - b[0];
+        h = b[4] - b[1];
+    }
+    const std::size_t bytes = static_cast<std::size_t>(pitch) * h;
+    if (bytes > (4u << 20)) return false;
+    std::vector<std::uint8_t> rows(bytes);
+    if (!host_read_safe(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(data)), rows.data(), bytes)) return false;
+    return host_gpu_yebis_texture_update(memory, gen, mip, slice, x, y, w, h, rows.data(), pitch, hle_gnm_submitted_total());
+}
 GUEST_ABI std::int64_t yebis_update_hook(std::uint64_t, const std::uint64_t* saved) {
     if (yebis_skip(saved[4])) return 0;
     Pending p{saved[6], kYebisUpdateCall, 0, 0, 0};
     p.extra = saved[4];
+    p.type = keep_yebis_update(saved) ? 1 : 0;  // kept: its texels reach the texture without the memory
+    // BBHOST_TEST_DROP_YEBIS_UPLOADS=1 (checks): the update does not run - no copy is recorded, as when one of
+    // YEBIS's starts loses its copies - so the texture has only what the cache kept (or nothing).
+    static const bool drop = [] {
+        const char* e = std::getenv("BBHOST_TEST_DROP_YEBIS_UPLOADS");
+        return e && e[0] == '1';
+    }();
+    if (drop) {
+        static std::atomic<bool> said{false};
+        if (!said.exchange(true)) host_log("gx-resources: YEBIS's texture updates are not run (BBHOST_TEST_DROP_YEBIS_UPLOADS)");
+        yebis_written(p.extra, false, p.type == 0);
+        return 1;
+    }
     t_pending.push_back(p);
     const_cast<std::uint64_t*>(saved)[6] = reinterpret_cast<std::uint64_t>(&gx_res_ret);
     return 0;
@@ -1031,7 +1119,7 @@ GUEST_ABI std::int64_t yebis_update_hook(std::uint64_t, const std::uint64_t* sav
 // After a Map its memory is read again: a discard renames it (YEBIS's Map
 // hands out new memory from its ring and rebases the T#), and the registry
 // follows, as it does a GX holder's.
-void yebis_written(std::uint64_t object, bool after_map = false) {
+void yebis_written(std::uint64_t object, bool after_map = false, bool tell_cache = true) {
     if (!g_res_yebis || !object) return;
     std::uint64_t memory = 0, now = 0;
     std::uint32_t bytes = 0;
@@ -1044,9 +1132,11 @@ void yebis_written(std::uint64_t object, bool after_map = false) {
         Entry& e = it->second;
         if (now && now != e.info.memory) {
             g_map_moved.fetch_add(1, std::memory_order_relaxed);
-            if (auto m = g_by_memory.find(e.info.memory); m != g_by_memory.end() && m->second == key) g_by_memory.erase(m);
+            if (auto m = g_by_memory.find(e.info.memory); m != g_by_memory.end() && m->second == key)
+                run_lookups::erase_moved(g_by_memory, m, g_shape_gen);
             e.info.memory = now;
-            g_by_memory[now] = key;
+            run_lookups::shape_moved(g_shape_gen);
+            run_lookups::set_moved(g_by_memory, now, key, g_shape_gen);
             e.yebis_flip = ~0ull;  // (its object read again on the new memory)
         }
         memory = e.info.memory;
@@ -1054,7 +1144,9 @@ void yebis_written(std::uint64_t object, bool after_map = false) {
         e.info.write_seq = g_write_seq.fetch_add(1, std::memory_order_relaxed) + 1;
     }
     g_yebis_told.fetch_add(1, std::memory_order_relaxed);
-    if (memory && bytes) host_gpu_texture_written(memory, bytes);
+    // An update the texture cache keeps (host/tex_update.h) never reaches the
+    // memory: an upload from it would only bring the old texels back.
+    if (memory && bytes && tell_cache) host_gpu_texture_written(memory, bytes);
 }
 GUEST_ABI std::int64_t yebis_unmap_hook(std::uint64_t, const std::uint64_t* saved) {
     if (yebis_skip(saved[4])) return 0;
@@ -1228,6 +1320,7 @@ void register_yebis_2d(std::uint64_t object, bool initial_data) {
     e.info.type = 3;
     e.info.usage = static_cast<std::uint8_t>(d[7]);
     e.info.bind = static_cast<std::uint8_t>(d[8]);
+    t_new_cpu = static_cast<std::uint8_t>((d[9] >> 16) & 3);  // D3D11_CPU_ACCESS_WRITE/READ
     e.info.gen = g_gen_next.fetch_add(1, std::memory_order_relaxed);
     e.info.created_submit = hle_gnm_submitted_total();
     e.info.initial_data = initial_data;
@@ -1480,7 +1573,7 @@ extern "C" GUEST_ABI std::uint64_t gx_res_after(std::uint64_t result) {
         scaleform_unmapped(p.holder);
     } else if (p.kind == kYebisUpdateCall) {
         g_yebis_updates[yebis_kind(p.extra)].fetch_add(1, std::memory_order_relaxed);
-        yebis_written(p.extra);
+        yebis_written(p.extra, false, p.type == 0);
     } else if (p.kind == kYebisMapCall) {
         if (static_cast<std::uint32_t>(result) == 0) yebis_written(p.extra, true);
         const std::uint32_t kind = yebis_kind(p.extra);
@@ -1922,8 +2015,12 @@ void gx_resources_memory_released(std::uint64_t va, std::size_t len) {
         if (g_by_memory.empty()) return;
         for (auto it = g_by_memory.lower_bound(va); it != g_by_memory.end() && it->first < va + len;) {
             auto h = g_by_holder.find(it->second);
-            if (h != g_by_holder.end()) h->second.info.alive = false;  // the holder may still be destroyed later
-            it = g_by_memory.erase(it);
+            if (h != g_by_holder.end()) {
+                h->second.info.alive = false;  // the holder may still be destroyed later
+                run_lookups::shape_moved(g_shape_gen);
+            }
+            const auto here = it++;
+            run_lookups::erase_moved(g_by_memory, here, g_shape_gen);
             ++n;
         }
     }
@@ -1957,15 +2054,81 @@ bool gx_resource_at(std::uint64_t va, std::size_t bytes, GxResourceInfo* out) {
     return true;
 }
 
+namespace {
+// gx_buffer_end's memo (BBHOST_RUN_LOOKUPS, host/run_lookups.h): this thread's
+// last answer, the addresses that answer the same, and the shape's generation
+// it was worked out at - under g_mu, the generation read there, where no move
+// can come between the lookup and the read (every move is made under g_mu).
+//
+// A hit answers without the lock. It cannot answer older than a change of the
+// registry the calling thread has synchronised with: each change is followed
+// at once by a release move of g_shape_gen, before anything in its change that
+// could release a lock or free memory (run_lookups' helpers: an erased node
+// is freed after the move). Whatever the thread synchronised with the change
+// through - g_mu, another lock, an atomic, the submission that brought it the
+// draw - was released after the change in the changing thread, so after the
+// move: the move happens before the thread's acquire load of the generation,
+// which then reads that move's value or a later one (coherence), never the
+// generation of a memo made before the change (a memo's generation is read
+// under g_mu, and every change after it moves the generation on). Such a
+// lookup misses and takes the lock. A change the thread has not synchronised
+// with is one its lookup may come before, which is what a hit answers. Each
+// thread's memo is its own; BBHOST_RUN_LOOKUPS=compare looks every hit up
+// under the lock as well and counts the differences.
+thread_local run_lookups::ExtentMemo t_extent_memo;
+// Lookups and memo answers on this thread, added to the totals every 256
+// lookups (a shared counter at every lookup would be a line the command
+// processor and the run commit's workers pass between them); compare mode's
+// checks, differences, and checks a change of the shape came between (the
+// memo's shape gone: not comparable), counted as made.
+struct ExtentCounts {
+    std::uint64_t asked = 0, hits = 0;
+};
+thread_local ExtentCounts t_extent_counts;
+std::atomic<std::uint64_t> g_extent_asked{0}, g_extent_hits{0}, g_extent_checked{0}, g_extent_differed{0}, g_extent_raced{0};
+std::atomic<int> g_extent_logs{0};
+const GxResourceInfo* resource_of_key(std::uint64_t key) {
+    const auto h = g_by_holder.find(key);
+    return h == g_by_holder.end() ? nullptr : &h->second.info;
+}
+}  // namespace
+
 std::uint64_t gx_buffer_end(std::uint64_t va) {
+    const int mode = run_lookups::g_mode;
+    ExtentCounts& c = t_extent_counts;
+    if ((++c.asked & 255) == 0) {
+        g_extent_asked.fetch_add(256, std::memory_order_relaxed);
+        g_extent_hits.fetch_add(c.hits, std::memory_order_relaxed);
+        c.hits = 0;
+    }
+    run_lookups::ExtentMemo& memo = t_extent_memo;
+    const bool hit = mode && run_lookups::extent_hit(memo, g_shape_gen.load(std::memory_order_acquire), va);
+    if (hit) {
+        ++c.hits;
+        if (mode == 1) return memo.end;
+    }
     std::lock_guard<std::mutex> lk(g_mu);
-    auto it = g_by_memory.upper_bound(va);
-    if (it == g_by_memory.begin()) return 0;
-    --it;
-    const auto h = g_by_holder.find(it->second);
-    if (h == g_by_holder.end() || !h->second.info.alive || h->second.info.type != 1) return 0;
-    const GxResourceInfo& r = h->second.info;
-    return va < r.memory + r.bytes ? r.memory + r.bytes : 0;
+    run_lookups::ExtentMemo m;
+    const std::uint64_t end = run_lookups::extent_lookup(g_by_memory, resource_of_key, va, &m);
+    m.gen = g_shape_gen.load(std::memory_order_relaxed);
+    if (hit) {  // compare: the memo's answer against the lookup's, the shape the same
+        g_extent_checked.fetch_add(1, std::memory_order_relaxed);
+        if (m.gen != memo.gen) {
+            g_extent_raced.fetch_add(1, std::memory_order_relaxed);
+        } else if (end != memo.end) {
+            g_extent_differed.fetch_add(1, std::memory_order_relaxed);
+            if (g_extent_logs.fetch_add(1, std::memory_order_relaxed) < 8) {
+                host_log("run-lookups: compare: the GX buffer extent at 0x%llx: the memo answered 0x%llx ([0x%llx, 0x%llx) at shape %llu), "
+                         "the lookup 0x%llx ([0x%llx, 0x%llx)) at flip %llu",
+                         static_cast<unsigned long long>(va), static_cast<unsigned long long>(memo.end), static_cast<unsigned long long>(memo.lo),
+                         static_cast<unsigned long long>(memo.hi), static_cast<unsigned long long>(memo.gen), static_cast<unsigned long long>(end),
+                         static_cast<unsigned long long>(m.lo), static_cast<unsigned long long>(m.hi),
+                         static_cast<unsigned long long>(hle_video_flip_count()));
+            }
+        }
+    }
+    if (mode) memo = m;
+    return end;
 }
 
 bool gx_buffers_cover(std::uint64_t va, std::uint64_t bytes) {
@@ -2106,6 +2269,18 @@ bool gx_resource_newer_overlapping(std::uint64_t va, std::size_t bytes, std::uin
 }
 
 void gx_resources_report() {
+    {
+        const unsigned long long asked = g_extent_asked.load(), hits = g_extent_hits.load();
+        if (asked || run_lookups::compare()) {
+            std::string compared;
+            if (run_lookups::compare())
+                compared = "; compare: memo answers checked " + std::to_string(g_extent_checked.load()) + ", differed " +
+                           std::to_string(g_extent_differed.load()) + ", a change of the registry between " + std::to_string(g_extent_raced.load());
+            host_log("run-lookups: GX buffer extents (%s): %llu asked (whole 256s a thread), %llu answered by the memo (%.1f%%)%s",
+                     run_lookups::compare() ? "compare" : run_lookups::on() ? "on" : "off", asked, hits,
+                     asked ? 100.0 * static_cast<double>(hits) / static_cast<double>(asked) : 0.0, compared.c_str());
+        }
+    }
     if (!g_gx_res_after_thunk) return;
     std::size_t live = 0;
     {

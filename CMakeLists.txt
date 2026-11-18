@@ -98,6 +98,8 @@ add_executable(bbhost
   src/host/shader_overrides.cpp
   src/host/scene_look.cpp
   src/core/tls_rewrite.cpp
+  src/core/legacy_cpu.cpp
+  src/core/legacy_cpu_code.cpp
   src/core/config.cpp
   src/core/config_move.cpp
   src/engine/image_text.cpp
@@ -132,6 +134,7 @@ add_executable(bbhost
   src/engine/auto_replenish.cpp
   src/engine/maiden_events.cpp
   src/engine/option_menu.cpp
+  src/engine/plugin_dialog.cpp
   src/engine/menu_assets.cpp
   src/engine/menu_pointer.cpp
   src/engine/menu_close.cpp
@@ -140,9 +143,11 @@ add_executable(bbhost
   src/engine/yebis.cpp
   src/engine/yebis_bind.cpp
   src/engine/graphics_patch.cpp
+  src/engine/font_handle_set.cpp
   src/engine/live_resolution.cpp
   src/engine/render_scale.cpp
   src/engine/loading.cpp
+  src/engine/world_pause.cpp
   src/engine/camera.cpp
   src/engine/mouse_camera.cpp
   src/engine/mouse_camera_stubs.cpp
@@ -172,6 +177,10 @@ add_executable(bbhost
   src/host/present_pass.cpp
   src/host/ingame_menu.cpp
   src/host/i18n.cpp
+  src/host/plugin_panel.cpp
+  src/host/plugin_menu.cpp
+  src/host/game_font.cpp
+  src/host/game_menu_art.cpp
   src/host/controls_page.cpp
   src/host/framegen.cpp
   src/host/options.cpp
@@ -264,6 +273,11 @@ endif()
 add_library(bb_plugin_hello MODULE examples/plugins/hello/hello.c)
 target_include_directories(bb_plugin_hello PRIVATE include)
 set_target_properties(bb_plugin_hello PROPERTIES OUTPUT_NAME hello PREFIX "")
+# The in-game menu example (plugin API 29, docs/plugins.md's In-game menus,
+# which holds it whole - plugin_menu_docs_test checks they are the same).
+add_library(bb_plugin_menu_example MODULE examples/plugins/menu/menu.c)
+target_include_directories(bb_plugin_menu_example PRIVATE include)
+set_target_properties(bb_plugin_menu_example PROPERTIES OUTPUT_NAME menu PREFIX "")
 
 # The shader overrides' example (plugin API 27, examples/plugins/shader_tint):
 # built only when asked for (and by its test).
@@ -291,6 +305,7 @@ bb_plugin(quake plugins/quake/quake.cpp)
 bb_plugin(lohit plugins/lohit/lohit.cpp)
 bb_plugin(ps1 plugins/ps1/ps1.cpp)
 bb_plugin(iso plugins/iso/iso.cpp)
+bb_plugin(hunter_cam plugins/hunter_cam/hunter_cam.cpp)
 # The Debug Menu plugin carries its glyphs (plugins/debug_menu/font14.bin,
 # tools/make_debug_font.py) as bytes: build/gen/debug_font14.inc, rewritten
 # only when the file changes.
@@ -687,6 +702,21 @@ if(WIN32 AND CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
   set_property(TARGET libc_stdio_test PROPERTY CROSSCOMPILING_EMULATOR wine)
 endif()
 add_test(NAME libc_stdio_test COMMAND libc_stdio_test)
+# Retained signaling transports and reused Matching2 member slots; real NP
+# and peer-table code, with controlled HTTP, UDP and callback boundaries.
+add_executable(np_signaling_identity_test tests/np_signaling_identity_test.cpp
+  tests/np_signaling_session_fixture.cpp tests/np_signaling_matching2_fixture.cpp src/replay/json.cpp)
+target_include_directories(np_signaling_identity_test PRIVATE src include)
+target_compile_features(np_signaling_identity_test PRIVATE cxx_std_17)
+target_link_libraries(np_signaling_identity_test PRIVATE Threads::Threads)
+if(WIN32)
+  target_link_libraries(np_signaling_identity_test PRIVATE ws2_32)
+endif()
+if(WIN32 AND CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
+  set_property(TARGET np_signaling_identity_test PROPERTY CROSSCOMPILING_EMULATOR wine)
+endif()
+add_test(NAME np_signaling_identity_test COMMAND np_signaling_identity_test)
+set_tests_properties(np_signaling_identity_test PROPERTIES TIMEOUT 30)
 add_executable(libc_errno_test tests/libc_errno_test.cpp)
 target_include_directories(libc_errno_test PRIVATE src)
 target_compile_features(libc_errno_test PRIVATE cxx_std_17)
@@ -701,8 +731,9 @@ if(WIN32 AND CMAKE_CROSSCOMPILING AND NOT CMAKE_CROSSCOMPILING_EMULATOR)
   set_property(TARGET guest_console_test PROPERTY CROSSCOMPILING_EMULATOR wine)
 endif()
 add_test(NAME guest_console_test COMMAND guest_console_test)
-# A save written whole or not at all: the commit at unmount, and on Linux a
-# kill at each of its steps with the recovery after it (hle/save_commit.h).
+# A save written whole or not at all: the commit at unmount, and a kill at
+# each of its steps with the recovery after it (hle/save_commit.h; a child
+# process forked on Linux, the test run again on Windows).
 add_executable(save_commit_test tests/save_commit_test.cpp src/hle/save_commit.cpp)
 target_include_directories(save_commit_test PRIVATE src)
 target_compile_features(save_commit_test PRIVATE cxx_std_17)
@@ -731,6 +762,11 @@ if(UNIX)
     # one (BBHOST_EBOOT, or eboot-109-decrypted.bin in the checkout).
     add_test(NAME debug_menu_strings_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/debug_menu_strings.py check)
     set_tests_properties(debug_menu_strings_test PROPERTIES SKIP_RETURN_CODE 77)
+    # The legacy-CPU site table (core/legacy_cpu.h) against the eboot, and
+    # every instruction of its code against the supported processors: skipped
+    # without the eboot or capstone.
+    add_test(NAME legacy_cpu_sites_table_test COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/legacy_cpu_sites.py check)
+    set_tests_properties(legacy_cpu_sites_table_test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 900)
   endif()
   # The map-validation probe's tour steps (tools/area_check.py's) on a pretend
   # host. Built beside the tests, never into plugins/, where bbhost would load it.
@@ -744,6 +780,12 @@ if(UNIX)
   add_dependencies(mapval_probe_test mapval_probe)
   add_test(NAME mapval_probe_test COMMAND mapval_probe_test $<TARGET_FILE:mapval_probe>)
   set_tests_properties(mapval_probe_test PROPERTIES SKIP_RETURN_CODE 77)
+  # Plugin API 29's world_pause, world_step, pad, pad_take and world_state in a
+  # running game, for a harness (tools/api29_probe.c). Built beside the tests,
+  # never into plugins/, where bbhost would load it.
+  add_library(api29_probe MODULE tools/api29_probe.c)
+  target_include_directories(api29_probe PRIVATE include)
+  set_target_properties(api29_probe PROPERTIES PREFIX "")
   # The boss rush plugin's travel and fog warp on a pretend host whose loads
   # are slow (plugins/boss_rush): nothing moves the player inside a loading
   # screen, and only a travel that truly fails stops the run.
@@ -771,6 +813,20 @@ if(UNIX)
   target_link_libraries(ps1_plugin_test PRIVATE ${CMAKE_DL_LIBS})
   add_dependencies(ps1_plugin_test bb_plugin_ps1)
   add_test(NAME ps1_plugin_test COMMAND ps1_plugin_test $<TARGET_FILE:bb_plugin_ps1>)
+  # The in-game menus' test plugin (tests/plugins/menu_demo.cpp: every part of
+  # plugin API 29's menus) on a pretend host, and its menus in the host's panel
+  # through the world's states (the game's own interruptions). Built beside the
+  # tests, never into plugins/, where bbhost would load it.
+  add_library(menu_demo MODULE tests/plugins/menu_demo.cpp)
+  target_include_directories(menu_demo PRIVATE include)
+  target_compile_features(menu_demo PRIVATE cxx_std_17)
+  set_target_properties(menu_demo PROPERTIES PREFIX "")
+  add_executable(plugin_menus_test tests/plugin_menus_test.cpp src/host/plugin_menu.cpp src/host/plugin_panel.cpp)
+  target_include_directories(plugin_menus_test PRIVATE src include)
+  target_compile_features(plugin_menus_test PRIVATE cxx_std_17)
+  target_link_libraries(plugin_menus_test PRIVATE ${CMAKE_DL_LIBS})
+  add_dependencies(plugin_menus_test menu_demo)
+  add_test(NAME plugin_menus_test COMMAND plugin_menus_test $<TARGET_FILE:menu_demo>)
   # The shader overrides' example on a pretend host (examples/plugins/shader_tint):
   # its own source asked for until met, patched, on and off by turns, its
   # strength in its shader data each frame; nothing asked of an older host.
@@ -870,6 +926,17 @@ if(UNIX)
   add_executable(stun_test tests/stun_test.cpp src/net/stun.cpp)
   target_include_directories(stun_test PRIVATE src)
   add_test(NAME stun_test COMMAND stun_test)
+  # Datagrams between two P2P sockets through hle/net.cpp, directly and
+  # through the relay: the game's split into pieces of whole chunks, others
+  # whole up to the largest UDP carries; whole with
+  # BBHOST_NET_SPLIT_DATAGRAMS=0 (tests/net_p2p_test.cpp).
+  add_executable(net_p2p_test tests/net_p2p_test.cpp src/hle/net.cpp src/net/stun.cpp src/core/futex.cpp)
+  target_include_directories(net_p2p_test PRIVATE src)
+  target_link_libraries(net_p2p_test PRIVATE pthread)
+  add_test(NAME net_p2p_test COMMAND net_p2p_test)
+  add_test(NAME net_p2p_whole_test COMMAND net_p2p_test)
+  set_tests_properties(net_p2p_whole_test PROPERTIES ENVIRONMENT BBHOST_NET_SPLIT_DATAGRAMS=0)
+  set_tests_properties(net_p2p_test net_p2p_whole_test PROPERTIES TIMEOUT 60)
   # The event poller's long polls and generations (net/poll_pacing.h).
   add_executable(poll_pacing_test tests/poll_pacing_test.cpp)
   target_include_directories(poll_pacing_test PRIVATE src)
@@ -881,19 +948,27 @@ if(UNIX)
   add_executable(np_score_test tests/np_score_test.cpp)
   target_include_directories(np_score_test PRIVATE src)
   add_test(NAME np_score_test COMMAND np_score_test)
-  # The setup window's sign-in check: the server's answers read (net/sign_in_check.h).
+  # The setup window's sign-in check and relay switch: the server's answers
+  # read (net/sign_in_check.h).
   add_executable(sign_in_check_test tests/sign_in_check_test.cpp src/replay/json.cpp)
   target_include_directories(sign_in_check_test PRIVATE src)
   add_test(NAME sign_in_check_test COMMAND sign_in_check_test)
+  # The setup window's links out (host/links.h): the addresses, and no browser
+  # from a test's window.
+  add_executable(launcher_links_test tests/launcher_links_test.cpp)
+  target_include_directories(launcher_links_test PRIVATE src)
+  add_test(NAME launcher_links_test COMMAND launcher_links_test)
   # The setup window's connection test (net/nat_check.h): the exchange from a
   # port against a test server of its own on loopback - a router that keeps
-  # one port, one that changes it, none answering, the port check open, closed
-  # and absent - and the server's answers read.
-  add_executable(nat_check_test tests/nat_check_test.cpp src/net/nat_probe.cpp src/net/stun.cpp src/replay/json.cpp)
+  # one port, one that changes it, none answering, the first seconds held,
+  # every send refused, the port check open, closed and absent, this PC's own
+  # address - the server's answers read, and the card's words for each
+  # reading, the relay switch's and the P2P port's (~25 s of waits).
+  add_executable(nat_check_test tests/nat_check_test.cpp src/net/nat_probe.cpp src/net/stun.cpp src/replay/json.cpp tests/i18n_stub.cpp)
   target_include_directories(nat_check_test PRIVATE src)
   target_link_libraries(nat_check_test PRIVATE Threads::Threads)
   add_test(NAME nat_check_test COMMAND nat_check_test)
-  set_tests_properties(nat_check_test PROPERTIES TIMEOUT 60)
+  set_tests_properties(nat_check_test PROPERTIES TIMEOUT 120)
   add_executable(uncapped_limit_test tests/uncapped_limit_test.cpp)
   target_include_directories(uncapped_limit_test PRIVATE src)
   add_test(NAME uncapped_limit_test COMMAND uncapped_limit_test)
@@ -982,14 +1057,27 @@ if(UNIX)
   # Stage 4b.3c: the index of live homes by address and its page filter, against a plain list (host/gxvk_homes_index.h).
   add_executable(gxvk_homes_test tests/gxvk_homes_test.cpp)
   target_include_directories(gxvk_homes_test PRIVATE src include)
+  target_link_libraries(gxvk_homes_test PRIVATE Threads::Threads)
   add_test(NAME gxvk_homes_test COMMAND gxvk_homes_test)
+  # GX's tables ring: the command processor's serial guard and the pool's arena (host/gx_tables_ring.h).
+  add_executable(gx_tables_ring_test tests/gx_tables_ring_test.cpp)
+  target_include_directories(gx_tables_ring_test PRIVATE src include)
+  target_link_libraries(gx_tables_ring_test PRIVATE Threads::Threads)
+  add_test(NAME gx_tables_ring_test COMMAND gx_tables_ring_test)
   add_executable(gxvk_rest_test tests/gxvk_rest_test.cpp)
   target_include_directories(gxvk_rest_test PRIVATE src include)
   add_test(NAME gxvk_rest_test COMMAND gxvk_rest_test)
+  add_executable(recorder_rest_test tests/recorder_rest_test.cpp)
+  target_include_directories(recorder_rest_test PRIVATE src include)
+  add_test(NAME recorder_rest_test COMMAND recorder_rest_test)
   # Stage 4b.1b/4b.2: the list arena's memo binds a copy only while the guest's bytes are the ones it took (host/list_cb_memo.h).
   add_executable(list_cb_memo_test tests/list_cb_memo_test.cpp)
   target_include_directories(list_cb_memo_test PRIVATE src include)
   add_test(NAME list_cb_memo_test COMMAND list_cb_memo_test)
+  # The markers between the draws a device-loss report reads (host/gpu_markers.h).
+  add_executable(gpu_markers_test tests/gpu_markers_test.cpp)
+  target_include_directories(gpu_markers_test PRIVATE src include)
+  add_test(NAME gpu_markers_test COMMAND gpu_markers_test)
   # The draw pool's threads by default, counted from the process's affinity (host/gxvk_lists.h pool_threads_for).
   add_executable(pool_threads_test tests/pool_threads_test.cpp src/core/portable.cpp)
   target_include_directories(pool_threads_test PRIVATE src include)
@@ -1011,6 +1099,15 @@ if(UNIX)
   add_executable(vertex_clamp_test tests/vertex_clamp_test.cpp)
   target_include_directories(vertex_clamp_test PRIVATE src)
   add_test(NAME vertex_clamp_test COMMAND vertex_clamp_test)
+  # The run's lookups answered from the last one while what it was made of is unchanged, with their mistakes (host/run_lookups.h).
+  add_executable(run_lookups_test tests/run_lookups_test.cpp)
+  target_include_directories(run_lookups_test PRIVATE src)
+  add_test(NAME run_lookups_test COMMAND run_lookups_test)
+  # The GX layer's catch-up: the flush's outcome with the GPU's time waited for outside the renderer's lock, with its
+  # mistakes (host/gpu_catch_up.h).
+  add_executable(gpu_catch_up_test tests/gpu_catch_up_test.cpp)
+  target_include_directories(gpu_catch_up_test PRIVATE src)
+  add_test(NAME gpu_catch_up_test COMMAND gpu_catch_up_test)
   # The render targets' sizes learned by their geometry, and the rule by the address alone failing (host/rt_extent.h).
   add_executable(rt_extent_test tests/rt_extent_test.cpp)
   target_include_directories(rt_extent_test PRIVATE src)
@@ -1113,7 +1210,43 @@ if(UNIX)
   target_include_directories(camera_settings_test PRIVATE src)
   target_link_libraries(camera_settings_test PRIVATE Threads::Threads)
   add_test(NAME camera_settings_test COMMAND camera_settings_test)
+  # Scaleform's font-handle set removed by the handle's own pointer (engine/font_handle_set.h)
+  # against models of the game's add, lookup and removal: the stock game's tables the same, two
+  # handles of one name (a live Text scale change) without the use-after-free.
+  add_executable(font_handle_set_test tests/font_handle_set_test.cpp src/engine/font_handle_set.cpp)
+  target_include_directories(font_handle_set_test PRIVATE src)
+  add_test(NAME font_handle_set_test COMMAND font_handle_set_test)
+  set_tests_properties(font_handle_set_test PROPERTIES TIMEOUT 60)
   set_tests_properties(settings_store_test camera_settings_test PROPERTIES TIMEOUT 30)
+  # A plugin's look's arithmetic (engine/look_math.h): what apply_look writes
+  # into YEBIS's block for the motion blur's samples and the depth of field.
+  add_executable(look_math_test tests/look_math_test.cpp)
+  target_include_directories(look_math_test PRIVATE src)
+  add_test(NAME look_math_test COMMAND look_math_test)
+  # The game's menu font read from the dump and its glyphs rasterised
+  # (host/game_font.h); skipped without the dump (BBHOST_APP0).
+  add_executable(game_font_test tests/game_font_test.cpp src/host/game_font.cpp)
+  target_include_directories(game_font_test PRIVATE src)
+  target_compile_definitions(game_font_test PRIVATE BBHOST_GAME_FONT_NO_FS=1)
+  add_test(NAME game_font_test COMMAND game_font_test)
+  set_tests_properties(game_font_test PROPERTIES SKIP_RETURN_CODE 77)
+  # A plugin's in-game menus as the host keeps them (host/plugin_menu.h): the
+  # pages and menus a table declares, rows set at run time, the back stack.
+  add_executable(plugin_menu_test tests/plugin_menu_test.cpp src/host/plugin_menu.cpp)
+  target_include_directories(plugin_menu_test PRIVATE src include)
+  add_test(NAME plugin_menu_test COMMAND plugin_menu_test)
+  # docs/plugins.md's In-game menus example is examples/plugins/menu/menu.c as it is.
+  add_executable(plugin_menu_docs_test tests/plugin_menu_docs_test.cpp)
+  add_test(NAME plugin_menu_docs_test COMMAND plugin_menu_docs_test ${CMAKE_SOURCE_DIR}/docs/plugins.md
+           ${CMAKE_SOURCE_DIR}/examples/plugins/menu/menu.c)
+  # The game's menu art: its BC7 decoder against Pillow's, the tiling, the
+  # TPF, DCX, the five-part stretch and the packing (host/game_menu_art.h); with
+  # the dump (BBHOST_APP0) every piece of menu/common.tpf.dcx too.
+  add_executable(game_menu_art_test tests/game_menu_art_test.cpp src/host/game_menu_art.cpp)
+  target_include_directories(game_menu_art_test PRIVATE src)
+  target_compile_definitions(game_menu_art_test PRIVATE BBHOST_GAME_MENU_ART_NO_FS=1)
+  target_link_libraries(game_menu_art_test PRIVATE ZLIB::ZLIB)
+  add_test(NAME game_menu_art_test COMMAND game_menu_art_test)
   # Mouse sensitivity's scale and the old scale's settings read on it
   # (engine/mouse_camera_step.h).
   add_executable(mouse_sensitivity_test tests/mouse_sensitivity_test.cpp)
@@ -1122,6 +1255,25 @@ if(UNIX)
   add_executable(engine_layout tests/engine_layout.cpp)
   target_include_directories(engine_layout PRIVATE src)
   add_test(NAME engine_layout COMMAND engine_layout)
+  # The routines a processor without BMI1, LZCNT or MOVBE runs for the game's
+  # instructions (core/legacy_cpu_code.h): every family, size, operand form and
+  # register aliasing against the instruction itself and legacy_apply, and
+  # mutants of them that must fail. No game files.
+  add_executable(legacy_cpu_test tests/legacy_cpu_test.cpp src/core/legacy_cpu_code.cpp src/decomp/insn.cpp)
+  target_include_directories(legacy_cpu_test PRIVATE src tests)
+  add_test(NAME legacy_cpu_test COMMAND legacy_cpu_test)
+  # The same on processors without them, where qemu-x86_64 is installed: its
+  # Ivy Bridge (no BMI1, LZCNT or MOVBE) and Bulldozer (no BMI1 or MOVBE) -
+  # the routines must need none of the three.
+  find_program(QEMU_X86_64 qemu-x86_64)
+  if(QEMU_X86_64)
+    add_test(NAME legacy_cpu_test_ivybridge COMMAND ${QEMU_X86_64} -cpu IvyBridge $<TARGET_FILE:legacy_cpu_test>)
+    add_test(NAME legacy_cpu_test_bulldozer COMMAND ${QEMU_X86_64} -cpu Opteron_G4 $<TARGET_FILE:legacy_cpu_test>)
+    # qemu's own LZCNT is no oracle: its Bulldozer claims LZCNT in CPUID and
+    # runs it as BSR. The routines are compared with legacy_apply there.
+    set_tests_properties(legacy_cpu_test_ivybridge legacy_cpu_test_bulldozer PROPERTIES TIMEOUT 1800
+                         ENVIRONMENT LEGACY_CPU_TEST_NO_NATIVE=1)
+  endif()
   add_executable(write_watch_test tests/write_watch_test.cpp src/core/write_watch.cpp)
   target_include_directories(write_watch_test PRIVATE src)
   target_link_libraries(write_watch_test PRIVATE pthread)
@@ -1152,6 +1304,20 @@ if(UNIX)
     add_test(NAME decomp_${name} COMMAND decomp_${name} ${T_ARGS})
     set_tests_properties(decomp_${name} PROPERTIES SKIP_RETURN_CODE 77)
   endfunction()
+  # Every site of the eboot rewritten in a loaded image as bbhost does it
+  # (core/legacy_cpu.h), each region run as the game's bytes and as rewritten,
+  # and the illegal-instruction path on what is left. Skips without the eboot.
+  add_executable(legacy_cpu_sites_test tests/legacy_cpu_sites_test.cpp src/core/legacy_cpu.cpp src/core/legacy_cpu_code.cpp
+                 src/decomp/insn.cpp)
+  target_link_libraries(legacy_cpu_sites_test PRIVATE eboot_kit pthread)
+  target_include_directories(legacy_cpu_sites_test PRIVATE src tests)
+  add_test(NAME legacy_cpu_sites_test COMMAND legacy_cpu_sites_test)
+  set_tests_properties(legacy_cpu_sites_test PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
+  if(QEMU_X86_64)
+    add_test(NAME legacy_cpu_sites_test_ivybridge COMMAND ${QEMU_X86_64} -cpu IvyBridge $<TARGET_FILE:legacy_cpu_sites_test>)
+    set_tests_properties(legacy_cpu_sites_test_ivybridge PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 3600
+                         ENVIRONMENT LEGACY_CPU_TEST_NO_NATIVE=1)
+  endif()
   bbhost_decomp_test(insn SOURCES src/decomp/insn.cpp)
   bbhost_decomp_test(insn_eboot SOURCES src/decomp/insn.cpp)
   bbhost_decomp_test(event_interpreter SOURCES src/decomp/events/flag_store.cpp)
@@ -1159,6 +1325,9 @@ if(UNIX)
   bbhost_decomp_test(item_lots SOURCES src/core/thunk.cpp src/core/portable.cpp src/hle/sysv_va.cpp src/host/main_wait.cpp)
   bbhost_decomp_test(talk_evaluator SOURCES src/engine/esd.cpp LIBS gcn)
   bbhost_decomp_test(chalice_ritual)
+  # Scaleform's font-handle set: the removal by pointer (engine/font_handle_set.h) against the game's
+  # HashSet RemoveAlt on sets its own add builds - the same bytes with one entry a key, the right entry with two.
+  bbhost_decomp_test(font_set_removal SOURCES src/engine/font_handle_set.cpp)
   bbhost_decomp_test(follow_camera SOURCES src/decomp/camera/follow_camera.cpp src/engine/mouse_camera_stubs.cpp ARGS 2000)
   bbhost_decomp_test(sfx_ribbons SOURCES src/core/write_watch.cpp)
   bbhost_decomp_test(sfx_step_gate SOURCES src/decomp/sfx/node_update.cpp src/decomp/sfx/node_emit.cpp)
@@ -1229,6 +1398,10 @@ if(UNIX)
   add_executable(fill_pending_test tests/fill_pending_test.cpp)
   target_include_directories(fill_pending_test PRIVATE src)
   add_test(NAME fill_pending_test COMMAND fill_pending_test)
+  # A YEBIS texture's update kept for the texture made for it (tests/tex_update_test.cpp).
+  add_executable(tex_update_test tests/tex_update_test.cpp)
+  target_include_directories(tex_update_test PRIVATE src)
+  add_test(NAME tex_update_test COMMAND tex_update_test)
   # The engine's per-view block found at every screen shape and field of view (tests/view_block_test.cpp).
   add_executable(view_block_test tests/view_block_test.cpp)
   target_include_directories(view_block_test PRIVATE src)
@@ -1460,7 +1633,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows" AND CMAKE_CROSSCOMPILING)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     # The official plugins too: the package carries them, and a CI build makes
     # nothing it is not asked for (v0.2.0's Windows zip shipped without them).
-    DEPENDS bbhost bb_plugin_randomizer bb_plugin_boss_rush bb_plugin_mutators bb_plugin_quake bb_plugin_lohit bb_plugin_ps1 bb_plugin_iso bb_plugin_debug_menu
+    DEPENDS bbhost bb_plugin_randomizer bb_plugin_boss_rush bb_plugin_mutators bb_plugin_quake bb_plugin_lohit bb_plugin_ps1 bb_plugin_iso bb_plugin_hunter_cam bb_plugin_debug_menu
     USES_TERMINAL)
 else()
   add_custom_target(smoke

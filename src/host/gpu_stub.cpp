@@ -20,6 +20,7 @@ void host_gpu_wait_submitted(std::uint64_t) {}
 GpuBusy host_gpu_busy() { return {}; }
 void host_gpu_busy_present_begin(void*) {}
 void host_gpu_busy_present_end(void*) {}
+void host_gpu_present_markers(void*, bool) {}
 void host_gpu_busy_present_done() {}
 std::string host_gpu_busy_report() { return {}; }
 void host_gpu_queue_lock_only() {}
@@ -105,6 +106,7 @@ std::uint64_t host_gpu_draw_mark() { return 0; }
 std::uint64_t host_gpu_work_needs() { return 0; }
 std::uint64_t host_gpu_submissions_completed() { return ~0ull; }
 bool host_gpu_wait_completed(std::uint64_t, std::uint64_t) { return false; }
+void host_gpu_catch_up(std::uint64_t) {}
 void* host_gpu_timeline() { return nullptr; }
 void* host_gpu_present_timeline() { return nullptr; }
 void host_gpu_present_reads_locked(std::uint64_t) {}
@@ -119,6 +121,10 @@ std::string host_gpu_occlusion_report() { return {}; }
 std::string host_gpu_image_heap_report() { return {}; }
 void host_gpu_resources_report() {}
 void host_gpu_texture_written(std::uint64_t, std::size_t) {}
+bool host_gpu_yebis_texture_update(std::uint64_t, std::uint64_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t,
+                                   std::uint32_t, const void*, std::uint32_t, std::uint64_t) {
+    return false;
+}
 void host_gpu_targets_rebuild(bool) {}
 void host_gpu_shadow_gx_write(std::uint64_t, std::size_t) {}
 void host_gpu_shadow_gx_created(std::uint64_t, std::size_t) {}

@@ -534,6 +534,9 @@ void host_gpu_import_waits(std::uint64_t* n, std::uint64_t* us);
 // Vulkan, and spinning for the next block before it sleeps. False without the
 // thread (recording in place or inline): the bottleneck meter's recorder load.
 bool host_gpu_recorder_ns(std::uint64_t* replay_ns, std::uint64_t* spin_ns);
+// The main loop's frame limiter, once a frame (engine/frame_rate.cpp): how long it waited, the rate it held the frame to
+// and whether a loading screen is up - the recorder's rest at a frame cap (host/recorder_rest.h, BBHOST_RECORDER_REST).
+void host_gpu_recorder_paced(std::uint64_t wait_ns, float cap_fps, bool loading);
 // A GX buffer was made over [memory, memory + bytes) with this usage, these
 // bind flags and the registry's generation: with BBHOST_GX_TWINS=1 one the
 // GPU writes (usage default, unordered-access bind) gets a device-local twin
@@ -641,6 +644,15 @@ void host_gpu_targets_rebuild(bool on);
 // GX mapped the texture whose memory is [base, base + bytes) for the CPU to
 // write: its surfaces upload it again at their next use.
 void host_gpu_texture_written(std::uint64_t base, std::size_t bytes);
+// YEBIS's UpdateSubresource of the texture of generation `gen` at `memory`:
+// mip `mip`, slice `slice`, the box (x, y, w, h) in texels, `h` rows of the
+// texels `pitch` bytes apart at `rows` (copied), with `submitted` the
+// submissions made then. The texture made for that
+// resource takes them as it is made (host/tex_update.h). False when they are
+// not kept - the caller then tells the cache as of a Map
+// (host_gpu_texture_written). Any thread, no lock held.
+bool host_gpu_yebis_texture_update(std::uint64_t memory, std::uint64_t gen, std::uint32_t mip, std::uint32_t slice, std::uint32_t x, std::uint32_t y,
+                                   std::uint32_t w, std::uint32_t h, const void* rows, std::uint32_t pitch, std::uint64_t submitted);
 // A CPU write GX makes over a buffer's memory - a creation's initial data -
 // or memory that stops being a buffer's: the buffer shadow invalidates the
 // mirror pages over it (they are not write-watched when GX buffers cover
@@ -952,6 +964,10 @@ GpuBusy host_gpu_busy();
 void host_gpu_busy_present_begin(void* cmd);
 void host_gpu_busy_present_end(void* cmd);
 void host_gpu_busy_present_done();
+// The same command buffer's front-end word, at its start (`end` false) and at
+// its end, while the device-loss markers are on (host/gpu_markers.h): the
+// stream submits it in its order, so a loss can name it among the ops.
+void host_gpu_present_markers(void* cmd, bool end);
 // The 300-flip report's line: busy over the window since the last call.
 std::string host_gpu_busy_report();
 // The presenter's, before its blit: submits the renderer's recording only when
@@ -1035,6 +1051,13 @@ std::uint32_t host_gpu_vendor_id();
 // `timeout_ns` passed: true when they have. False at once without a timeline
 // (the caller polls host_gpu_submissions_completed as before).
 bool host_gpu_wait_completed(std::uint64_t need, std::uint64_t timeout_ns);
+// The GX layer's catch-up (host/gpu_catch_up.h), for the block reclaim and the
+// discard rename: what host_gpu_flush gives them - the recording under way
+// submitted, every submission through it run, its labels in memory, its slot
+// retired - with the GPU's time waited for outside the renderer's lock. A wait
+// that runs out (`timeout_ns`) waits for the same submissions under the lock,
+// as the flush does. No timeline, or BBHOST_GX_CATCH_UP=0: host_gpu_flush.
+void host_gpu_catch_up(std::uint64_t timeout_ns);
 const char* host_present_step(double& seconds);  // window.cpp: what the presenting thread is doing  // BBHOST_STALL_TEST: hold the renderer, as a frame dump does
 // Last few recorded draws, read without the renderer lock: for the watchdog,
 // which runs precisely when some thread is stuck holding it.

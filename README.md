@@ -119,7 +119,9 @@ See [docs/rendering.md](docs/rendering.md) for the graphics in detail and
    it (or kept beside it as `CUSA00900-UPDATE`, the way shadPS4 keeps it), and
    the 1.09 `eboot.bin` decrypted to an ELF (SHA-256
    `941f887a562aae054fac35af8cc8f27cf075f3d4cc2e029fb5ae2a663aaa5ae7`).
-2. Download a release for Windows or Linux, or build bbhost yourself.
+2. Download a release for Windows or Linux, or build bbhost yourself. The
+   processor needs AVX, SSE4.2 and POPCNT: an Intel Core of the 2nd
+   generation (Sandy Bridge) or newer, or an AMD FX or newer.
 3. Start `bbhost`. The setup window asks for the two paths, checks them and
    saves them; press Play.
 
@@ -210,8 +212,10 @@ game's code or data.
   company logos); the shadPS4 patch list's patches - Kyo's graphics, physics
   and gameplay patches and his The Old Hunters patch, johnnycoax's Auto-Refill,
   Imedved's camera auto-rotation and Lance McDonald's region unlock (shipped as
-  patch files); and Kyo's 60 FPS++ timing list and yogesh1239's high-FPS fixes
-  (built into the frame-rate code).
+  patch files); Kyo's 60 FPS++ timing list and yogesh1239's high-FPS fixes
+  (built into the frame-rate code); and Nox-'s
+  [bbphoto](https://github.com/Noxde/bbhost-photo-mode-plugin), for which the
+  plugin API's camera, world, input and picture calls were made.
 - [shadPS4](https://github.com/shadps4-emu/shadPS4), a reference for the PS4's
   system behaviour and a working run to compare against.
 - SDL3, Vulkan, FFmpeg, SPIRV-Tools, the DirectX Shader Compiler (DXC),

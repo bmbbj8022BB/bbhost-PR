@@ -110,6 +110,51 @@ it falls behind - where the kernel's half of a submission is costly, as on a
 Steam Deck, whose driver makes every import of the game's memory resident
 again at each one - the submissions queued behind each other go to the queue
 as one (`BBHOST_SUBMIT_MERGE=1` keeps them apart, to compare).
+Between two blocks `bb-record` spins (`BBHOST_RECORDER_SPIN`: 20,000 pauses
+with 16 hardware threads or more, 4,000 under) before it sleeps, which pays
+where the command processor limits the frame: a wake of a sleeping recorder is
+a system call on the command processor. Where something else holds the frame
+with room to spare, the recorder rests instead: a frame cap (two half-second
+windows with the limiter waiting 15% of the time, as the draw pool's rest at a
+cap) with the GPU busy under 85%, or the GPU under the cap (busy 90% of two
+windows) with the command processor's thread busy under 85%. Resting, it
+sleeps after 100 pauses, and the command processor wakes it at a submission or
+every 64 blocks, so it replays its blocks in batches; every wait of the
+command processor's on it wakes it at once (`src/host/recorder_rest.h`). At a
+true 60 that took the process 18-27 points of CPU under Windows on an RTX 3070
+Ti Laptop GPU (the recorder from 39-48% of a core to 13-16%), 25-34 on its
+Radeon 680M (GPU-bound) and 21-29 on an RTX 4070 under Linux, the frame rate
+and the slowest frames the same. Without that room the rest's delays land on
+the frame: its waits added to a command processor near its limit (Old Yharnam
+uncapped on that laptop, the thread busy 91-95%: 2-4% slower; a Steam Deck's
+60 fps profile at the Nightmare of Mensis, 94-95%: 0.8%), and a submission it
+delays at a cap with the GPU near full (the same profile at Central Yharnam,
+the GPU 88-91% busy: the 99th percentile frame from 17 to 20 ms in one run of
+two). The command processor's share is its thread's own CPU time, read once a
+window - not its jobs' time, which takes in its waits for the GPU (98-101% of
+the window on the 680M at 32-37 fps, the thread busy 29-44%). A cap's rest
+ends with the limiter waiting under 8% of a window or the GPU busy 92%, the
+GPU's with the GPU under 80% busy (the median of six windows), the command
+processor busy 92% or a cap holding the frame, both at a loading screen.
+`BBHOST_RECORDER_REST=0`: it never rests; `=always`: it always does.
+
+What is still recorded in place - by the command processor itself, on the
+command buffer - first waits for `bb-record` to replay everything published
+before it (a drain). Two kinds made nearly all of them: a GX image-copy
+token's barrier, copy and barrier (13 copies a flip at Old Yharnam and Central
+Yharnam), and draws left without their packet when an op had to follow what
+the packet held - a batch of home copies too long for one packet - each then
+recording its ~10 commands in place (2-4 draws a flip). The copy token's
+commands go into the stream as its ops (`BBHOST_STREAM_COPY_TOKEN=0`: in
+place), and a draw whose packet an op must follow goes on in a fresh packet
+(`BBHOST_STREAM_SPLIT=0`: in place); the same commands in the same order.
+Under Windows on an RTX 3070 Ti Laptop GPU uncapped that took the recordings
+in place from 79-82 a flip to 1 at Old Yharnam (25-28 to 1 at the Nightmare of
+Mensis, 69-72 to 1 at Central Yharnam) and the command processor's waits for
+the recorder from 1.4% of its time to 0.2%: Old Yharnam ran 127.7 fps against
+126.6, the Nightmare of Mensis 125.0 against 123.0. On a Steam Deck's 60 fps
+profile Old Yharnam's frames over 16.7 ms went from 45 to 2 in a window, and
+the Nightmare of Mensis ran 56.0 fps against 55.6.
 
 **Shaders.** GCN shaders are converted to SPIR-V when the game creates them,
 and GX creates every shader of the game's bundles at the start (1,663 vertex
@@ -395,10 +440,30 @@ path at all:
 
 - YEBIS, the post-processing library (bloom, glare, depth of field, tone
   mapping): every stage's resources and constants are built by bbhost.
+  Its depth of field blends each blurred level in by the circle of
+  confusion in pixels, which grows with the picture, against an offset that
+  does not. A blur drawn with several levels keeps its look by itself, as a
+  growing circle moves on to the next, larger level (the cutscenes, a
+  plugin's lens), but the areas' own faint far blur has one level, so it
+  faded out below 1080 lines and grew above them. On a side drawn with one
+  level the offset now scales with the picture's height over 1080, which
+  keeps the 1080-line look at every Resolution; with an upscaler the height
+  is the picture's, the one YEBIS works at.
 - Scaleform, the menu renderer: its draws are taken from its hardware
   abstraction layer.
 - Depth snapshots, the on-screen overlay and FSR 1 upscaling are bbhost's
-  own.
+  own. The depth snapshot's compute pass goes into the recorder's stream
+  (`BBHOST_STREAM_DEPTH_COPY=0` records it in place, draining the recorder).
+  The scene's own depth copy is one: after the G-buffer the game copies its
+  depth into DepthRenderTarget (and its first G-buffer target, the normals,
+  into GBuffer0), which SSAO, the sun's screen-space shadows, motion blur's
+  and screen space reflections' smaller depths, the decals, the forward
+  passes and depth of field read. The world's view makes them with
+  CopyResource; the renderer's two other modes make them with three calls of
+  their own (`0x26a10c0`, `0x26a2829`, `0x26a283f`), which the built-in
+  Performance patch turned into NOPs until v0.2.35 - calls the world's view
+  never makes, so leaving them out changed nothing there; only a view drawn in
+  those modes read targets nothing had written that frame.
 
 ## Native or emulated
 
@@ -824,6 +889,14 @@ pool's constant-buffer copies take the last 16 MiB of the command processor's
 ring, which keeps the rest while the pool runs, so on a card with a small
 window of video memory the CPU writes both stay in video memory (in host
 memory the GPU read them across the bus: +11% GPU time on an RTX 4070).
+Their tables - the vertex and resource tables a draw's user data points at -
+take the last 16 MiB of GX's tables ring in the same way, in 1 MiB segments a
+pool thread owns while it places there, each taken again only once no commit
+placed in it can still be spliced and the recordings its commits went into
+have run; the command processor's part of that ring waits, at a lap, for the
+recording that last placed in a segment to have run. (Until 2026-11-13 a pool
+thread kept a chunk of the shared ring until it was full - across a rest at a
+frame cap too - and could write over tables the ring had handed out since.)
 Unset, the switch follows the constant buffers' homes: segments where the
 homes bind by handle, off elsewhere (small video memory, an integrated GPU)
 with the reason in the log; the pool needs 8 hardware threads or more.
@@ -835,9 +908,8 @@ each draw of a segment that would have been spliced with its commit. On an RTX
 where the command processor had been the limit.
 
 **On by default above 60 fps, and on Windows at any rate (`BBHOST_GXVK_HOMES`
-unset).** The constant buffers' homes - and with them the segments, and the
-run batching (`BBHOST_RUN_BATCH`) and copy-back captures they take - are on by
-default only where the frame rate can gain from them: a graphics card with
+unset).** The constant buffers' homes - and with them the segments and the
+copy-back captures they take - are on by default only where the frame rate can gain from them: a graphics card with
 room, or one with small video memory that has 5,000 MiB or more free at the
 start (the homes' own rule below: not an integrated GPU, no tight memory), and
 a frame rate above 60 (a fixed rate above 60, or Display-Limited on a display
@@ -888,7 +960,7 @@ segments without the run commit against the run commit:
 As shipped, the shared GPU memory stayed at 2.1 GB (whole imports, on the
 second row, pinned 4.95 GB). Where the rule does not hold - an integrated GPU,
 a card under 5,000 MiB free - the run commit
-stays on by Windows' default, as before. The homes are made as
+stays on by Windows' default, and works by the pool's duty rule (below). The homes are made as
 their buffers are, so the choice is made once, with the device at start: a
 frame rate changed in play (it changes at once, 30 included) leaves the
 choice as it was until the next start. Off, one line says why (`gxvk homes: off by
@@ -928,7 +1000,19 @@ waiting 8-15%), where it used to work on for good, it tries a rest - the
 switch's 1.5 s, then 1-1.5 s counted - and keeps it where the cap holds the
 frame without it, else it works again and the next trial waits the cap's
 backoff), while the frame is the GPU's (busy 90% of two windows, until it is
-under 80% over six), and wherever resting costs the frame nothing. That last is
+under 80% over six), and wherever resting costs the frame nothing. With no cap
+holding the frame, a rest the GPU began is judged by the frame when it ends:
+resting 8% slower than the GPU-bound windows that began it, the pool's work was
+what kept the frame the GPU's, and that is an experiment's clear answer - the
+pool works, and no GPU-bound rest and no probe come for 40 s, then 160, then 240
+(a loading screen starts the place over; at a cap nothing changes). On the RTX
+4070 below, uncapped, the Hunter's Dream ran 204-208 fps working with the GPU
+91-95% busy and ~170 resting (the command processor the wall, the game held
+back 70%), and Cainhurst's courtyard 166-170 and 106-113: the GPU's rest began
+after two windows, ended after six and began again two later, ten times in
+every 20 s, and the places ran 180-184 and 121-124 fps against 216 and 167 with
+the pool never resting. A rest that runs as fast - an APU's frame, the GPU's
+either way - is the GPU's as before. That last is
 measured at each place, both ways: 10 s after the pool began to work there, an
 experiment rests it for 5.5 s and lets it work for 5.5 s more, and compares the
 frame rate resting with the windows on either side of it; under 0.5% slower
@@ -953,6 +1037,24 @@ for 3 s (the title's menus meet an uncapped game's 960 cap).
 (what resting costs against the pool off); `=cycle:N` rests and works N frames
 each in turn (a check); `BBHOST_GXVK_LISTS_REST_LOG=1`: every window of the
 rule in the log.
+
+**The run commit's duty (`BBHOST_RUN_COMMIT_REST`).** Where Windows' default
+keeps the run commit - an integrated GPU, tight memory, a card under 5,000 MiB
+free - the same rule decides when it forks a run's parts, without the
+frame-rate experiments: it rests while a cap holds the frame and while the
+frame is the GPU's, and works anywhere else, as it did. Resting, no run is
+forked: the command processor draws every draw in order and the run commit's
+workers sleep (a run forked before the rest began is taken as it was). At a
+true 60 under Windows on an RTX 3070 Ti Laptop GPU held to a 4 GB card's 2,950
+MiB that took Central Yharnam from 235% of CPU to 207% and ran the GPU-bound
+Nightmare of Mensis at 38.8 fps against 35.5; on the laptop's Radeon 680M,
+GPU-bound at 30-34 fps, it took 21-31 points; with Windows' small-card default
+acted out on an RTX 4070 under Linux, 80-105 points at five places, the frame
+the same. An experiment (the other state for a few seconds) cannot see what
+its rests cost later: on that 4 GB card a working run commit came back slower
+after them. Its lines say `list-resolve:` where the pool's say `gxvk-lists:`.
+`BBHOST_RUN_COMMIT_REST=0`: it never rests (as before); `=always`: it always
+does; `BBHOST_RUN_COMMIT` set keeps its own answer.
 
 ### GX's objects as Vulkan objects (a design note)
 
@@ -1179,7 +1281,11 @@ memory at its first use, unless that use is a copy-back over all of it.
 What reads a home without a handle - a dispatch, a copy, a device address -
 finds it by address; a CPU copy of its stale guest bytes is refused; a
 page-table walk that reads it gets it copied back to its memory first, and
-it stays the home. A home ends with its buffer, and a buffer made past the
+it stays the home. The command processor's index of the homes by address
+changes in place, so the draw pool's threads read a copy published for them
+instead - the homes touching each 4 KiB page as an immutable list swapped by
+pointer, freed once no reader can hold it, a run of changes seen whole or not
+at all - and change nothing. A home ends with its buffer, and a buffer made past the
 pool's budget (128 MiB, `BBHOST_GXVK_HOMES_BUDGET_MB`) takes today's path for
 its life. Off on an integrated GPU, and with small video memory under 5,000
 MiB free at the start unless a budget is given (on a 4 GB card the pool's ~80
@@ -1210,5 +1316,8 @@ another thread before the capture read it.
 | `BBHOST_VK_VALIDATE=1` | runs with the Vulkan validation layer |
 | `BBHOST_VA_TRACE=1` | logs every guest-memory import made, put in place, retired and freed, every window whose page-table entries move, every device buffer made through `create_dev_buffer` with its owner and every staging or scratch chunk freed (`va:` lines, the wall clock in seconds and microseconds, to match `journalctl -k -o short-unix`); a device fault report then looks its addresses up in them. `=2` adds the driver's own binds and unbinds where it reports them (VK_EXT_device_address_binding_report) |
 | `BBHOST_GPU_PROFILE=1` | per-pass GPU timings |
+| `BBHOST_GPU_CHECKPOINTS=amd` | the GPU's progress markers (VK_AMD_buffer_marker, which NVIDIA's drivers have too) everywhere, not only while a loading screen is up, as they are by default: two words before each draw and dispatch, and the front end's word before the ops between them where it stops or the pass changes - barriers, pass ends and begins - with every op noted. A lost device then names the draw or dispatch the GPU had started, the op its front end had reached, the ops between the two, and whether a barrier among them says the draw had finished (barriers hold the front end on NVIDIA's and AMD's GPUs; the specification does not promise it); a loss after a loading screen's markers ended says so, and that they were off there. The default's window opens at the first submission recorded once a loading screen is up and closes at the first one 200 ms after it has gone, and nothing of them is written or done in between - in the world they cost frames. `=0` keeps them off in loading screens too; `=after-loss` also marks everything for the three starts after a loss; `=amd-dry` and `=loading-dry` record them, everywhere or in loading screens, on a device without the extension (lavapipe) |
+| `BBHOST_GPU_MARKER_OPS=all` | with the markers on, the front end's word before every op between draws: where the front end was held between two barriers shows too, at a cost on NVIDIA's GPUs, where a word between two copies holds them apart |
+| `BBHOST_MARKER_TRACE=<prefix or *>[:n]` | with the markers on, the ops noted after the first n (4) draws of the pipelines whose name starts with the prefix, and every 300 flips what a lost device would say from the words as they stand |
 | `BBHOST_UPSCALE_CHECK=4` + `tools/upscale_check.py` | the upscalers' reprojection check, with an upscaler on and `BBHOST_UPSCALE_JITTER=0`: in place of the upscaler's picture, green where the motion explains how the scene changed since the last frame, red where it does not, blue where a surface came from off the screen; every 30 frames the log has red's share of what changed, over the picture and in sixteen bands of its width, and the tool sums it over the windows where the picture moved |
 | `bbhost --stream-selftest[=N]` | checks the command stream headless against a CPU model, N rounds (16 by default), and exits with 0 when it matched; run it with `BBHOST_VK_VALIDATE=1` too |

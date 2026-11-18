@@ -7,6 +7,8 @@
 #include "core/portable.h"
 #include "hle/modules.h"
 #include "host/gpu.h"
+#include "host/gxvk_lists.h"
+#include "host/run_lookups.h"
 #include "log.h"
 
 #include <algorithm>
@@ -83,15 +85,27 @@ bool lists_may_splice_from_env() {
 
 std::atomic<int> g_batch = [] {
     const char* e = std::getenv("BBHOST_RUN_BATCH");
-    // A run's parts take its targets as batching shares them: on with the commit.
-    if (!e || !*e) {
-        if (run_commit_from_env() >= 2) return 1;
-        // And with stage 4b.1b's splice and 4b.2's segments: a run's later draws find its first's targets.
-        return lists_may_splice_from_env() ? 1 : 0;
-    }
+    // On by default: a run's parts take its targets as batching shares them (the commit), stage 4b.1b's splice and
+    // 4b.2's segments find a run's first draw's targets, and in order a run's draws take the targets and the
+    // constant-buffer copies of the draws before them (docs/list-resolve.md) - with the run commit off too (Linux's
+    // default, where the homes are off).
+    if (!e || !*e) return 1;
     if (std::strcmp(e, "compare") == 0) return 2;
     return std::atoi(e) ? 1 : 0;
 }();
+
+}  // namespace list_resolve
+
+// BBHOST_RUN_LOOKUPS (host/run_lookups.h): 1 on (unset), 0 or off, 2 compare.
+const int run_lookups::g_mode = [] {
+    const char* e = std::getenv("BBHOST_RUN_LOOKUPS");
+    if (!e || !*e) return 1;
+    if (std::strcmp(e, "compare") == 0) return 2;
+    if (std::strcmp(e, "off") == 0) return 0;
+    return std::atoi(e) ? 1 : 0;
+}();
+
+namespace list_resolve {
 
 const int g_draw_ctx = [] {
     const char* e = std::getenv("BBHOST_DRAW_CONTEXT");
@@ -128,6 +142,29 @@ void commit_give_way() {
     // the homes' default (follow_homes) and BBHOST_GXVK_HOMES=1 want them too.
     g_commit.store(0, std::memory_order_relaxed);
     g_gave_way.store(true, std::memory_order_relaxed);
+}
+
+std::atomic<bool> g_run_resting{false};
+
+namespace {
+// BBHOST_RUN_COMMIT_REST: 1 the duty's rule (unset), 0 never rests, 2 always rests.
+int run_rest_mode() {
+    const char* e = std::getenv("BBHOST_RUN_COMMIT_REST");
+    if (!e || !*e) return 1;
+    if (std::strcmp(e, "always") == 0) return 2;
+    return e[0] == '0' ? 0 : 1;
+}
+}  // namespace
+
+bool duty_on() {
+    static const int mode = run_rest_mode();
+    static const bool by_default = commit_by_default();
+    // (commit_draws() false once the default gave way to the homes: no run is forked, nothing to rest)
+    return duty_wanted(by_default, commit_draws(), mode);
+}
+bool duty_always() {
+    static const bool always = run_rest_mode() == 2;
+    return always;
 }
 
 void follow_homes() {
@@ -353,12 +390,14 @@ void log_batch() {
     host_log("list-resolve: run batching (%s): targets shared with the draw before for %llu of %llu draws (%.1f%%); not "
              "shared: something in order since %llu, the GPU mutex taken by another %llu, a target made or resized %llu, an HTILE fill "
              "noted or taken %llu, other targets or state %llu, a draw that does not share %llu; compared %llu, differed %llu; lite drains at a "
-             "draw's first vertex record %llu",
+             "draw's first vertex record %llu; constant-buffer bindings that took the copy an earlier draw of their run took %llu "
+             "(compared %llu, differed %llu)",
              batch_compare() ? "compare" : "on", static_cast<ull>(n(kBatchTargetsShared)), static_cast<ull>(asked),
              pct(n(kBatchTargetsShared), asked), static_cast<ull>(n(kBatchMissSplit)), static_cast<ull>(n(kBatchMissLock)),
              static_cast<ull>(n(kBatchMissRemade)), static_cast<ull>(n(kBatchMissFill)), static_cast<ull>(n(kBatchMissInputs)),
              static_cast<ull>(n(kBatchMissKind)),
-             static_cast<ull>(n(kBatchCompared)), static_cast<ull>(n(kBatchDiffered)), static_cast<ull>(n(kBatchDrains)));
+             static_cast<ull>(n(kBatchCompared)), static_cast<ull>(n(kBatchDiffered)), static_cast<ull>(n(kBatchDrains)),
+             static_cast<ull>(n(kBatchCbShared)), static_cast<ull>(n(kBatchCbCompared)), static_cast<ull>(n(kBatchCbDiffered)));
 }
 
 }  // namespace
@@ -593,6 +632,7 @@ void log_commit() {
              static_cast<ull>(g_look_stop[kLookSplit].load()), static_cast<ull>(g_look_stop[kLookTargets].load()),
              static_cast<ull>(g_look_stop[kLookNotReady].load()), static_cast<ull>(g_look_stop[kLookEnd].load()),
              static_cast<ull>(g_look_stop[kLookKind].load()));
+    if (duty_on()) host_log("list-resolve: run commit (duty): %s", gxvk_lists::run_duty_report().c_str());
 }
 
 }  // namespace
