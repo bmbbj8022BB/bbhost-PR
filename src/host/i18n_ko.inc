@@ -1401,3 +1401,5 @@
     {"The monocular's sight at the middle of the screen while the hunter faces the camera (and in first person).", "헌터가 카메라 방향을 볼 때(그리고 1인칭에서) 단안경의 조준이 화면 가운데에 표시됩니다."},
     {"Dodge (0 Roll, 1 Sidestep)", "회피 (0 구르기, 1 스텝)"},
     {"0: always the roll, locked on too. 1: a quick sidestep in the stick's direction, as when locked on, without a lock. The Modern Movement Lite patch keeps working beside it.", "0: 락온 중에도 항상 구르기. 1: 락온하지 않아도 락온 때처럼 스틱 방향으로 빠른 스텝. Modern Movement Lite 패치는 함께 계속 동작합니다."},
+    {"Shoulder", "어깨"},
+    {"Height", "높이"},

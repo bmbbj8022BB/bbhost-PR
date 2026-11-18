@@ -4207,3 +4207,9 @@ msgstr "회피 (0 구르기, 1 스텝)"
 msgid "0: always the roll, locked on too. 1: a quick sidestep in the stick's direction, as when locked on, without a lock. The Modern Movement Lite patch keeps working beside it."
 msgstr "0: 락온 중에도 항상 구르기. 1: 락온하지 않아도 락온 때처럼 스틱 방향으로 빠른 스텝. Modern Movement Lite 패치는 함께 계속 동작합니다."
 
+msgid "Shoulder"
+msgstr "어깨"
+
+msgid "Height"
+msgstr "높이"
+

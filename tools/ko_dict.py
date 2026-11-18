@@ -1520,3 +1520,9 @@ KO.update({
     "Dodge (0 Roll, 1 Sidestep)": "회피 (0 구르기, 1 스텝)",
     "0: always the roll, locked on too. 1: a quick sidestep in the stick's direction, as when locked on, without a lock. The Modern Movement Lite patch keeps working beside it.": "0: 락온 중에도 항상 구르기. 1: 락온하지 않아도 락온 때처럼 스틱 방향으로 빠른 스텝. Modern Movement Lite 패치는 함께 계속 동작합니다.",
 })
+
+# Hunter Cam option names
+KO.update({
+    'Shoulder': '어깨',
+    'Height': '높이',
+})
