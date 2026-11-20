@@ -76,8 +76,9 @@ void host_bindings_save(std::FILE* f);
 std::uint64_t host_bindings_serial();
 
 int host_binding_key(int action);    // an SDL scancode, 0 when unbound
+int host_binding_key2(int action);   // the action's second keyboard key, 0 when unbound; either key presses it
 int host_binding_mouse(int action);  // 1..5 the buttons, 6 and 7 the wheel up and down; 0 when unbound
-// What the screen shows: "E", "X  /  Right Button", "Unbound". UTF-8.
+// What the screen shows: "E", "E  /  Q  /  Right Button", "Unbound". UTF-8.
 void host_binding_describe(int action, char* out, std::size_t n);
 // What a button prompt in the game's own text shows, which has to be short
 // because it sits inside a sentence: the bound key, or the mouse button as
@@ -109,8 +110,10 @@ void host_bindings_mouse_held(std::uint32_t buttons, bool held[kBindCount]);
 // key or mouse button pressed becomes its binding (Escape cancels, Delete
 // unbinds it), and the game sees an idle pad from the start of the capture
 // until that key is released again.
-void host_bind_capture_begin(int action);
+// slot: 0 the first keyboard key (and the mouse button), 1 the second keyboard key.
+void host_bind_capture_begin(int action, int slot = 0);
 int host_bind_capturing();  // the action being captured, or -1
+int host_bind_capture_slot();  // the slot it fills (0 or 1)
 // From the event pump. True when the event was the capture's.
 bool host_bind_capture_key(int scancode);
 bool host_bind_capture_mouse(int button);  // 1..5, or 6 and 7 for the wheel up and down
@@ -152,6 +155,7 @@ void host_binding_clear(int action);
 // button back to their defaults - another action giving up a key or button it
 // took meanwhile, as a capture makes it.
 void host_binding_clear_key(int action);
+void host_binding_clear_key2(int action);  // the second keyboard key only
 void host_binding_clear_mouse(int action);
 void host_binding_reset(int action);
 // Whether an action's key, mouse button and controller button are all its
