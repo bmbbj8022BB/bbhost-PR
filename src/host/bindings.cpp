@@ -617,11 +617,24 @@ bool with_satisfied(int a, bool with_key_down) {
     return true;
 }
 
+// An input that serves as some chord's held-with input (the left button of Tab + Left Button, the Left
+// Ctrl of Ctrl + V) is pressed before the chord's own key, so its plain action must not go out at once:
+// it waits kChordGraceMs. A chord that comes in that time takes the press (the plain action does not
+// go out at all, for as long as the press lasts); let go sooner, it is a tap, given as a short pulse;
+// held longer, it goes out from then on.
+constexpr int kChordGraceMs = 200;
+constexpr int kChordTapMs = 100;
+
 // While a chord is held, the actions that sit on the same key or button alone, or on the key held
 // with it, stand down: Ctrl + V is not also V, and not the Left Ctrl's own action either. An
 // action with a held-with input of its own is a chord itself and is left to its own rule.
 void chords_take_over(int device, bool held[kBindCount]) {
+    using clk = std::chrono::steady_clock;
+    static bool was_down[2][kBindCount], cancelled[2][kBindCount];
+    static clk::time_point down_since[2][kBindCount], pulse_until[2][kBindCount];
+    bool raw[kBindCount];
     for (int a = 0; a < kBindCount; ++a) {
+        raw[a] = held[a];
         if (g_wkey[a].load(std::memory_order_relaxed) || g_wmouse[a].load(std::memory_order_relaxed))
             g_chord_dev[device][a].store(held[a], std::memory_order_relaxed);
     }
@@ -637,6 +650,40 @@ void chords_take_over(int device, bool held[kBindCount]) {
             const bool same = device == 0 ? bk != 0 && (bk == ak || bk == wk) : bm != 0 && (bm == am || bm == wm);
             if (same) held[b] = false;
         }
+    }
+    // The wait for a chord's held-with input's own action.
+    const auto now = clk::now();
+    for (int b = 0; b < kBindCount; ++b) {
+        if (g_wkey[b].load(std::memory_order_relaxed) || g_wmouse[b].load(std::memory_order_relaxed)) {
+            was_down[device][b] = false;
+            continue;
+        }
+        const int x = device == 0 ? g_key[b].load(std::memory_order_relaxed) : g_mouse[b].load(std::memory_order_relaxed);
+        bool is_with = false, chord_on = false;
+        for (int a = 0; x != 0 && a < kBindCount; ++a) {
+            if (a == b || (device == 0 ? g_wkey[a] : g_wmouse[a]).load(std::memory_order_relaxed) != x) continue;
+            is_with = true;
+            if (g_chord_dev[0][a].load(std::memory_order_relaxed) || g_chord_dev[1][a].load(std::memory_order_relaxed)) chord_on = true;
+        }
+        if (!is_with) {
+            was_down[device][b] = false;
+            continue;
+        }
+        const bool down = raw[b];
+        if (down && !was_down[device][b]) {
+            down_since[device][b] = now;
+            cancelled[device][b] = false;
+        }
+        if (down && chord_on) cancelled[device][b] = true;
+        const bool waiting = now - down_since[device][b] < std::chrono::milliseconds(kChordGraceMs);
+        if (down) {
+            if (cancelled[device][b] || waiting) held[b] = false;
+        } else {
+            if (was_down[device][b] && !cancelled[device][b] && waiting)
+                pulse_until[device][b] = now + std::chrono::milliseconds(kChordTapMs);
+            held[b] = now < pulse_until[device][b];
+        }
+        was_down[device][b] = down;
     }
 }
 }  // namespace
