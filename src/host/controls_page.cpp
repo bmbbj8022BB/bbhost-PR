@@ -133,7 +133,7 @@ void controls_page_draw(bool setup_window) {
     const float cw = std::clamp(spare / 4.0f, 72.0f * sc, 170.0f * sc);
     ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Keyboard", ImGuiTableColumnFlags_WidthFixed, cw);
-    ImGui::TableSetupColumn("Keyboard 2", ImGuiTableColumnFlags_WidthFixed, cw);
+    ImGui::TableSetupColumn("Hold with", ImGuiTableColumnFlags_WidthFixed, cw);
     ImGui::TableSetupColumn("Mouse", ImGuiTableColumnFlags_WidthFixed, cw);
     ImGui::TableSetupColumn("Controller", ImGuiTableColumnFlags_WidthFixed, cw);
     ImGui::TableSetupColumn("Reset", ImGuiTableColumnFlags_WidthFixed, reset_w);
@@ -158,8 +158,8 @@ void controls_page_draw(bool setup_window) {
             const int k = host_binding_key(a), m = host_binding_mouse(a);
             const char* key = k ? host_key_name(k) : nullptr;
             const char* mouse = m ? host_mouse_name(m) : nullptr;
-            const int k2 = host_binding_key2(a);
-            const char* key2 = k2 ? host_key_name(k2) : nullptr;
+            const int wk = host_binding_with_key(a), wm = host_binding_with_mouse(a);
+            const char* with = wk ? host_key_name(wk) : wm ? host_mouse_name(wm) : nullptr;
             const int cap_slot = host_bind_capture_slot();
             ImGui::TableSetColumnIndex(1);
             if (cell("##key", key ? key : "-", key_choosing == a && cap_slot == 0, cw, true)) {
@@ -167,13 +167,14 @@ void controls_page_draw(bool setup_window) {
                 g_page_capture = true;
             }
             if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && k) host_binding_clear_key(a);
-            // A second key for the same action: either one presses it.
+            // The input held with the action's own key or button (Ctrl + V, Tab + Left Button): both must be down.
             ImGui::TableSetColumnIndex(2);
-            if (cell("##key2", key2 ? key2 : "-", key_choosing == a && cap_slot == 1, cw, true)) {
+            if (cell("##with", with ? with : "-", key_choosing == a && cap_slot == 1, cw, true)) {
                 host_bind_capture_begin(a, 1);
                 g_page_capture = true;
             }
-            if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && k2) host_binding_clear_key2(a);
+            if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && (wk || wm)) host_binding_clear_with(a);
+            ui::tooltip_for_item("Hold with", "A key or mouse button that has to be held together with this action's own key or button: put Left Ctrl here and V in the Keyboard box for Ctrl + V, or Tab here and the left button in the Mouse box for Tab + Left Button. Right-click clears it.");
             ImGui::TableSetColumnIndex(3);
             if (cell("##mouse", mouse ? mouse : "-", key_choosing == a && cap_slot == 0, cw, true)) {
                 host_bind_capture_begin(a);

@@ -76,9 +76,12 @@ void host_bindings_save(std::FILE* f);
 std::uint64_t host_bindings_serial();
 
 int host_binding_key(int action);    // an SDL scancode, 0 when unbound
-int host_binding_key2(int action);   // the action's second keyboard key, 0 when unbound; either key presses it
+// What has to be held with the action's own key or button (Ctrl + V, Tab + Left Button): a keyboard key or a
+// mouse button (1..7), 0 when none. Both must be down for the action.
+int host_binding_with_key(int action);
+int host_binding_with_mouse(int action);
 int host_binding_mouse(int action);  // 1..5 the buttons, 6 and 7 the wheel up and down; 0 when unbound
-// What the screen shows: "E", "E  /  Q  /  Right Button", "Unbound". UTF-8.
+// What the screen shows: "E", "Left Ctrl + E  /  Right Button", "Unbound". UTF-8.
 void host_binding_describe(int action, char* out, std::size_t n);
 // What a button prompt in the game's own text shows, which has to be short
 // because it sits inside a sentence: the bound key, or the mouse button as
@@ -110,7 +113,7 @@ void host_bindings_mouse_held(std::uint32_t buttons, bool held[kBindCount]);
 // key or mouse button pressed becomes its binding (Escape cancels, Delete
 // unbinds it), and the game sees an idle pad from the start of the capture
 // until that key is released again.
-// slot: 0 the first keyboard key (and the mouse button), 1 the second keyboard key.
+// slot: 0 the action's own key or mouse button, 1 the input held with it (a key or a mouse button).
 void host_bind_capture_begin(int action, int slot = 0);
 int host_bind_capturing();  // the action being captured, or -1
 int host_bind_capture_slot();  // the slot it fills (0 or 1)
@@ -155,7 +158,7 @@ void host_binding_clear(int action);
 // button back to their defaults - another action giving up a key or button it
 // took meanwhile, as a capture makes it.
 void host_binding_clear_key(int action);
-void host_binding_clear_key2(int action);  // the second keyboard key only
+void host_binding_clear_with(int action);  // the held-with input only
 void host_binding_clear_mouse(int action);
 void host_binding_reset(int action);
 // Whether an action's key, mouse button and controller button are all its
