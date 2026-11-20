@@ -635,7 +635,7 @@ static uint64_t ov_t0, ov_dur;
 
 static int start_overlay_popup(int id, int ko, float seconds) {
     uint32_t aw = 0, ah = 0;
-    api->overlay_area(&aw, &ah);
+    ov_area_fn(&aw, &ah);
     float s = ah ? (float)ah / 1080.0f : 1.0f; /* made at the picture's own size: one texel to a pixel */
     if (s < 0.5f) s = 0.5f;
     if (s > 2.2f) s = 2.2f;
@@ -648,7 +648,7 @@ static int start_overlay_popup(int id, int ko, float seconds) {
     if (br < 0.999f)
         for (size_t i = 0; i < (size_t)cw * ch; i++)
             for (int k = 0; k < 3; k++) px[i * 4 + k] = (unsigned char)((float)px[i * 4 + k] * br + 0.5f);
-    int rc = api->overlay_image_set(px, (uint32_t)cw, (uint32_t)ch);
+    int rc = ov_set_fn(px, (uint32_t)cw, (uint32_t)ch);
     free(px);
     if (rc != 0) return 0;
     ov_cw = cw;
@@ -665,12 +665,12 @@ static void overlay_tick(void) {
     if (!ov_on) return;
     uint64_t t = now_ms() - ov_t0;
     if (t >= ov_dur) {
-        api->overlay_image_place(0, 0, 0, 0, 0);
+        ov_place_fn(0, 0, 0, 0, 0);
         ov_on = 0;
         return;
     }
     uint32_t aw = 0, ah = 0;
-    api->overlay_area(&aw, &ah);
+    ov_area_fn(&aw, &ah);
     if (!aw || !ah) return;
     const double slide = 350.0;
     double k = 1.0;
@@ -681,7 +681,7 @@ static void overlay_tick(void) {
     double e = 1.0 - (1.0 - k) * (1.0 - k) * (1.0 - k);
     double x = -(double)ov_cw * (1.0 - e);
     double y = ov_top ? (double)(ah * 11u / 100u) : (double)ah - (double)(ah * 6u / 100u) - (double)ov_ch;
-    api->overlay_image_place((float)(x / aw), (float)(y / ah), (float)ov_cw / (float)aw, (float)ov_ch / (float)ah, (float)e);
+    ov_place_fn((float)(x / aw), (float)(y / ah), (float)ov_cw / (float)aw, (float)ov_ch / (float)ah, (float)e);
 }
 #else
 static void overlay_tick(void) {}

@@ -3,8 +3,12 @@
  * - Watches <data>/trophies.txt (bbhost writes "id unix-time" per unlock) and, for each new id, shows a popup
  *   (an icon card drawn onto the frame, see trophy_popup.h; the text banner when that is off or unavailable)
  *   and plays a chime. The first scan after start is the baseline: no popups for old unlocks.
- * - The platinum (id 0) is not awarded by bbhost; like bloodborne_pc it is granted here once trophies 1-33 are
- *   unlocked. The plugin keeps that in <plugin dir>/platinum.txt and never writes the host's trophies.txt.
+ * - The platinum (id 0): if trophies.txt has an id 0 line (the host awards it) that is used; otherwise, like
+ *   bloodborne_pc, it counts as earned once trophies 1-33 are, dated by the latest of those 33 (the moment it
+ *   really unlocked), so the date is the same on every start. Nothing is written: the plugin never touches the
+ *   host's trophies.txt, and an old <plugin dir>/platinum.txt from an earlier version is only read.
+ * - trophies.txt lines are checked one by one ("id unix-time", 0-39, a plausible time); a torn or junk line is
+ *   skipped and read again once the file grows, and the file is not re-read while its size and time are unchanged.
  * - An in-game menu page "Trophies" (F10 -> Open Trophies) lists all 40 with grade and date.
  * - Sound: Windows only (winmm PlaySound). A built-in synthesized chime, or your own <plugin dir>/trophy.wav
  *   (16-bit PCM WAV; volume is applied to it). Plugin dir = <data>/plugins/trophies/.
@@ -21,10 +25,12 @@
 #include "trophy_table.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -50,6 +56,9 @@ static int baseline_done;
 static int dirty = 1;            /* the list page must be rebuilt */
 static unsigned frames;
 static int ov_ok;                /* the host draws images over the finished frame (plugin API 30): trophy_popup.h */
+static int (*ov_set_fn)(const uint8_t* rgba, uint32_t w, uint32_t h);
+static int (*ov_place_fn)(float x, float y, float w, float h, float alpha);
+static int (*ov_area_fn)(uint32_t* w, uint32_t* h);
 
 static int queue[QUEUE_MAX];
 static int q_head, q_count;
@@ -67,10 +76,17 @@ static float cfg_float(const char* key, float def) {
     if (!s || !*s) return def;
     return (float)atof(s);
 }
+/* Follows the game's own text language (same globals glyphsearch reads; bbhost 1.09 eboot only):
+ * Korean when the first global is 19 (English reads 1), English for anything else or if the read fails. */
+#define GAME_LANG_A_BN (0x55992f0ull + 0x400000ull)
+#define KO_VALUE_A 19
 static int cfg_is_ko(void) {
-    const char* s = api->config("trophies.lang");
-    return !s || !*s || strcmp(s, "en") != 0; /* default Korean */
+    int32_t a = -999;
+    if (!api->eboot_is_109 || !api->eboot_is_109() || !api->read) return 0;
+    if (api->read(GAME_LANG_A_BN, &a, sizeof(a)) != 0) return 0;
+    return a == KO_VALUE_A;
 }
+static int last_ko = -1;
 
 /* ---------- sound ---------- */
 
@@ -212,42 +228,65 @@ static const char* grade_name(char g, int ko) {
     }
 }
 
-static void save_platinum(long long ts) {
-    FILE* f = fopen(plat_path, "w");
-    if (!f) return;
-    fprintf(f, "%lld\n", ts);
-    fclose(f);
-}
-
 static void push_new(int id) {
     if (q_count >= QUEUE_MAX) return;
     queue[(q_head + q_count) % QUEUE_MAX] = id;
     q_count++;
 }
 
-/* Reads trophies.txt; every id not seen before is marked (and queued once the baseline is in). */
+/* One trophies.txt line: "<id> <unix time>" and nothing else. Anything torn (a line the host is still writing),
+ * a comment or a stray value is refused; a truncated time is always below 1e9, so it cannot pass as a real one. */
+static int parse_line(const char* s, int* id, long long* ts) {
+    char *e1, *e2;
+    long a = strtol(s, &e1, 10);
+    if (e1 == s) return 0;
+    long long t = strtoll(e1, &e2, 10);
+    if (e2 == e1) return 0;
+    while (*e2 == ' ' || *e2 == '\t' || *e2 == '\r' || *e2 == '\n') e2++;
+    if (*e2) return 0;
+    if (a < 0 || a >= N_TROPHIES) return 0;
+    if (t < 1000000000LL || t > 253402300799LL) return 0;
+    *id = (int)a;
+    *ts = t;
+    return 1;
+}
+
+static long long seen_size = -1, seen_mtime = -1;
+
+/* Reads trophies.txt (only when its size or time changed); every id not seen before is marked (and queued once
+ * the baseline is in). */
 static void scan(void) {
-    FILE* f = fopen(data_path, "r");
-    if (f) {
-        int id;
-        long long ts;
-        while (fscanf(f, "%d %lld", &id, &ts) == 2) {
-            if (id < 0 || id >= N_TROPHIES || known[id]) continue;
-            known[id] = 1;
-            when[id] = ts;
-            dirty = 1;
-            if (baseline_done && id != 0) push_new(id);
+    struct stat st;
+    if (stat(data_path, &st) == 0 &&
+        (!baseline_done || (long long)st.st_size != seen_size || (long long)st.st_mtime != seen_mtime)) {
+        seen_size = (long long)st.st_size;
+        seen_mtime = (long long)st.st_mtime;
+        FILE* f = fopen(data_path, "r");
+        if (f) {
+            char line[128];
+            while (fgets(line, sizeof(line), f)) {
+                int id;
+                long long ts;
+                if (!parse_line(line, &id, &ts) || known[id]) continue;
+                known[id] = 1;
+                when[id] = ts;
+                dirty = 1;
+                if (baseline_done) push_new(id);
+            }
+            fclose(f);
         }
-        fclose(f);
     }
-    /* The platinum: every base-game trophy (1-33). */
+    /* The platinum, if the host did not write it: every base-game trophy (1-33), dated by the latest of them. */
     if (!known[0]) {
         int all = 1;
-        for (int i = 1; i <= 33; i++) if (!known[i]) { all = 0; break; }
+        long long latest = 0;
+        for (int i = 1; i <= 33; i++) {
+            if (!known[i]) { all = 0; break; }
+            if (when[i] > latest) latest = when[i];
+        }
         if (all) {
             known[0] = 1;
-            when[0] = (long long)time(NULL);
-            save_platinum(when[0]);
+            when[0] = latest;
             dirty = 1;
             if (baseline_done) push_new(0);
         }
@@ -278,26 +317,43 @@ static void announce(int id) {
 
 /* ---------- the list page ---------- */
 
-static BbOption rows[N_TROPHIES + 1];
-static char lab[N_TROPHIES + 1][200];
-static char val[N_TROPHIES + 1][64];
-static char hlp[N_TROPHIES + 1][300];
-static char key[N_TROPHIES + 1][12];
+#define HDR 3 /* progress, base game, The Old Hunters */
+static BbOption rows[N_TROPHIES + HDR];
+static char lab[N_TROPHIES + HDR][200];
+static char val[N_TROPHIES + HDR][64];
+static char hlp[N_TROPHIES + HDR][300];
+static char key[N_TROPHIES + HDR][12];
 
 static void rebuild(void) {
     int ko = cfg_is_ko(); /* the in-game menu's own font shows Hangul fine */
-    int done = 0;
-    for (int i = 0; i < N_TROPHIES; i++) done += known[i];
+    int done = 0, base = 0, dlc = 0;
+    for (int i = 0; i < N_TROPHIES; i++) {
+        done += known[i];
+        if (i < 34) base += known[i]; else dlc += known[i];
+    }
 
     snprintf(key[0], sizeof(key[0]), "progress");
     snprintf(lab[0], sizeof(lab[0]), "%s", ko ? "달성도" : "Progress");
     snprintf(val[0], sizeof(val[0]), "%d / %d (%d%%)", done, N_TROPHIES, done * 100 / N_TROPHIES);
-    snprintf(hlp[0], sizeof(hlp[0]), "%s", ko ? "달성한 트로피 수." : "Trophies unlocked.");
+    snprintf(hlp[0], sizeof(hlp[0]), "%s", ko ? "달성한 트로피 수. 플래티넘은 기본 게임 트로피 33개를 모두 달성하면 받으며, DLC는 필요 없다."
+                                              : "Trophies unlocked. The platinum needs all 33 base-game trophies; the DLC is not required.");
     rows[0] = (BbOption){BB_OPT_INFO, key[0], lab[0], hlp[0], val[0], 0, 0, 0};
+
+    snprintf(key[1], sizeof(key[1]), "base");
+    snprintf(lab[1], sizeof(lab[1]), "%s", ko ? "기본 게임" : "Base game");
+    snprintf(val[1], sizeof(val[1]), "%d / 34", base);
+    snprintf(hlp[1], sizeof(hlp[1]), "%s", ko ? "플래티넘 포함 기본 게임 트로피." : "Base-game trophies, platinum included.");
+    rows[1] = (BbOption){BB_OPT_INFO, key[1], lab[1], hlp[1], val[1], 0, 0, 0};
+
+    snprintf(key[2], sizeof(key[2]), "dlc");
+    snprintf(lab[2], sizeof(lab[2]), "%s", ko ? "올드 헌터즈" : "The Old Hunters");
+    snprintf(val[2], sizeof(val[2]), "%d / 6", dlc);
+    snprintf(hlp[2], sizeof(hlp[2]), "%s", ko ? "확장팩 트로피." : "Expansion trophies.");
+    rows[2] = (BbOption){BB_OPT_INFO, key[2], lab[2], hlp[2], val[2], 0, 0, 0};
 
     for (int i = 0; i < N_TROPHIES; i++) {
         const TrophyInfo* t = &TROPHIES[i];
-        int r = i + 1;
+        int r = i + HDR;
         snprintf(key[r], sizeof(key[r]), "t%d", i);
         snprintf(lab[r], sizeof(lab[r]), "[%s] %s", grade_name(t->grade, ko), ko ? t->ko_name : t->en_name);
         snprintf(hlp[r], sizeof(hlp[r]), "%s", ko ? t->ko_desc : t->en_desc);
@@ -312,7 +368,7 @@ static void rebuild(void) {
         }
         rows[r] = (BbOption){BB_OPT_INFO, key[r], lab[r], hlp[r], val[r], 0, 0, 0};
     }
-    api->panel_rows("trophies", "list", rows, N_TROPHIES + 1);
+    api->panel_rows("trophies", "list", rows, N_TROPHIES + HDR);
     dirty = 0;
 }
 
@@ -321,6 +377,7 @@ static void rebuild(void) {
 static void on_frame(void* user) {
     (void)user;
     frames++;
+    { int k = cfg_is_ko(); if (k != last_ko) { last_ko = k; dirty = 1; } } /* game language changed */
     overlay_tick();
     if (frames % SCAN_EVERY_FRAMES == 1) scan();
     if (dirty) rebuild();
@@ -346,7 +403,7 @@ static void on_action(const char* action, void* user) {
 /* ---------- plugin entry ---------- */
 
 BB_PLUGIN_EXPORT const BbPluginInfo bb_plugin_info = {
-    BB_PLUGIN_API_VERSION, 0, "trophies", "Trophies", "0.4.0", "community",
+    BB_PLUGIN_API_VERSION, 0, "trophies", "Trophies", "0.6.0", "community",
     "Trophy banner and chime when one unlocks, and an in-game trophy list."};
 
 BB_PLUGIN_EXPORT const BbOption bb_plugin_options[] = {
@@ -358,7 +415,6 @@ BB_PLUGIN_EXPORT const BbOption bb_plugin_options[] = {
     {BB_OPT_BOOL | BB_OPT_LIVE, "sound", "Trophy sound", "Play a chime when a trophy unlocks (Windows).", "true"},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "volume", "Chime volume", "Volume of the chime.", "0.7", 0.0, 1.0},
     {BB_OPT_FLOAT | BB_OPT_LIVE, "seconds", "Banner seconds", "How long the banner stays.", "5", 2.0, 15.0},
-    {BB_OPT_CHOICE | BB_OPT_LIVE, "lang", "Language", "Names in the banner and the list.", "ko", 0, 0, "ko|en"},
     {BB_OPT_ACTION, "test", "Test banner and sound", "Shows the Cleric Beast trophy as if just unlocked."},
     {BB_OPT_ACTION, "test_plat", "Test platinum", "Shows the platinum as if just unlocked."},
     {BB_OPT_HEADING | BB_OPT_PANEL | BB_OPT_MENU, "list", "Trophies", "Every trophy and when it was unlocked.",
@@ -369,8 +425,19 @@ BB_PLUGIN_EXPORT int bb_plugin_image(const BbHostApi* host) {
     /* panel_rows arrived in 29; overlay_image_* in 30 (without it the popup is drawn before the post-processing) */
     if (host->version < 29 || host->size < offsetof(BbHostApi, panel_open) + sizeof(host->panel_open)) return 1;
     api = host;
-    ov_ok = host->version >= 30 && host->size >= offsetof(BbHostApi, overlay_area) + sizeof(host->overlay_area) &&
-            host->overlay_image_set && host->overlay_image_place && host->overlay_area;
+    /* The API 30 overlay calls are read by offset (they follow the last API 29 member), so this one dll is built
+     * against either header: sharp popup on a host that has them, the old way on one that does not. */
+    ov_ok = 0;
+    {
+        size_t base = offsetof(BbHostApi, cutscene) + sizeof(host->cutscene);
+        if (host->version >= 30 && host->size >= base + 3 * sizeof(void*)) {
+            const char* ext = (const char*)host + base;
+            memcpy(&ov_set_fn, ext, sizeof(void*));
+            memcpy(&ov_place_fn, ext + sizeof(void*), sizeof(void*));
+            memcpy(&ov_area_fn, ext + 2 * sizeof(void*), sizeof(void*));
+            ov_ok = ov_set_fn && ov_place_fn && ov_area_fn;
+        }
+    }
 
     snprintf(data_path, sizeof(data_path), "%s/trophies.txt", api->data_dir());
     const char* pd = api->plugin_dir("trophies");
