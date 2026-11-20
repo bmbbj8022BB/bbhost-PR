@@ -143,9 +143,11 @@ const struct {
 };
 
 std::atomic<int> g_key[kBindCount];
+std::atomic<int> g_key2[kBindCount];  // a second keyboard key for the same action, 0 for none
 std::atomic<int> g_mouse[kBindCount];
 
 std::atomic<int> g_capture{-1};
+std::atomic<int> g_capture_slot{0};  // the keyboard slot a capture fills: 0 the first key, 1 the second
 // The Debug Menu key: held per device (keyboard, mouse), since each device's
 // actions are read on their own, and a press queued for the pad read.
 std::atomic<bool> g_debug_held[2], g_debug_toggle{false};
@@ -235,10 +237,10 @@ int action_named(const char* name) {
 // binding (host_bindings_serial).
 std::atomic<std::uint64_t> g_serial{1};
 
-// "E", "Mouse2", "X, Mouse2", "none": the whole binding, as a key and a mouse
-// input (0 for none).
-void parse_binding(int a, const std::string& text, const char* where, int* key_out, int* mouse_out) {
-    int key = 0, mouse = 0;
+// "E", "Mouse2", "X, Mouse2", "E, Q, Mouse2", "none": the whole binding, as up to two
+// keys and a mouse input (0 for none). The first key named is the first slot, the next the second.
+void parse_binding(int a, const std::string& text, const char* where, int* key_out, int* key2_out, int* mouse_out) {
+    int key = 0, key2 = 0, mouse = 0;
     std::size_t pos = 0;
     while (pos <= text.size()) {
         std::size_t end = text.find(',', pos);
@@ -260,16 +262,20 @@ void parse_binding(int a, const std::string& text, const char* where, int* key_o
                      tok.c_str());
             continue;
         }
-        key = sc;
+        if (!key) key = sc;
+        else key2 = sc;  // a third key replaces the second
     }
+    if (key2 == key) key2 = 0;
     *key_out = key;
+    *key2_out = key2;
     *mouse_out = mouse;
 }
 
 void set_from_text(int a, const std::string& text, const char* where) {
-    int key = 0, mouse = 0;
-    parse_binding(a, text, where, &key, &mouse);
+    int key = 0, key2 = 0, mouse = 0;
+    parse_binding(a, text, where, &key, &key2, &mouse);
     g_key[a].store(key, std::memory_order_relaxed);
+    g_key2[a].store(key2, std::memory_order_relaxed);
     g_mouse[a].store(mouse, std::memory_order_relaxed);
     g_serial.fetch_add(1, std::memory_order_relaxed);
 }
@@ -307,6 +313,7 @@ int host_binding_in_menus(int action) {
 void host_bindings_load_defaults() {
     for (int a = 0; a < kBindCount; ++a) {
         g_key[a].store(kInfo[a].def_key ? scancode_from_name(kInfo[a].def_key) : 0, std::memory_order_relaxed);
+        g_key2[a].store(0, std::memory_order_relaxed);
         g_mouse[a].store(kInfo[a].def_mouse, std::memory_order_relaxed);
     }
     for (const auto& [name, value] : config().keys) {
@@ -333,6 +340,10 @@ void host_bindings_save(std::FILE* f) {
     for (int a = 0; a < kBindCount; ++a) {
         std::string v;
         if (const char* n = scancode_name(g_key[a].load(std::memory_order_relaxed))) v = n;
+        if (const char* n2 = scancode_name(g_key2[a].load(std::memory_order_relaxed))) {
+            v += v.empty() ? "" : ", ";
+            v += n2;
+        }
         if (const int m = g_mouse[a].load(std::memory_order_relaxed)) {
             v += v.empty() ? "" : ", ";
             v += mouse_token(m);
@@ -343,26 +354,34 @@ void host_bindings_save(std::FILE* f) {
 }
 
 int host_binding_key(int action) { return action >= 0 && action < kBindCount ? g_key[action].load() : 0; }
+int host_binding_key2(int action) { return action >= 0 && action < kBindCount ? g_key2[action].load() : 0; }
 int host_binding_mouse(int action) { return action >= 0 && action < kBindCount ? g_mouse[action].load() : 0; }
 
 void host_binding_describe(int action, char* out, std::size_t n) {
     if (!n) return;
-    const char* k = scancode_name(host_binding_key(action));
     // A lone ` is a speck in the menu's font.
-    if (k && std::strcmp(k, "`") == 0) k = "` (backtick)";
+    const auto key_text = [](int sc) -> const char* {
+        const char* k = scancode_name(sc);
+        return k && std::strcmp(k, "`") == 0 ? "` (backtick)" : k;
+    };
+    std::string text;
+    const auto add = [&text](const char* part) {
+        if (!part) return;
+        if (!text.empty()) text += "  /  ";
+        text += part;
+    };
+    add(key_text(host_binding_key(action)));
+    add(key_text(host_binding_key2(action)));
     const int m = host_binding_mouse(action);
-    const char* ms = m >= 1 && m <= kMouseInputs ? kMouseNames[m] : nullptr;
-    if (k && ms) {
-        std::snprintf(out, n, "%s  /  %s", k, ms);
-    } else {
-        std::snprintf(out, n, "%s", k ? k : ms ? ms : "Unbound");
-    }
+    add(m >= 1 && m <= kMouseInputs ? kMouseNames[m] : nullptr);
+    std::snprintf(out, n, "%s", text.empty() ? "Unbound" : text.c_str());
 }
 
 void host_binding_prompt(int action, char* out, std::size_t n) {
     if (!n) return;
     out[0] = '\0';
     const char* k = scancode_name(host_binding_key(action));
+    if (!k) k = scancode_name(host_binding_key2(action));
     const int m = host_binding_mouse(action);
     // The key first: a player who bound both reads the key in a sentence more
     // easily than "Left Button", and the prompt has room for one.
@@ -486,6 +505,7 @@ void roll_sprint_only(int device, bool held[kBindCount]) {
     static bool was_down[2], on[2];
     static clk::time_point down_since[2], on_since[2];
     if (g_key[kBindRollTap].load(std::memory_order_relaxed) == 0 &&
+        g_key2[kBindRollTap].load(std::memory_order_relaxed) == 0 &&
         g_mouse[kBindRollTap].load(std::memory_order_relaxed) == 0) {
         was_down[device] = on[device] = false;
         return;
@@ -549,8 +569,8 @@ void roll_tap_pulse(int device, bool held[kBindCount], bool roll_down) {
 
 void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount]) {
     for (int a = 0; a < kBindCount; ++a) {
-        const int sc = g_key[a].load(std::memory_order_relaxed);
-        held[a] = sc > 0 && sc < nkeys && keys[sc];
+        const int sc = g_key[a].load(std::memory_order_relaxed), sc2 = g_key2[a].load(std::memory_order_relaxed);
+        held[a] = (sc > 0 && sc < nkeys && keys[sc]) || (sc2 > 0 && sc2 < nkeys && keys[sc2]);
     }
     for (const auto& pair : kOpposites) {
         if (held[pair[0]] && held[pair[1]]) held[pair[0]] = held[pair[1]] = false;
@@ -663,15 +683,17 @@ void host_bindings_menu_pad(PadState& p) {
     if (p.menu_buttons & kR2) p.r2 = 255;
 }
 
-void host_bind_capture_begin(int action) {
+void host_bind_capture_begin(int action, int slot) {
     if (action < 0 || action >= kBindCount) return;
     g_capture_ms.store(now_ms(), std::memory_order_relaxed);
+    g_capture_slot.store(slot == 1 ? 1 : 0, std::memory_order_relaxed);
     g_capture.store(action, std::memory_order_relaxed);
     host_log("keys: rebinding %s - press a key or a mouse button, or turn the wheel (Escape cancels, Delete unbinds)",
              kInfo[action].key);
 }
 
 int host_bind_capturing() { return g_capture.load(std::memory_order_relaxed); }
+int host_bind_capture_slot() { return g_capture_slot.load(std::memory_order_relaxed); }
 
 namespace {
 // Whether two actions can work at the same time, so must not share a key.
@@ -698,8 +720,12 @@ bool host_bind_capture_key(int scancode) {
         return true;
     }
     if (scancode == SDL_SCANCODE_DELETE) {
-        g_key[a].store(0, std::memory_order_relaxed);
-        g_mouse[a].store(0, std::memory_order_relaxed);
+        if (g_capture_slot.load(std::memory_order_relaxed) == 1) {
+            g_key2[a].store(0, std::memory_order_relaxed);  // the second key's box: only that key
+        } else {
+            g_key[a].store(0, std::memory_order_relaxed);
+            g_mouse[a].store(0, std::memory_order_relaxed);
+        }
         finish(a, "unbound");
         return true;
     }
@@ -707,13 +733,18 @@ bool host_bind_capture_key(int scancode) {
     // One key, one action: whatever had it gives it up, which is what a
     // player rebinding a key means - but a menu's action and play's may share
     // one, since they never work at the same time.
+    const bool second = g_capture_slot.load(std::memory_order_relaxed) == 1;
     for (int b = 0; b < kBindCount; ++b) {
-        if (b != a && g_key[b].load(std::memory_order_relaxed) == scancode && contexts_meet(a, b)) {
-            g_key[b].store(0, std::memory_order_relaxed);
-            host_log("keys: %s gives up that key", kInfo[b].key);
-        }
+        if (b == a || !contexts_meet(a, b)) continue;
+        bool gave = false;
+        if (g_key[b].load(std::memory_order_relaxed) == scancode) { g_key[b].store(0, std::memory_order_relaxed); gave = true; }
+        if (g_key2[b].load(std::memory_order_relaxed) == scancode) { g_key2[b].store(0, std::memory_order_relaxed); gave = true; }
+        if (gave) host_log("keys: %s gives up that key", kInfo[b].key);
     }
-    g_key[a].store(scancode, std::memory_order_relaxed);
+    // The action's other slot: the same key twice is one key.
+    std::atomic<int>& other = second ? g_key[a] : g_key2[a];
+    if (other.load(std::memory_order_relaxed) == scancode) other.store(0, std::memory_order_relaxed);
+    (second ? g_key2[a] : g_key[a]).store(scancode, std::memory_order_relaxed);
     finish(a, "rebound");
     return true;
 }
@@ -810,6 +841,7 @@ bool host_bind_take_clear_key() {
 void host_binding_clear(int action) {
     if (action < 0 || action >= kBindCount) return;
     g_key[action].store(0, std::memory_order_relaxed);
+    g_key2[action].store(0, std::memory_order_relaxed);
     g_mouse[action].store(0, std::memory_order_relaxed);
     g_serial.fetch_add(1, std::memory_order_relaxed);
     host_log("keys: %s cleared", kInfo[action].key);
@@ -831,6 +863,13 @@ void host_binding_clear_key(int action) {
     host_log("keys: %s's key cleared", kInfo[action].key);
 }
 
+void host_binding_clear_key2(int action) {
+    if (action < 0 || action >= kBindCount) return;
+    g_key2[action].store(0, std::memory_order_relaxed);
+    g_serial.fetch_add(1, std::memory_order_relaxed);
+    host_log("keys: %s's second key cleared", kInfo[action].key);
+}
+
 void host_binding_clear_mouse(int action) {
     if (action < 0 || action >= kBindCount) return;
     g_mouse[action].store(0, std::memory_order_relaxed);
@@ -841,22 +880,24 @@ void host_binding_clear_mouse(int action) {
 namespace {
 // An action's default key and mouse input: the table's, unless bbhost.toml's
 // [keys] names it (host_bindings_load_defaults).
-void default_of(int action, int* key, int* mouse) {
+void default_of(int action, int* key, int* key2, int* mouse) {
     *key = kInfo[action].def_key ? scancode_from_name(kInfo[action].def_key) : 0;
+    *key2 = 0;
     *mouse = kInfo[action].def_mouse;
     for (const auto& [name, value] : config().keys) {
-        if (action_named(name.c_str()) == action) parse_binding(action, value, "bbhost.toml", key, mouse);
+        if (action_named(name.c_str()) == action) parse_binding(action, value, "bbhost.toml", key, key2, mouse);
     }
 }
 }  // namespace
 
 bool host_binding_at_default(int action) {
     if (action < 0 || action >= kBindCount) return true;
-    int key = 0, mouse = 0;
-    default_of(action, &key, &mouse);
+    int key = 0, key2 = 0, mouse = 0;
+    default_of(action, &key, &key2, &mouse);
     const int own = pad_input_of_bit(kInfo[action].button);
     const int pad = host_pad_input_of(action);
-    return g_key[action].load() == key && g_mouse[action].load() == mouse && (pad < 0 || pad == own);
+    return g_key[action].load() == key && g_key2[action].load() == key2 && g_mouse[action].load() == mouse &&
+           (pad < 0 || pad == own);
 }
 
 const char* host_key_name(int scancode) {
@@ -867,14 +908,19 @@ const char* host_mouse_name(int mouse) { return mouse >= 1 && mouse <= kMouseInp
 
 void host_binding_reset(int action) {
     if (action < 0 || action >= kBindCount) return;
-    int key = 0, mouse = 0;
-    default_of(action, &key, &mouse);
+    int key = 0, key2 = 0, mouse = 0;
+    default_of(action, &key, &key2, &mouse);
     for (int b = 0; b < kBindCount; ++b) {
         if (b == action || !contexts_meet(action, b)) continue;
-        if (key && g_key[b].load(std::memory_order_relaxed) == key) g_key[b].store(0, std::memory_order_relaxed);
+        for (const int k : {key, key2}) {
+            if (!k) continue;
+            if (g_key[b].load(std::memory_order_relaxed) == k) g_key[b].store(0, std::memory_order_relaxed);
+            if (g_key2[b].load(std::memory_order_relaxed) == k) g_key2[b].store(0, std::memory_order_relaxed);
+        }
         if (mouse && g_mouse[b].load(std::memory_order_relaxed) == mouse) g_mouse[b].store(0, std::memory_order_relaxed);
     }
     g_key[action].store(key, std::memory_order_relaxed);
+    g_key2[action].store(key2, std::memory_order_relaxed);
     g_mouse[action].store(mouse, std::memory_order_relaxed);
     if (const int own = pad_input_of_bit(kInfo[action].button); own >= 0 && host_pad_input_of(action) >= 0) {
         // Its button back on itself: whichever button gives it now takes the

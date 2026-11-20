@@ -121,7 +121,7 @@ void controls_page_draw(bool setup_window) {
     ImGui::Spacing();
 
     const ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX | ImGuiTableFlags_SizingFixedFit;
-    if (!ImGui::BeginTable("##controls", 5, flags)) {
+    if (!ImGui::BeginTable("##controls", 6, flags)) {
         ui::card_end();
         return;
     }
@@ -129,10 +129,11 @@ void controls_page_draw(bool setup_window) {
     // leave, up to 170 each: a narrow menu or a large text size keeps every
     // column, the reset's too, on the page.
     const float reset_w = std::max(ui::reset_width(), ImGui::CalcTextSize("Reset").x);
-    const float spare = ImGui::GetContentRegionAvail().x - 150.0f * sc - reset_w - ImGui::GetStyle().CellPadding.x * 10.0f;
-    const float cw = std::clamp(spare / 3.0f, 72.0f * sc, 170.0f * sc);
+    const float spare = ImGui::GetContentRegionAvail().x - 150.0f * sc - reset_w - ImGui::GetStyle().CellPadding.x * 12.0f;
+    const float cw = std::clamp(spare / 4.0f, 72.0f * sc, 170.0f * sc);
     ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn("Keyboard", ImGuiTableColumnFlags_WidthFixed, cw);
+    ImGui::TableSetupColumn("Keyboard 2", ImGuiTableColumnFlags_WidthFixed, cw);
     ImGui::TableSetupColumn("Mouse", ImGuiTableColumnFlags_WidthFixed, cw);
     ImGui::TableSetupColumn("Controller", ImGuiTableColumnFlags_WidthFixed, cw);
     ImGui::TableSetupColumn("Reset", ImGuiTableColumnFlags_WidthFixed, reset_w);
@@ -157,21 +158,31 @@ void controls_page_draw(bool setup_window) {
             const int k = host_binding_key(a), m = host_binding_mouse(a);
             const char* key = k ? host_key_name(k) : nullptr;
             const char* mouse = m ? host_mouse_name(m) : nullptr;
+            const int k2 = host_binding_key2(a);
+            const char* key2 = k2 ? host_key_name(k2) : nullptr;
+            const int cap_slot = host_bind_capture_slot();
             ImGui::TableSetColumnIndex(1);
-            if (cell("##key", key ? key : "-", key_choosing == a, cw, true)) {
-                host_bind_capture_begin(a);
+            if (cell("##key", key ? key : "-", key_choosing == a && cap_slot == 0, cw, true)) {
+                host_bind_capture_begin(a, 0);
                 g_page_capture = true;
             }
             if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && k) host_binding_clear_key(a);
+            // A second key for the same action: either one presses it.
             ImGui::TableSetColumnIndex(2);
-            if (cell("##mouse", mouse ? mouse : "-", key_choosing == a, cw, true)) {
+            if (cell("##key2", key2 ? key2 : "-", key_choosing == a && cap_slot == 1, cw, true)) {
+                host_bind_capture_begin(a, 1);
+                g_page_capture = true;
+            }
+            if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && k2) host_binding_clear_key2(a);
+            ImGui::TableSetColumnIndex(3);
+            if (cell("##mouse", mouse ? mouse : "-", key_choosing == a && cap_slot == 0, cw, true)) {
                 host_bind_capture_begin(a);
                 g_page_capture = true;
             }
             if (ImGui::IsItemClicked(ImGuiMouseButton_Right) && m) host_binding_clear_mouse(a);
 
             // The controller: its button, or what it is fixed to.
-            ImGui::TableSetColumnIndex(3);
+            ImGui::TableSetColumnIndex(4);
             const int pad = host_pad_input_of(a);
             if (pad >= 0) {
                 if (cell("##pad", host_pad_input_name(pad), pad_choosing == a, cw, true)) {
@@ -191,7 +202,7 @@ void controls_page_draw(bool setup_window) {
                                                      "and Menu Back.");
             }
 
-            ImGui::TableSetColumnIndex(4);
+            ImGui::TableSetColumnIndex(5);
             const bool at_default = host_binding_at_default(a);
             ImGui::BeginDisabled(at_default);
             if (ui::icon_button("##reset", ui::Icon::Refresh, 0.0f)) host_binding_reset(a);
@@ -210,7 +221,7 @@ void controls_page_draw(bool setup_window) {
                                                          "Raise it if the dodge does not come out, lower it if it turns into a sprint.");
                 ImGui::TableSetColumnIndex(1);
                 host_options_dodge_slider(cw);
-                ImGui::TableSetColumnIndex(4);
+                ImGui::TableSetColumnIndex(5);
                 host_options_dodge_reset();
             }
         }
