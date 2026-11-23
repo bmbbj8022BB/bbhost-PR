@@ -444,7 +444,9 @@ std::uint32_t click_button(std::uint8_t* c, int index, std::uint64_t packed, flo
     constexpr std::uint32_t kLeft = 0x80u, kRight = 0x20u;
     // A row the port draws itself may want the click as a decide wherever it
     // lands - a key binding is changed by choosing it, not by stepping it.
-    if (option_menu_click_decides(c, index)) {
+    // (A plugin's choice that also opens decides too, but its arrows still step.)
+    const bool arrows = option_menu_click_arrows(c, index);
+    if (option_menu_click_decides(c, index) && !arrows) {
         return kCircle;
     }
     const auto provider = field<std::uint64_t>(c, kProvider);
@@ -479,6 +481,16 @@ std::uint32_t click_button(std::uint8_t* c, int index, std::uint64_t packed, flo
     }
     if (shown_hit("Widgets/Slider/RightArrow", &w, 14.0f)) {
         return kRight;
+    }
+    if (arrows) {
+        // Only the two ends of the value are arrows; the rest of the row decides.
+        const bool combo = shown_hit("Widgets/ComboBox", &w, 30.0f);
+        if (combo) {
+            const float edge = (w.x2 - w.x1) * 0.12f;
+            if (sx < w.x1 + edge) return kLeft;
+            if (sx > w.x2 - edge) return kRight;
+        }
+        return kCircle;
     }
     if (shown_hit("Widgets/ComboBox", &w, 0.0f)) {
         return sx < (w.x1 + w.x2) * 0.5f ? kLeft : kRight;

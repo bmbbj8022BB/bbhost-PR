@@ -2189,6 +2189,8 @@ bool option_menu_click_decides(void* list, int index) {
            (keys_row_bound(index) || keys_row_reset(index)) && keys_alive();
 }
 
+bool option_menu_click_arrows(void* list, int index) { return plugin_dialog::click_arrows(list, index); }
+
 void option_menu_list_update(void* comp, bool focused) {
     if (!g_installed) {
         return;
