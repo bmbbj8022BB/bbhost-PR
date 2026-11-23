@@ -870,7 +870,7 @@ void rows_update() {
     // Cross on a text row (the game's own rows take theirs).
     if ((edge & menu_confirm_button()) && slot >= 0 && slot < g_b.records) {
         const Row& row = g_b.page.rows[static_cast<std::size_t>(row_of(slot))];
-        if ((g_b.scrolls || row.widget == Widget::Text) && row.presses && !row.grey) {
+        if ((g_b.scrolls || row.widget == Widget::Text || row.decides) && row.presses && !row.grey) {
             post_sound(kMenuSoundDecide);
             press(row_of(slot));
         }
@@ -1124,7 +1124,13 @@ void list_update(void* comp, bool focused) {
 bool click_decides(void* list, int index) {
     if (!g_b.dialog || list != option_rows::rows_list(g_b.dialog) || index < 0 || index >= g_b.records) return false;
     const Row& row = g_b.page.rows[static_cast<std::size_t>(row_of(index))];
-    return row.presses && !row.steps && !row.grey;
+    return row.presses && (row.decides || !row.steps) && !row.grey;
+}
+
+bool click_arrows(void* list, int index) {
+    if (!g_b.dialog || list != option_rows::rows_list(g_b.dialog) || index < 0 || index >= g_b.records) return false;
+    const Row& row = g_b.page.rows[static_cast<std::size_t>(row_of(index))];
+    return row.decides && !row.grey;
 }
 
 void system_row(void* builder) {
