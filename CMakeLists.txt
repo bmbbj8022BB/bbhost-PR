@@ -1188,11 +1188,11 @@ if(UNIX)
   target_include_directories(text_entry_test PRIVATE src)
   add_test(NAME text_entry_test COMMAND text_entry_test)
   # The keyboard's movement keys on the stick, frame by frame at 30, 60 and 120 fps.
-  add_executable(key_move_test tests/key_move_test.cpp src/host/bindings.cpp)
+  add_executable(key_move_test tests/key_move_test.cpp src/host/bindings.cpp tests/host_settings_stub.cpp)
   target_include_directories(key_move_test PRIVATE src)
   add_test(NAME key_move_test COMMAND key_move_test)
   # The menus' own keys: their tabs, shortcuts and switches, apart from play's.
-  add_executable(menu_keys_test tests/menu_keys_test.cpp src/host/bindings.cpp)
+  add_executable(menu_keys_test tests/menu_keys_test.cpp src/host/bindings.cpp tests/host_settings_stub.cpp)
   target_include_directories(menu_keys_test PRIVATE src)
   if(SDL3_FOUND)
     target_compile_definitions(menu_keys_test PRIVATE BBHOST_HAVE_SDL3=1)
