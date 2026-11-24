@@ -176,6 +176,10 @@ std::vector<PluginEntry> plugins_catalog() { return g_catalog; }
 namespace game_menu_art {
 void preload() {}
 }  // namespace game_menu_art
+// host/i18n.h: no translation here - the English text, which these checks are written against.
+namespace i18n {
+const char* tr(const char* en) { return en; }
+}  // namespace i18n
 // The rest of the host it reaches: the options (a config of this test's)
 // and the game's dialog (engine/plugin_dialog.h), absent at first - the
 // host's own panel then, the fallback - and there for the native checks.
