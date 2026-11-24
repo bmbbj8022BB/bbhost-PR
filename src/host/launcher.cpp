@@ -8,6 +8,7 @@
 #include "engine/addr.h"
 #include "engine/patch_manifest.h"
 #include "host/controls_page.h"
+#include "host/mods_page.h"
 #include "host/launcher_ui.h"
 #include "host/links.h"
 #include "host/options.h"
@@ -75,7 +76,7 @@ constexpr int kTextSizes[] = {100, 125, 150, 175, 200, 250, 300, 350, 400};
 const char* const kTextSizeLabels[] = {"100%", "125%", "150%", "175%", "200%", "250%", "300%", "350%", "400%"};
 
 // The window's pages, as the sidebar lists them.
-enum Page { kPageGame, kPageGraphics, kPageControls, kPageEnhancements, kPagePatches, kPageShaders, kPagePlugins, kPageSettings, kPageCount };
+enum Page { kPageGame, kPageGraphics, kPageControls, kPageEnhancements, kPagePatches, kPageMods, kPageShaders, kPagePlugins, kPageSettings, kPageCount };
 struct PageInfo {
     const char* name;
     const char* slug;  // its picture's name (BBHOST_SETUP_TEST=shot)
@@ -87,6 +88,7 @@ constexpr PageInfo kPages[kPageCount] = {
     {"Controls", "controls", launcher_ui::Icon::Keyboard},
     {"PC Enhancements", "pc-enhancements", launcher_ui::Icon::Enhance},
     {"Patches", "patches", launcher_ui::Icon::Patches},
+    {"Mods", "mods", launcher_ui::Icon::Folder},
     {"Shaders", "shaders", launcher_ui::Icon::Shaders},
     {"Plugins", "plugins", launcher_ui::Icon::Plugins},
     {"Settings", "settings", launcher_ui::Icon::Settings},
@@ -750,6 +752,8 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             if (controls_capture_event(ev)) continue;
             ImGui_ImplSDL3_ProcessEvent(&ev);
             if (ev.type == SDL_EVENT_QUIT || ev.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) done = true;
+            // A mod's zip or folder dropped on the Mods page (host/mods_page.h).
+            if (ev.type == SDL_EVENT_DROP_FILE && page == kPageMods && ev.drop.data) mods_page_drop_file(ev.drop.data);
         }
         // The Graphics page's rows hand their changes to the window's pump, as
         // F10's do in the game (host/options.h).
@@ -948,7 +952,7 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             nat_tested_v = nat_rec.verdict;
             nat_tested_in = nat_rec.inbound;
         }
-        const bool can_play = app0_ok && eboot.ok && !compiling && !game && !nat_view.running;
+        const bool can_play = app0_ok && eboot.ok && !compiling && !game && !nat_view.running && !mods_page_busy();
         bool play = false;
         const SignIn si = sign_in_state();
 
@@ -2106,6 +2110,9 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             ImGui::SetCursorScreenPos(o + ImVec2(0, static_cast<float>(per_col) * row_h));
             ImGui::Dummy(ImVec2(1, 1));
             ui::card_end();
+        } else if (page == kPageMods) {
+            // The mods folder's list, Apply and Revert (host/mods_page.h).
+            mods_page_draw(win, app0, f[kData].str(), scale, label_w);
         } else if (page == kPageShaders) {
             const float w = ImGui::GetContentRegionAvail().x;
             // The caches at a glance, and the Shaders setting beside them.
