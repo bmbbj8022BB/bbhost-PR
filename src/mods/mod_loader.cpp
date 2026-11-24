@@ -1,6 +1,7 @@
 #include "mods/mod_loader.h"
 
 #include "mods/anibnd_merge.h"
+#include "mods/fs_utf8.h"
 #include "mods/param_merge.h"
 #include "mods/zip_reader.h"
 
@@ -21,8 +22,8 @@ namespace {
 
 namespace fs = std::filesystem;
 
-fs::path P(const std::string& s) { return fs::u8path(s); }
-std::string U8(const fs::path& p) { return p.u8string(); }
+fs::path P(const std::string& s) { return path_from_utf8(s); }
+std::string U8(const fs::path& p) { return path_to_utf8(p); }
 
 std::string lower(std::string s) {
     for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -980,10 +981,11 @@ struct Json {
     double n = 0;
     std::string s;
     std::vector<Json> a;
-    std::vector<std::pair<std::string, Json>> o;
+    std::vector<std::string> okeys;   // an object: its keys and, in step, its values
+    std::vector<Json> ovals;
     const Json* get(const std::string& k) const {
-        for (const auto& kv : o)
-            if (kv.first == k) return &kv.second;
+        for (std::size_t i = 0; i < okeys.size(); ++i)
+            if (okeys[i] == k) return &ovals[i];
         return nullptr;
     }
 };
@@ -1060,7 +1062,8 @@ struct JsonParser {
                 if (i >= t.size() || t[i] != ':') { ok = false; break; }
                 ++i;
                 Json v = value(depth + 1);
-                j.o.push_back({std::move(k), std::move(v)});
+                j.okeys.push_back(std::move(k));
+                j.ovals.push_back(std::move(v));
                 ws();
                 if (i < t.size() && t[i] == ',') { ++i; continue; }
                 if (i < t.size() && t[i] == '}') { ++i; break; }
@@ -1151,7 +1154,9 @@ State load_state(const std::string& state_dir) {
     const Json root = p.value();
     if (!p.ok || root.kind != Json::Obj) return st;
     if (const Json* e = root.get("entries"); e && e->kind == Json::Obj) {
-        for (const auto& [k, v] : e->o) {
+        for (std::size_t ei = 0; ei < e->okeys.size(); ++ei) {
+            const std::string& k = e->okeys[ei];
+            const Json& v = e->ovals[ei];
             if (v.kind != Json::Obj) continue;
             StateEntry se;
             if (auto* x = v.get("root"); x && x->kind == Json::Str) se.root = x->s;
