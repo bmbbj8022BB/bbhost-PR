@@ -516,6 +516,8 @@ void mods_page_draw(SDL_Window* win, const std::string& app0_in, const std::stri
             ImGui::CloseCurrentPopup();
             g.phase = Page::Idle;
             set_status(L("Cancelled; nothing was written.", "취소했습니다. 아무것도 기록하지 않았습니다."));
+            for (auto& m : g.mods) m.enabled = g.applied.count(m.name) > 0;  // Cancel: the switches go back to what is applied
+            save_list();
         }
         ImGui::EndPopup();
     }
