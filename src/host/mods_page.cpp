@@ -255,6 +255,8 @@ void continue_apply() {
     });
 }
 
+std::atomic<bool> g_revert_ended{false};  // set by the revert worker, read by the page on the UI thread
+
 void start_revert() {
     g.running = true;
     g.phase = Page::Reverting;
@@ -268,6 +270,7 @@ void start_revert() {
     g.worker = std::thread([=]() {
         set_status("Reverting...");
         const int n = mods::revert_all(sd, [](const std::string& l) { say(l); });
+        g_revert_ended = true;
         std::lock_guard<std::mutex> lk(g.mu);
         g.summary = std::string("Files restored or removed: ") + std::to_string(n);
         g.status = "Done.";
@@ -306,6 +309,15 @@ void mods_page_draw(SDL_Window* win, const std::string& app0_in, const std::stri
     const std::string app0 = app0_in;
     const ImGuiStyle& st = ImGui::GetStyle();
     const bool busy = g.running || g.phase == Page::Confirm;
+    static bool was_busy = false;  // a run just ended: re-read the record so the "applied" marks follow it
+    if (!busy) {
+        if (g_revert_ended.exchange(false)) {  // after Revert all nothing is applied: switch every mod off too
+            for (auto& m : g.mods) m.enabled = false;
+            save_list();
+        }
+        if (was_busy) refresh_list();
+    }
+    was_busy = busy;
     const float w = ImGui::GetContentRegionAvail().x;
 
     // Answers from the pickers and files dropped on the window.
