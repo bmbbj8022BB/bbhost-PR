@@ -60,7 +60,10 @@ _Static_assert(offsetof(BbHostApi, panel_rows) == offsetof(BbHostApi, input_as) 
 _Static_assert(offsetof(BbHostApi, panel_value) == offsetof(BbHostApi, panel_rows) + sizeof(void*), "panel_value after panel_rows");
 _Static_assert(offsetof(BbHostApi, panel_open) == offsetof(BbHostApi, panel_value) + sizeof(void*), "panel_open after panel_value");
 _Static_assert(offsetof(BbHostApi, cutscene) == offsetof(BbHostApi, panel_open) + sizeof(void*), "cutscene after panel_open");
-_Static_assert(sizeof(BbHostApi) == offsetof(BbHostApi, cutscene) + sizeof(void*), "cutscene ends the API table");
+_Static_assert(offsetof(BbHostApi, overlay_image_set) == offsetof(BbHostApi, cutscene) + sizeof(void*), "overlay_image_set after cutscene");
+_Static_assert(offsetof(BbHostApi, overlay_image_place) == offsetof(BbHostApi, overlay_image_set) + sizeof(void*), "overlay_image_place after overlay_image_set");
+_Static_assert(offsetof(BbHostApi, overlay_area) == offsetof(BbHostApi, overlay_image_place) + sizeof(void*), "overlay_area after overlay_image_place");
+_Static_assert(sizeof(BbHostApi) == offsetof(BbHostApi, overlay_area) + sizeof(void*), "overlay_area ends the API table");
 _Static_assert(BB_OPT_PANEL == 0x400u && BB_PANEL_DEFAULTS == 1u && BB_PANEL_CORNER == 2u, "the panel's flags");
 _Static_assert(BB_OPT_MENU == 0x800u && BB_OPT_SUBPAGE == 0x1000u && BB_OPT_OPEN == 0x2000u && BB_OPT_CONFIRM == 0x4000u &&
                    BB_OPT_INFO == 8,
