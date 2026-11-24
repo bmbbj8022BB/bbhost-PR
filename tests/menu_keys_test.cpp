@@ -176,6 +176,7 @@ int main() {
         // Still one button for each bit.
         std::uint32_t all = 0;
         for (int i = 0; i < kPadInputs; ++i) {
+            if (i == kPadBack) continue;  // Back shares the touchpad press bit on purpose
             CHECK(!(all & host_pad_menu_bit(i)));
             all |= host_pad_menu_bit(i);
         }
