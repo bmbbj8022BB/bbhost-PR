@@ -1,5 +1,7 @@
 #include "mods/zip_reader.h"
 
+#include "mods/fs_utf8.h"
+
 #include <zlib.h>
 
 #include <cstdio>
@@ -82,7 +84,7 @@ bool ZipReader::open(const std::string& utf8_path, std::string* error) {
         if (error) *error = why;
         return false;
     };
-    std::ifstream f(fs::u8path(utf8_path), std::ios::binary);
+    std::ifstream f(path_from_utf8(utf8_path), std::ios::binary);
     if (!f) return fail("cannot open");
     f.seekg(0, std::ios::end);
     const std::uint64_t size = static_cast<std::uint64_t>(f.tellg());
@@ -138,7 +140,7 @@ bool ZipReader::read(const ZipEntry& e, std::vector<std::uint8_t>* out, std::str
     };
     if (e.flags & 1) return fail("encrypted entries are not supported");
     if (e.method != 0 && e.method != 8) return fail("unsupported compression method");
-    std::ifstream f(fs::u8path(path_), std::ios::binary);
+    std::ifstream f(path_from_utf8(path_), std::ios::binary);
     if (!f) return fail("cannot open the zip");
     std::uint8_t lh[30];
     f.seekg(static_cast<std::streamoff>(e.local));

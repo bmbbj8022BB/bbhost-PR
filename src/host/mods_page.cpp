@@ -2,6 +2,7 @@
 
 #include "core/config.h"
 #include "host/launcher_ui.h"
+#include "mods/fs_utf8.h"
 #include "mods/mod_loader.h"
 
 #include "imgui.h"
@@ -25,14 +26,15 @@ namespace ui = launcher_ui;
 namespace {
 
 
-std::string generic(const std::string& p) { return fs::u8path(p).generic_u8string(); }
+std::string u8(const fs::path& p) { return mods::path_to_utf8(p); }
+std::string generic(const std::string& p) { return mods::path_to_generic_utf8(mods::path_from_utf8(p)); }
 std::string toml_str(const std::string& p) { return "\"" + generic(p) + "\""; }
 
 std::string absolute_from_config(const std::string& p) {
     if (p.empty()) return p;
-    fs::path x = fs::u8path(p);
-    if (x.is_relative()) x = fs::u8path(config_user_file()).parent_path() / x;
-    return x.lexically_normal().u8string();
+    fs::path x = mods::path_from_utf8(p);
+    if (x.is_relative()) x = mods::path_from_utf8(config_user_file()).parent_path() / x;
+    return u8(x.lexically_normal());
 }
 
 struct Page {
@@ -90,7 +92,7 @@ void set_status(const std::string& s) {
 }
 
 std::string data_dir_of(const std::string& data) { return data.empty() ? config_default_data_dir() : data; }
-std::string state_dir() { return (fs::u8path(g.source) / ".bbmods").u8string(); }
+std::string state_dir() { return u8(mods::path_from_utf8(g.source) / ".bbmods"); }
 
 void save_setting(const char* section, const char* key, const std::string& path) {
     if (config_set_values(config_user_file(), {{section, key, toml_str(path)}})) config_value_set(std::string(section) + "." + key, toml_str(path));
@@ -99,10 +101,10 @@ void save_setting(const char* section, const char* key, const std::string& path)
 void load_settings(const std::string& data) {
     const std::string d = data_dir_of(data);
     std::string src = absolute_from_config(config_value("mods.source"));
-    if (src.empty()) src = (fs::u8path(d) / "mod-sources").u8string();
+    if (src.empty()) src = u8(mods::path_from_utf8(d) / "mod-sources");
     std::string ov = config().mods;
     if (ov.empty()) ov = absolute_from_config(config_value("paths.mods"));
-    if (ov.empty()) ov = (fs::u8path(d) / "mods").u8string();
+    if (ov.empty()) ov = u8(mods::path_from_utf8(d) / "mods");
     std::snprintf(g.source, sizeof(g.source), "%s", generic(src).c_str());
     std::snprintf(g.overlay, sizeof(g.overlay), "%s", generic(ov).c_str());
     g.inited = true;
@@ -205,8 +207,8 @@ void start_apply(const std::string& app0, const std::string& data) {
             // Nothing to ask: on to the apply, in this same thread.
             set_status("Applying...");
             std::error_code ec;
-            fs::create_directories(fs::u8path(ov), ec);
-            const mods::ApplyStats st = mods::apply_plan(*plan, (fs::u8path(src) / ".bbmods").u8string(), *env, [](const std::string& l) { say(l); },
+            fs::create_directories(mods::path_from_utf8(ov), ec);
+            const mods::ApplyStats st = mods::apply_plan(*plan, u8(mods::path_from_utf8(src) / ".bbmods"), *env, [](const std::string& l) { say(l); },
                                                          [](int d, int t) { g.done = d; g.total = t; });
             char b[200];
             std::snprintf(b, sizeof(b), "%s: %d  |  %s: %d  |  %s: %d  |  %s: %d", "written", st.copied, "merged", st.merged,
@@ -239,8 +241,8 @@ void continue_apply() {
     g.worker = std::thread([=]() {
         set_status("Applying...");
         std::error_code ec;
-        fs::create_directories(fs::u8path(ov), ec);
-        const mods::ApplyStats st = mods::apply_plan(*plan, (fs::u8path(src) / ".bbmods").u8string(), *env, [](const std::string& l) { say(l); },
+        fs::create_directories(mods::path_from_utf8(ov), ec);
+        const mods::ApplyStats st = mods::apply_plan(*plan, u8(mods::path_from_utf8(src) / ".bbmods"), *env, [](const std::string& l) { say(l); },
                                                      [](int d, int t) { g.done = d; g.total = t; });
         char b[200];
         std::snprintf(b, sizeof(b), "%s: %d  |  %s: %d  |  %s: %d  |  %s: %d  |  %s: %d", "written", st.copied, "merged", st.merged,
@@ -423,7 +425,7 @@ void mods_page_draw(SDL_Window* win, const std::string& app0_in, const std::stri
     ImGui::SameLine();
     if (ui::ghost_button("Open mods folder", ui::Icon::Folder)) {
         std::error_code ec;
-        fs::create_directories(fs::u8path(g.source), ec);
+        fs::create_directories(mods::path_from_utf8(g.source), ec);
         SDL_OpenURL(url_of(g.source).c_str());
     }
     ImGui::EndDisabled();
