@@ -450,7 +450,8 @@ if(SDL3_FOUND AND Vulkan_FOUND)
   target_include_directories(imgui PUBLIC third_party/imgui)
   target_link_libraries(imgui PUBLIC SDL3::SDL3 Vulkan::Vulkan)
   target_compile_options(imgui PRIVATE -w)
-  target_sources(bbhost PRIVATE src/host/launcher.cpp src/host/launcher_ui.cpp src/host/plugin_ui.cpp src/host/shader_compile.cpp)
+  target_sources(bbhost PRIVATE src/host/launcher.cpp src/host/launcher_ui.cpp src/host/plugin_ui.cpp src/host/shader_compile.cpp
+                 src/host/mods_page.cpp src/mods/mod_loader.cpp src/mods/zip_reader.cpp src/mods/anibnd_merge.cpp src/mods/param_merge.cpp)
   # The setup window's backgrounds (res/launcher-art/*.png: Kyo's screenshots,
   # their light only, coloured by the palette at load; one picked each start),
   # taken in whole by the assembler's .incbin: build/gen/launcher_art.inc,
@@ -1465,6 +1466,29 @@ if(UNIX)
   target_link_libraries(esd_test PRIVATE gcn)
   add_test(NAME esd_test COMMAND esd_test)
   set_tests_properties(esd_test PROPERTIES SKIP_RETURN_CODE 77)
+
+  # Merging mods' c0000.anibnd.dcx (src/mods); archives built in the test, no game files.
+  add_executable(anibnd_merge_test tests/anibnd_merge_test.cpp src/mods/anibnd_merge.cpp)
+  target_include_directories(anibnd_merge_test PRIVATE src)
+  target_compile_features(anibnd_merge_test PRIVATE cxx_std_17)
+  target_link_libraries(anibnd_merge_test PRIVATE gcn)
+  add_test(NAME anibnd_merge_test COMMAND anibnd_merge_test)
+
+  # Merging mods' gameparam.parambnd.dcx (src/mods); archives built in the test, no game files.
+  add_executable(param_merge_test tests/param_merge_test.cpp src/mods/param_merge.cpp)
+  target_include_directories(param_merge_test PRIVATE src)
+  target_compile_features(param_merge_test PRIVATE cxx_std_17)
+  target_link_libraries(param_merge_test PRIVATE gcn)
+  add_test(NAME param_merge_test COMMAND param_merge_test)
+
+  # The mod loader's engine (src/mods/mod_loader.cpp): matching, zip mods, apply, revert, merging through it;
+  # a game folder, mods and an overlay built in a temporary folder, no game files.
+  add_executable(mod_loader_test tests/mod_loader_test.cpp src/mods/mod_loader.cpp src/mods/zip_reader.cpp
+                 src/mods/anibnd_merge.cpp src/mods/param_merge.cpp)
+  target_include_directories(mod_loader_test PRIVATE src)
+  target_compile_features(mod_loader_test PRIVATE cxx_std_17)
+  target_link_libraries(mod_loader_test PRIVATE gcn)
+  add_test(NAME mod_loader_test COMMAND mod_loader_test)
   add_executable(rebirth_script_test tests/rebirth_script_test.cpp src/engine/rebirth_script.cpp src/engine/esd.cpp src/core/sha256.cpp)
   target_include_directories(rebirth_script_test PRIVATE src)
   target_compile_features(rebirth_script_test PRIVATE cxx_std_17)
