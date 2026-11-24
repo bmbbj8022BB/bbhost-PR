@@ -331,7 +331,7 @@ int main() {
         const std::string sd2 = (m2 / ".bbmods").string();
         {
             const Plan p = make_plan(enabled(ms), i2, o2.string());
-            CHECK(p.targets.size() == 1 && p.targets[0].second.orig == (g2 / "dvdroot_ps4/chr/c0000.anibnd.dcx").string());
+            CHECK(p.targets.size() == 1 && fs::path(p.targets[0].second.orig) == g2 / "dvdroot_ps4/chr/c0000.anibnd.dcx");
             const Preview pv = preview_merges(p, env);
             CHECK(pv.items.size() == 1 && pv.items[0].conflicts.empty() && !pv.has_conflicts());
             const ApplyStats st = apply_plan(p, sd2, env, logger);
