@@ -4468,3 +4468,39 @@ msgstr "디버그: 켜진 플래그 기록"
 msgid "Writes every set chalice flag (12900000-12999999) to the host log, to see what a reset left behind."
 msgstr "켜진 성배 플래그(12900000-12999999)를 호스트 로그에 기록해, 리셋 후 무엇이 남았는지 확인합니다."
 
+msgid "Blood Gem Drop Settings"
+msgstr "혈정석 드롭 설정"
+
+msgid "Sliders for the Blood Gem drop multiplier, out-of-shape rate and gem level cap, and a switch for the level 18-20 value fix. Writes param values, so it combines with other param mods."
+msgstr "혈정석 드롭 배율, Out-of-Shape 비율, 혈정석 레벨 상한을 조절하는 슬라이더와 레벨 18~20 수치 수정 스위치입니다. 파라미터 값을 직접 쓰기 때문에 다른 파라미터 모드와 함께 쓸 수 있습니다."
+
+msgid "Gem drop multiplier"
+msgstr "혈정석 드롭 배율"
+
+msgid "How much more likely a gem is picked in an enemy's drop roll (1 = as the game). Cannot pass 100%."
+msgstr "적의 드롭 판정에서 혈정석이 뽑힐 확률이 얼마나 높아지는지입니다(1 = 게임 원래 값). 100%를 넘을 수 없습니다."
+
+msgid "Out-of-shape rate"
+msgstr "Out-of-Shape 비율"
+
+msgid "How often the out-of-shape gems are made (1 = as the game, 100 = as common as the usual shapes)."
+msgstr "Out-of-Shape 혈정석이 만들어지는 빈도입니다(1 = 게임 원래 값, 100 = 흔한 모양만큼 자주 나옴)."
+
+msgid "Gem level cap"
+msgstr "혈정석 레벨 상한"
+
+msgid "Raises the gem level cap to this (0 = as the game). The game's own value is never lowered."
+msgstr "혈정석 레벨 상한을 이 값까지 올립니다(0 = 게임 원래 값). 게임의 원래 값보다 낮추지는 않습니다."
+
+msgid "Level 18-20 value fix"
+msgstr "레벨 18~20 수치 수정"
+
+msgid "The level 18/19/20 values of five gem effect families are raised to 36/51/65. Off = as the game."
+msgstr "혈정석 효과 다섯 계열의 레벨 18/19/20 수치를 36/51/65로 올립니다. 끄면 게임 원래 값입니다."
+
+msgid "Open web viewer"
+msgstr "웹 뷰어 열기"
+
+msgid "Opens the full glyph dictionary in your web browser."
+msgstr "글리프 전체 사전을 웹 브라우저에서 엽니다."
+
