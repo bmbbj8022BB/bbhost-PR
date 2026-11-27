@@ -548,6 +548,12 @@ bool plugin_panel_native_page(plugin_dialog::Page& out) {
                 row.on = cur;
             }
             row.steps = choices.size() > 1;
+            if (o.flags & BB_OPT_OPEN) {
+                row.presses = true;
+                row.decides = true;
+            }
+            // BB_OPT_OPEN on a choice: Enter presses it too (on_action), Left and Right still step it.
+            row.presses = (o.flags & BB_OPT_OPEN) != 0;
             break;
         }
         case BB_OPT_INT:
@@ -574,6 +580,8 @@ bool plugin_panel_native_page(plugin_dialog::Page& out) {
             break;
         case BB_OPT_ACTION:
             row.presses = true;
+            // A run-time row the plugin gave a value (panel_value) shows it on the right.
+            if (r.runtime && v.rt.values.count(v.page_key + "/" + o.key)) row.value = value;
             break;
         default:  // BB_OPT_INFO, and a type this host does not know
             row.value = value;
@@ -680,7 +688,8 @@ int plugin_panel_native_press(int row, std::string* question) {
 #endif
         return 1;
     }
-    if (o.type != BB_OPT_ACTION) return 0;
+    // A choice with BB_OPT_OPEN is pressed like an action (Left and Right still step it).
+    if (o.type != BB_OPT_ACTION && !(o.type == BB_OPT_CHOICE && (o.flags & BB_OPT_OPEN))) return 0;
     if (o.flags & BB_OPT_CONFIRM) {
         if (question) *question = o.label + "?" + (o.help.empty() ? std::string() : "\n" + plugin_menu::one_line(o.help, 96));
         return 3;

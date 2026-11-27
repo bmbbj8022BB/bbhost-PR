@@ -53,6 +53,7 @@ struct Row {
     bool grey = false;               // BB_OPT_WHEN not met: shown dimmed, does nothing
     bool steps = false;              // Left and Right change it
     bool presses = false;            // Cross does something (a button, a text, a page)
+    bool decides = false;            // a mouse click is a Cross here, not a Left/Right step (a choice that also opens)
 };
 
 struct Page {
@@ -102,6 +103,8 @@ void system_row(void* builder);
 // our page's buttons, text rows and the Plugins list's menus, wherever on the
 // row it lands - not a step, as on the rows Left and Right change.
 bool click_decides(void* list, int index);
+// A row that decides on a click but whose arrows (the ends of its value) still step it.
+bool click_arrows(void* list, int index);
 // Every pad read, before the game has it (hle/system.cpp): what our dialog
 // keeps from the game - Circle on a page opened on top, Up and Down at the
 // ends of the rows it scrolls, and with a corner page up everything but the

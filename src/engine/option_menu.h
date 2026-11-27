@@ -39,6 +39,7 @@ void option_menu_list_update(void* comp, bool focused);
 // the row, rather than stepping the row's value (a key binding: choosing it
 // starts the capture). On the menu thread, from the pointer.
 bool option_menu_click_decides(void* list, int index);
+bool option_menu_click_arrows(void* list, int index);
 
 // A yes/no question asked the way the options screens ask theirs (on the
 // open PC Graphics screen's own popup stack, modal over it). Possible while
