@@ -1241,7 +1241,9 @@ const char kSkillIssue[] = "SKILL ISSUE";
 
 // The message bundle: the port's ids in groups 200 and 201, the dialog groups
 // and the event text; with `skill_issue`, the death caption too.
-Bytes build_menu_messages(const Bytes& raw, bool skill_issue) {
+// `kept` non-null: the bundle is a plugin's own - an id it already has stays as it is (counted in *kept)
+// instead of failing the bundle.
+Bytes build_menu_messages(const Bytes& raw, bool skill_issue, std::size_t* kept = nullptr) {
     Bytes payload, dcx_head;
     if (raw.size() >= 4 && std::memcmp(raw.data(), "DCX\0", 4) == 0) {
         if (raw.size() < 0x2c || std::memcmp(raw.data() + 0x28, "DFLT", 4) != 0) throw Fail{"the message bundle is not DFLT"};
@@ -1262,11 +1264,15 @@ Bytes build_menu_messages(const Bytes& raw, bool skill_issue) {
         Fmg ids = fmg_read(f.data);
         for (const auto& [mid, m] : rows) {
             if (message_kind(mid) != group_kind) continue;
-            if (ids.count(mid)) throw Fail{"message id " + std::to_string(mid) + " is already in group " + std::to_string(f.id)};
+            if (ids.count(mid) && !kept) throw Fail{"message id " + std::to_string(mid) + " is already in group " + std::to_string(f.id)};
         }
         for (const auto& [mid, m] : rows) {
             if (message_kind(mid) != group_kind) continue;
             const std::string& s = f.id == kLineHelp ? m.help : m.text;
+            if (kept && ids.count(mid)) {
+                ++*kept;
+                continue;
+            }
             ids[mid] = s.empty() ? std::nullopt : std::optional<Bytes>(utf16(s));
         }
         // (The "japanese" folder's menu text has no such id: left as it is.)
@@ -1336,6 +1342,31 @@ const char kMessageDir[] = "dvdroot_ps4/msg";
 const char kMessageFile[] = "menu.msgbnd.dcx";
 
 }  // namespace
+
+void menu_assets_extend_plugin_bundle(const std::string& path, std::vector<std::uint8_t>& plain) {
+    std::string low = path;
+    for (char& c : low)
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + 32);
+    static const char kPrefix[] = "/dvdroot_ps4/msg/";
+    static const char kSuffix[] = "/menu.msgbnd.dcx";
+    const std::size_t pl = sizeof(kPrefix) - 1, sl = sizeof(kSuffix) - 1;
+    if (low.size() <= pl + sl || low.compare(0, pl, kPrefix) != 0 || low.compare(low.size() - sl, sl, kSuffix) != 0) return;
+    if (low.find('/', pl) != low.size() - sl) return;  // exactly one language folder
+    if (plain.size() >= 4 && std::memcmp(plain.data(), "DCX\0", 4) == 0) {
+        host_log("menu assets: %s arrived already compressed, left as the plugin wrote it", path.c_str());
+        return;
+    }
+    try {
+        std::size_t kept = 0;
+        Bytes merged = build_menu_messages(plain, config().skill_issue, &kept);
+        plain = std::move(merged);
+        host_log("menu assets: %s gets the port's messages (%zu ids the plugin has itself stay as they are)", path.c_str(), kept);
+    } catch (const Fail& f) {
+        host_log("menu assets: %s left as the plugin wrote it: %s", path.c_str(), f.why.c_str());
+    } catch (const std::exception& e) {
+        host_log("menu assets: %s left as the plugin wrote it: %s", path.c_str(), e.what());
+    }
+}
 
 bool menu_assets_ensure() {
     const std::string app0 = hle_fs_app0_root(), data = hle_fs_data_root();

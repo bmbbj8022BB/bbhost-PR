@@ -1,5 +1,6 @@
 #include "host/plugins.h"
 #include "host/plugin_address.h"
+#include "host/overlay.h"
 
 #include "bbhost_plugin.h"
 #include "core/config.h"
@@ -24,6 +25,7 @@
 #include "engine/plugin_dialog.h"
 #include "engine/world_chr.h"
 #include "engine/lua_events.h"
+#include "engine/menu_assets.h"
 #include "engine/loading.h"
 #include "engine/menu_pointer.h"
 #include "engine/world_pause.h"
@@ -844,6 +846,16 @@ int api_show_text(const char* text, float seconds, float x, float y, float scale
     return 0;
 }
 
+// Version 30: an image drawn over the finished frame (host/overlay.h).
+int api_overlay_image_set(const std::uint8_t* rgba, std::uint32_t w, std::uint32_t h) { return host_overlay_image_set(rgba, w, h); }
+int api_overlay_image_place(float x, float y, float w, float h, float alpha) {
+    return host_overlay_image_place(x, y, w, h, alpha);
+}
+int api_overlay_area(std::uint32_t* w, std::uint32_t* h) {
+    host_overlay_area_size(w, h);
+    return 0;
+}
+
 int api_set_time_scale(float scale) {
     frame_rate_set_time_scale(scale);
     return 0;
@@ -1031,6 +1043,7 @@ int api_overlay_file(const char* name, const char* path, const void* data, std::
     std::vector<std::uint8_t> bytes(static_cast<const std::uint8_t*>(data), static_cast<const std::uint8_t*>(data) + size);
     const std::string p = path;
     const std::vector<std::uint8_t> raw = bytes;
+    menu_assets_extend_plugin_bundle(p, bytes);
     // Level 1: written at run time too (a re-seed between maps); the game
     // reads any level, and 22 layouts take ~0.3 s instead of ~3.
     if (p.size() > 4 && p.compare(p.size() - 4, 4, ".dcx") == 0) bytes = gcn::dcx_compress(bytes, 1);
@@ -1846,6 +1859,7 @@ const BbHostApi g_api = {
     &api_panel_show, &api_panel_state, &api_option_set, &api_input_take_as, &api_input_as,
     &api_panel_rows, &api_panel_value, &api_panel_open,
     &api_cutscene,
+    &api_overlay_image_set, &api_overlay_image_place, &api_overlay_area,
 };
 
 std::string read_file(const std::string& path) {

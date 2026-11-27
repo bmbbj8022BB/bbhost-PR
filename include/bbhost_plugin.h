@@ -1,4 +1,4 @@
-/* bbhost plugin API, version 29.
+/* bbhost plugin API, version 30.
  *
  * A plugin is a shared library (.so on Linux, .dll on Windows) in
  * <exe dir>/plugins or <data>/plugins. The host loads every one at start and
@@ -38,7 +38,7 @@
 extern "C" {
 #endif
 
-#define BB_PLUGIN_API_VERSION 29
+#define BB_PLUGIN_API_VERSION 30
 
 #if defined(_WIN32)
 #define BB_PLUGIN_EXPORT __declspec(dllexport)
@@ -1196,6 +1196,22 @@ typedef struct BbHostApi {
      * on_view is not called while it is 1 (on_camera still is, so a plugin
      * can see it begin and end). Any thread. */
     int (*cutscene)(void);
+
+    /* Version 30: an RGBA image drawn over the finished frame - after the game's post-processing and its HUD, in the
+     * presenter, where bbhost's own overlay is - so it is not blurred or colour-fringed by them. One image at a time,
+     * at most 1280 x 576. A trophy card, a toast.
+     * overlay_image_set: `rgba` is w*h*4 bytes, R first, straight alpha, sRGB, copied. It is uploaded by the next
+     * present; it stays until another is set. Any thread. 0 on success; 1 for a null pointer or a size over the
+     * limit. */
+    int (*overlay_image_set)(const uint8_t* rgba, uint32_t w, uint32_t h);
+    /* Where it is drawn, as fractions of the game's picture: x, y its top-left corner, w, h its size (they may run
+     * past the picture's edge; the edge cuts them). Snapped to whole pixels of the picture, so an image made at the
+     * picture's own size (overlay_area) lands texel on pixel and stays sharp. `alpha` 0..1 fades it; 0 hides it. Call it
+     * again for each frame it moves. Any thread. 0 on success; 1 before any image was set. */
+    int (*overlay_image_place)(float x, float y, float w, float h, float alpha);
+    /* The picture's size in the window, in pixels, as the last present saw it (0, 0 before the first): the size to
+     * make an image at. Any thread. 0 on success. */
+    int (*overlay_area)(uint32_t* w, uint32_t* h);
 } BbHostApi;
 
 #define BB_SNAP_PIXELS 0xffffffffu /* version 18: scene_snap's grid the 3D's own pixels */
