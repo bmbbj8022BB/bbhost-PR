@@ -1477,9 +1477,9 @@ void save() {
     std::fprintf(f, "# swap_ab: \"auto\" (Cross and Circle exchanged only for the Asian release, CUSA03023 or CUSA01363),\n");
     std::fprintf(f, "# \"true\" (always) or \"false\" (never). Applies to the controller, the keyboard and the mouse.\n");
     std::fprintf(f, "swap_ab = \"%s\"\n", config_swap_ab_setting().c_str());
-    // The account: its name and token.
+    // The account: its name and token, set off from the [input] above by a blank line.
     if (net::account_logged_in()) {
-        std::fprintf(f, "[account]\nname = \"%s\"\ntoken = \"%s\"\n", net::account_name().c_str(),
+        std::fprintf(f, "\n[account]\nname = \"%s\"\ntoken = \"%s\"\n", net::account_name().c_str(),
                      net::account_token().c_str());
     }
     std::fclose(f);
