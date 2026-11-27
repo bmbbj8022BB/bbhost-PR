@@ -983,9 +983,8 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
             const float hint_h = std::round(std::round(ImGui::GetFontSize() * 0.78f) + 8 * scale);
             const float hints = 2 * (hint_h + 6 * scale) + 6 * scale + st.ItemSpacing.y;  // the two keys, the gap and the spacing under it
             const float side_h = vp->WorkSize.y - 38 * scale;
-            const float lang_h = ImGui::GetFrameHeight() + 4 * scale + st.ItemSpacing.y;  // the language, over Play
             // The links' row over them (host/links.h) counts in the foot.
-            float foot = lang_h + play_h + 4 * scale + 2 * ImGui::GetFrameHeight() + note_h + 4 * st.ItemSpacing.y;
+            float foot = play_h + 4 * scale + 2 * ImGui::GetFrameHeight() + note_h + 4 * st.ItemSpacing.y;
             // The keys where the name and the pages (last frame's height) leave room.
             static float nav_h = 0.0f;
             const bool keys = side_h - foot - hints - 8 * scale >= nav_h;
@@ -1041,43 +1040,6 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
                 ui::key_hint("F9", tr("In-game patches"));
                 ui::key_hint("F10", tr("In-game menu"));
                 ImGui::PopStyleVar();
-                ImGui::Dummy(ImVec2(0, 4 * scale));
-            }
-            // The language, over Play: a new one saves everything and starts
-            // the window again in it. The list opens upward when there is no
-            // room below.
-            {
-                const char* const langs[2] = {tr("English"), tr("Korean")};
-                int chosen = language;
-                ImGui::SetNextItemWidth(w);
-                ImGui::BeginDisabled(compiling || !have_hangul);
-                const bool picked = ui::combo("##language", &chosen, langs, 2);
-                // A shut item shows no bubble of its own: ask for it, and draw it
-                // outside the shut part (it would be dimmed inside).
-                const bool lang_hover = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled);
-                ImGui::EndDisabled();
-                if (lang_hover) {
-                    if (compiling)
-                        ui::tooltip(tr("Language"), tr("Can't change the language while shaders are compiling. Wait for it to finish or cancel it."));
-                    else if (!have_hangul)
-                        ui::tooltip(tr("Language"), tr("No font with Korean letters was found. Set [ui] font in bbhost.toml to one."));
-                    else
-                        ui::tooltip(tr("Language"), tr("Saves your settings and starts the launcher again in the language you pick."));
-                }
-                if (picked && chosen != language) {
-                    const int before = language;
-                    language = chosen;
-                    std::string why;
-                    if (!save()) {
-                        language = before;  // saved_note says why it could not
-                    } else if (relaunch_setup_window(why)) {
-                        result = LauncherResult::Restart;
-                        done = true;
-                    } else {
-                        saved_note = tf("Saved, but it could not start again (%s). Close bbhost and open it again.", why.c_str());
-                        saved_ok = false;
-                    }
-                }
                 ImGui::Dummy(ImVec2(0, 4 * scale));
             }
             play = ui::play_button(tr("PLAY"), ImVec2(w, play_h), can_play) || (test && !std::strcmp(test, "play") && ++frames > 30);
@@ -1325,12 +1287,52 @@ LauncherResult launcher_run(const HostConfig& cfg, const std::string& reason, bo
         ImGui::TextUnformatted(tr(kPages[page].name));
         const float title_h = ImGui::GetTextLineHeight();
         ImGui::PopFont();
+        // The language, at the heading's right on every page: a new one saves
+        // everything and starts the window again in it.
+        const float lang_w = std::min(112 * scale, (head_right - head.x) * 0.3f);
+        {
+            const ImVec2 back = ImGui::GetCursorScreenPos();
+            ImGui::SetCursorScreenPos(ImVec2(head_right - lang_w, head.y + (title_h - ImGui::GetFrameHeight()) * 0.5f));
+            const char* const langs[2] = {tr("English"), tr("Korean")};
+            int chosen = language;
+            ImGui::SetNextItemWidth(lang_w);
+            ImGui::BeginDisabled(compiling || !have_hangul);
+            const bool picked = ui::combo("##language", &chosen, langs, 2);
+            // A shut item shows no bubble of its own: ask for it, and draw it
+            // outside the shut part (it would be dimmed inside).
+            const bool lang_hover = ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip | ImGuiHoveredFlags_AllowWhenDisabled);
+            ImGui::EndDisabled();
+            if (lang_hover) {
+                if (compiling)
+                    ui::tooltip(tr("Language"), tr("Can't change the language while shaders are compiling. Wait for it to finish or cancel it."));
+                else if (!have_hangul)
+                    ui::tooltip(tr("Language"), tr("No font with Korean letters was found. Set [ui] font in bbhost.toml to one."));
+                else
+                    ui::tooltip(tr("Language"), tr("Saves your settings and starts the launcher again in the language you pick."));
+            }
+            if (picked && chosen != language) {
+                const int before = language;
+                language = chosen;
+                std::string why;
+                if (!save()) {
+                    language = before;  // saved_note says why it could not
+                } else if (relaunch_setup_window(why)) {
+                    result = LauncherResult::Restart;
+                    done = true;
+                } else {
+                    saved_note = tf("Saved, but it could not start again (%s). Close bbhost and open it again.", why.c_str());
+                    saved_ok = false;
+                }
+            }
+            ImGui::SetCursorScreenPos(back);
+        }
         ImGui::Dummy(ImVec2(0, 6 * scale));
         // Buttons at the heading's right, `w` wide in all: the cursor goes
         // there and comes back with the returned position.
+        const float gap_head = 10 * scale;
         auto head_actions = [&](float w) {
             const ImVec2 back = ImGui::GetCursorScreenPos();
-            ImGui::SetCursorScreenPos(ImVec2(head_right - w, head.y + (title_h - ImGui::GetFrameHeight()) * 0.5f));
+            ImGui::SetCursorScreenPos(ImVec2(head_right - lang_w - gap_head - w, head.y + (title_h - ImGui::GetFrameHeight()) * 0.5f));
             return back;
         };
         const float shown = animations ? static_cast<float>(ImGui::GetTime() - page_at) : 1.0f;
