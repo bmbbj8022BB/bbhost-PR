@@ -46,7 +46,7 @@ constexpr Section kSections[] = {
 const char* pad_fixed(int a) {
     if (a >= kBindMoveF && a <= kBindMoveR) return i18n::tr("Left stick");
     if (a >= kBindLookU && a <= kBindLookR) return i18n::tr("Right stick");
-    if (const int m = host_pad_menu_input(a); m >= 0) return host_pad_input_label(m);
+    if (const int m = host_pad_shown_slot(host_pad_menu_input(a)); m >= 0) return host_pad_input_label(m);
     return nullptr;
 }
 
@@ -354,7 +354,7 @@ void controls_page_draw(bool setup_window) {
 
             // The controller: its button, or what it is fixed to.
             ImGui::TableSetColumnIndex(4);
-            const int pad = host_pad_input_of(a);
+            const int pad = host_pad_shown_slot(host_pad_input_of(a));
             if (pad >= 0) {
                 if (pad_cell("##pad", pad, pad_choosing == a, cw, true)) {
                     host_pad_capture_begin(a);
@@ -363,7 +363,7 @@ void controls_page_draw(bool setup_window) {
                 if (a == kBindGestures || a == kBindEffects)
                     ui::tooltip_for_item(info.label, "Gestures and Personal Effects are the touchpad's two sides: they move together.");
             } else {
-                const int menu_in = host_pad_menu_input(a);
+                const int menu_in = host_pad_shown_slot(host_pad_menu_input(a));
                 if (menu_in >= 0 && host_pad_face_pos(menu_in) >= 0) {
                     pad_cell("##pad", menu_in, false, cw, false);
                 } else {

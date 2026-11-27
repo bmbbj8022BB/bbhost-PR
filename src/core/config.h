@@ -135,6 +135,8 @@ const HostConfig& config();
 // mouse: input.swap_ab "true" or "false", or "auto" (the default) for the Asian release only
 // (TITLE_ID CUSA03023 or CUSA01363 in sce_sys/param.sfo; the title is read once per paths.app0).
 bool config_swap_ab();
+// Whether the game is the Asian release (CUSA03023 or CUSA01363), whatever input.swap_ab says.
+bool config_asian_release();
 // The value bbhost-options.toml's [input] swap_ab holds, which wins over bbhost.toml's; "" for none.
 // Kept apart from the config, so a config read anew does not lose it (host/options.cpp).
 void config_set_swap_ab_option(const std::string& value);

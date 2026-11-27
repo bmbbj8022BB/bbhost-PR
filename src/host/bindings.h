@@ -202,6 +202,9 @@ const char* host_pad_input_name(int input);   // "Cross", "R2", "D-pad Up"; null
 int host_pad_face_pos(int input);
 bool host_pad_is_xbox();
 const char* host_pad_input_label(int input);
+// The slot the Controls page shows for a slot: Cross and Circle exchanged when the host's swap_ab is not what
+// the game is (swap_ab = false on the Asian release), so the page says what the game takes. -1 stays -1.
+int host_pad_shown_slot(int slot);
 std::uint32_t host_pad_input_bit(int input);  // the pad bit the button is, as a menu reads it
 std::uint32_t host_pad_play_bit(int input);   // the pad bit it gives in play
 // The pad bit it gives in a menu: itself, unless it is the button the menu's

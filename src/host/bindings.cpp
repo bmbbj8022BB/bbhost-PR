@@ -1216,6 +1216,16 @@ bool host_pad_capture_input(int input) {
     return true;
 }
 
+// A [pad] token names the physical button the same way in every swap_ab state (Cross: the pad's A,
+// Circle: its B). Under swap_ab the slots are exchanged, so the token and the slot are swapped.
+static int pad_token_slot(int i) {
+    if (menu_region_confirm_button() == kCircle) {
+        if (i == kPadCross) return kPadCircle;
+        if (i == kPadCircle) return kPadCross;
+    }
+    return i;
+}
+
 bool host_pad_parse(const char* name, const char* value) {
     const int a = action_named(name);
     const int f = pad_function_of(a);
@@ -1223,10 +1233,11 @@ bool host_pad_parse(const char* name, const char* value) {
     const std::string v = trim(value ? value : "");
     for (int input = 0; input < kPadInputs; ++input) {
         if (v != kPadTokens[input]) continue;
+        const int slot = pad_token_slot(input);
         for (int p = 0; p < kPadInputs; ++p) {
             if (g_pad_gives[p].load() != f) continue;
-            g_pad_gives[p].store(g_pad_gives[input].load());
-            g_pad_gives[input].store(f);
+            g_pad_gives[p].store(g_pad_gives[slot].load());
+            g_pad_gives[slot].store(f);
             break;
         }
         g_serial.fetch_add(1, std::memory_order_relaxed);
@@ -1243,7 +1254,7 @@ static void pad_save(std::FILE* f) {
     for (int a = 0; a < kBindCount; ++a) {
         if (a == kBindEffects) continue;
         const int p = host_pad_input_of(a);
-        if (p >= 0) std::fprintf(f, "%s = \"%s\"\n", kInfo[a].key, kPadTokens[p]);
+        if (p >= 0) std::fprintf(f, "%s = \"%s\"\n", kInfo[a].key, kPadTokens[pad_token_slot(p)]);
     }
 }
 
