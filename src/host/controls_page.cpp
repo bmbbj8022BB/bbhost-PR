@@ -127,11 +127,11 @@ const char* pad_input_hint(int in) {
 
 const char* pad_long_status_text(int status) {
     switch (status) {
-        case kPadLongSameAction: return "Short and long are the same action.";
-        case kPadLongUnbound: return "An action here is not on a controller button.";
-        case kPadLongTrigger: return "An action on L2 or R2 is not taken.";
-        case kPadLongSameButton: return "Short and long are on the same button.";
-        case kPadLongTaken: return "An earlier set already uses one of these buttons.";
+        case kPadLongSameAction: return i18n::tr("Short and long are the same action.");
+        case kPadLongUnbound: return i18n::tr("An action here is not on a controller button.");
+        case kPadLongTrigger: return i18n::tr("An action on L2 or R2 is not taken.");
+        case kPadLongSameButton: return i18n::tr("Short and long are on the same button.");
+        case kPadLongTaken: return i18n::tr("An earlier set already uses one of these buttons.");
         default: return nullptr;
     }
 }
@@ -144,7 +144,7 @@ void pad_short_long_card() {
     const char* long_items[kBindCount + 2];
     std::string src_text[kBindCount + 2], long_text[kBindCount + 2];
     int ns = 0, nl = 0;
-    src_items[0] = long_items[0] = "None";
+    src_items[0] = long_items[0] = i18n::tr("None");
     for (int c = 0; c <= kPadLongBack; ++c) {
         // An action on a trigger is shown greyed: the triggers are not taken.
         const int in = c == kPadLongBack ? -1 : host_pad_input_of(c);
@@ -182,17 +182,17 @@ void pad_short_long_card() {
         return 0;
     };
     ImGui::Spacing();
-    ui::card_begin("##padlong", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f), "SHORT / LONG PRESS (CONTROLLER)");
+    ui::card_begin("##padlong", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f), i18n::tr("SHORT / LONG PRESS (CONTROLLER)"));
     ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextDisabled("The button of the short action gives that action when pressed briefly; held longer than the "
+    ImGui::TextDisabled("%s", i18n::tr("The button of the short action gives that action when pressed briefly; held longer than the "
                         "time, it gives the long action instead. Actions on L2 and R2 are not taken. If two sets "
-                        "use the same button, the earlier set wins.");
+                        "use the same button, the earlier set wins."));
     ImGui::PopTextWrapPos();
     ImGui::Spacing();
     const ImGuiStyle& st = ImGui::GetStyle();
     const float gap = st.ItemSpacing.x;
     const float t_num = ImGui::CalcTextSize("4").x;
-    const float t_short = ImGui::CalcTextSize("Short").x, t_long = ImGui::CalcTextSize("Long").x;
+    const float t_short = ImGui::CalcTextSize(i18n::tr("Short")).x, t_long = ImGui::CalcTextSize(i18n::tr("Long")).x;
     const float row_spare = ImGui::GetContentRegionAvail().x - t_num - t_short - t_long - gap * 5.0f;
     const float cw = std::max(row_spare * 0.5f, 90.0f * sc);
     for (int set = 0; set < kPadLongSets; ++set) {
@@ -205,13 +205,13 @@ void pad_short_long_card() {
         ImGui::Text("%d", set + 1);
         ImGui::SameLine();
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Short");
+        ImGui::TextUnformatted(i18n::tr("Short"));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(cw);
         ui::combo("##plsrc", &want_src, src_items, ns + 1, nullptr, src_off);
         ImGui::SameLine();
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("Long");
+        ImGui::TextUnformatted(i18n::tr("Long"));
         ImGui::SameLine();
         ImGui::SetNextItemWidth(cw);
         ui::combo("##pllong", &want_lng, long_items, nl + 1, nullptr, long_off);
@@ -225,10 +225,10 @@ void pad_short_long_card() {
         ImGui::PopID();
     }
     ImGui::Spacing();
-    const float t_held = ImGui::CalcTextSize("Held longer than").x;
+    const float t_held = ImGui::CalcTextSize(i18n::tr("Held longer than")).x;
     const float sw = std::max(ImGui::GetContentRegionAvail().x - t_held - ui::reset_width() - gap * 3.0f, 80.0f * sc);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Held longer than");
+    ImGui::TextUnformatted(i18n::tr("Held longer than"));
     ImGui::SameLine();
     ImGui::SetNextItemWidth(sw);
     int ms = host_pad_long_ms();
