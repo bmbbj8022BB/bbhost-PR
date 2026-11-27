@@ -1264,7 +1264,8 @@ void pill(const char* text, ImU32 fg, ImU32 bg) {
     const float fh = ImGui::GetFrameHeight(), y = p.y + (fh - sz.y) * 0.5f;
     ImDrawList* dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(ImVec2(p.x, y), ImVec2(p.x + sz.x, y + sz.y), c(bg), sz.y * 0.5f);
-    dl->AddText(f, fs, ImVec2(p.x + pad.x, y + pad.y), c(fg), text);
+    // The line box carries room for descenders, so lowercase text sits low in it: lift it a little.
+    dl->AddText(f, fs, ImVec2(p.x + pad.x, std::round(y + pad.y - fs * 0.09f)), c(fg), text);
     ImGui::Dummy(ImVec2(sz.x, fh));
 }
 
