@@ -902,7 +902,12 @@ bool config_swap_ab() {
     for (char& ch : m) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     if (m == "true" || m == "1" || m == "on") return true;
     if (m == "false" || m == "0" || m == "off") return false;
-    // auto: the Asian release, by the TITLE_ID of the update folder's param.sfo, else the game folder's.
+    return config_asian_release();
+}
+
+bool config_asian_release() {
+    // The Asian release, by the TITLE_ID of the update folder's param.sfo, else the game folder's -
+    // whatever input.swap_ab says (that is what the game itself takes the buttons as).
     static std::mutex mu;
     static std::string cached_app0;
     static bool have = false, result = false;

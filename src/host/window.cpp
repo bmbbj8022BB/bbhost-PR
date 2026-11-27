@@ -3621,6 +3621,13 @@ const char* host_pad_input_label(int input) {
     return host_pad_is_xbox() ? kXb[pos] : kPs[pos];
 }
 
+int host_pad_shown_slot(int slot) {
+    if (config_swap_ab() == config_asian_release()) return slot;
+    if (slot == kPadCross) return kPadCircle;
+    if (slot == kPadCircle) return kPadCross;
+    return slot;
+}
+
 void host_pad_rumble(std::uint8_t small, std::uint8_t large) {
 #if defined(BBHOST_HAVE_SDL3)
     std::lock_guard<std::mutex> lock(g_pads_mu);
