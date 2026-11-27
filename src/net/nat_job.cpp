@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <cstring>
+#include "host/i18n.h"
 
 namespace net::nat {
 
@@ -88,7 +89,7 @@ bool Job::start(const JobParams& p) {
     cancel_.store(false);
     view_.running = true;
     view_.finished = false;
-    view_.step = "Sending test packets...";
+    view_.step = i18n::tr("Sending test packets...");
     thread_ = std::thread([this, p] { run(p); });
     return true;
 }
@@ -121,7 +122,7 @@ void Job::run(JobParams p) {
     if (o.resolved && o.probe.error == ProbeResult::Error::None && o.probe.sent > 0 && o.signed_in && !cancel_.load()) {
         {
             std::lock_guard<std::mutex> lk(mu_);
-            view_.step = "Asking the server what it saw...";
+            view_.step = i18n::tr("Asking the server what it saw...");
         }
         json::Value body = json::Value::make_object();
         body.set("Token", p.token);

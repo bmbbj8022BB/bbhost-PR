@@ -177,6 +177,7 @@ add_executable(bbhost
   src/host/overlay.cpp
   src/host/present_pass.cpp
   src/host/ingame_menu.cpp
+  src/host/i18n.cpp
   src/host/plugin_panel.cpp
   src/host/plugin_menu.cpp
   src/host/game_font.cpp
@@ -964,7 +965,7 @@ if(UNIX)
   # every send refused, the port check open, closed and absent, this PC's own
   # address - the server's answers read, and the card's words for each
   # reading, the relay switch's and the P2P port's (~25 s of waits).
-  add_executable(nat_check_test tests/nat_check_test.cpp src/net/nat_probe.cpp src/net/stun.cpp src/replay/json.cpp)
+  add_executable(nat_check_test tests/nat_check_test.cpp src/net/nat_probe.cpp src/net/stun.cpp src/replay/json.cpp tests/i18n_stub.cpp)
   target_include_directories(nat_check_test PRIVATE src)
   target_link_libraries(nat_check_test PRIVATE Threads::Threads)
   add_test(NAME nat_check_test COMMAND nat_check_test)

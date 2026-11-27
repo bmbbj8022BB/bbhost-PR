@@ -4,6 +4,7 @@
 
 #include "bbhost_plugin.h"
 #include "core/config.h"
+#include "host/i18n.h"
 #include "host/options.h"
 #include "host/plugin_panel.h"
 #include "host/updater.h"
@@ -17,6 +18,10 @@
 #include <cstring>
 #include <random>
 #include <sstream>
+
+using i18n::tr;
+using i18n::trl;
+using i18n::trs;
 
 namespace {
 
@@ -77,7 +82,7 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
     const std::string id = p.name + "." + o.key;
     ImGui::PushID(id.c_str());
     const bool later = ui.in_game && !o.live && o.type != BB_OPT_ACTION && o.type != BB_OPT_HEADING;
-    const std::string label = o.label + (later ? "  (next start)" : "");
+    const std::string label = trs(o.label) + (later ? tr("  (next start)") : "");
     bool helped = false;  // the widget put its help after something of its own
     const std::string value = plugins_option_value(p, o);
     const float width = 380 * scale;
@@ -100,7 +105,7 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
     };
     switch (o.type) {
     case BB_OPT_HEADING:
-        ImGui::SeparatorText(o.label.c_str());
+        ImGui::SeparatorText(trs(o.label).c_str());
         break;
     case BB_OPT_BOOL: {
         bool on = value == "true" || value == "1";
@@ -144,9 +149,9 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
             if (choices[i] == value) cur = static_cast<int>(i);
         }
         ImGui::SetNextItemWidth(width);
-        if (ImGui::BeginCombo(label.c_str(), choices.empty() ? "" : choices[static_cast<std::size_t>(cur)].c_str())) {
+        if (ImGui::BeginCombo(label.c_str(), choices.empty() ? "" : trs(choices[static_cast<std::size_t>(cur)]).c_str())) {
             for (std::size_t i = 0; i < choices.size(); ++i) {
-                if (ImGui::Selectable(choices[i].c_str(), static_cast<int>(i) == cur)) plugins_set_option(p.name, o.key, choices[i]);
+                if (ImGui::Selectable((trs(choices[i]) + "##" + std::to_string(i)).c_str(), static_cast<int>(i) == cur)) plugins_set_option(p.name, o.key, choices[i]);
             }
             ImGui::EndCombo();
         }
@@ -163,10 +168,10 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
         const bool active = ImGui::IsItemActive();
         // A seed: a new one at the click, shown in the box and saved.
         if (o.key == "seed") {
-            if (!o.help.empty()) help(o.help);
+            if (!o.help.empty()) help(trs(o.help));
             helped = true;
             ImGui::SameLine();
-            if (ImGui::Button("Random seed")) {
+            if (ImGui::Button(trl("Random seed"))) {
                 it->second = random_seed();
                 plugins_set_option(p.name, o.key, it->second);
             }
@@ -177,13 +182,13 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
     case BB_OPT_ACTION: {
         const bool can = ui.in_game && p.loaded;
         ImGui::BeginDisabled(!can);
-        if (ImGui::Button(o.label.c_str(), ImVec2(width, 0))) plugins_run_action(p.name, o.key);
+        if (ImGui::Button(trs(o.label).c_str(), ImVec2(width, 0))) plugins_run_action(p.name, o.key);
         ImGui::EndDisabled();
         // Why it cannot be pressed, in its bubble with its help.
         if (!can) {
             if (ImGui::BeginItemTooltip()) {
-                ImGui::TextUnformatted(ui.in_game ? "Turn the plugin on and restart." : "In the game: the plugin menu.");
-                if (!o.help.empty()) ImGui::TextDisabled("%s", o.help.c_str());
+                ImGui::TextUnformatted(ui.in_game ? tr("Turn the plugin on and restart.") : tr("In the game: the plugin menu."));
+                if (!o.help.empty()) ImGui::TextDisabled("%s", trs(o.help).c_str());
                 ImGui::EndTooltip();
             }
             helped = true;
@@ -196,10 +201,10 @@ void option_row(PluginUi& ui, const PluginEntry& p, const PluginOptionDesc& o, f
     if (!o.help.empty() && o.type == BB_OPT_HEADING) {
         // A heading's words say what the settings under it are for: shown.
         ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextDisabled("%s", o.help.c_str());
+        ImGui::TextDisabled("%s", trs(o.help).c_str());
         ImGui::PopTextWrapPos();
     } else if (!o.help.empty() && !helped) {
-        help(o.help);
+        help(trs(o.help));
     }
     ImGui::EndDisabled();
     ImGui::PopID();
@@ -235,23 +240,23 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
     was_busy = busy;
 
     ImGui::BeginDisabled(busy);
-    if (ImGui::Button("Get the official plugins")) updater::fetch_plugins(config_user_dir() + "/plugins");
+    if (ImGui::Button(trl("Get the official plugins"))) updater::fetch_plugins(config_user_dir() + "/plugins");
     ImGui::EndDisabled();
-    ImGui::SetItemTooltip("The latest signed plugins, from the newest release.");
+    ImGui::SetItemTooltip("%s", tr("The latest signed plugins, from the newest release."));
     ImGui::SameLine();
-    if (ImGui::Button("Rescan")) plugin_ui_refresh(ui);
-    ImGui::SetItemTooltip("Read the plugin files again.");
+    if (ImGui::Button(trl("Rescan"))) plugin_ui_refresh(ui);
+    ImGui::SetItemTooltip("%s", tr("Read the plugin files again."));
     ImGui::SameLine();
     // At the right of the line.
-    const char* every_label = "Show at every start";
-    const float every_w = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(every_label).x;
+    const char* every_label = trl("Show at every start");
+    const float every_w = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(every_label, nullptr, true).x;  // up to its "##"
     ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - every_w));
     bool every = config_value("plugins.show_settings") == "true";
     if (ImGui::Checkbox(every_label, &every)) {
         config_set_values(config_user_file(), {{"plugins", "show_settings", every ? "true" : "false"}});
         config_value_set("plugins.show_settings", every ? "true" : "false");
     }
-    ImGui::SetItemTooltip("Open the launcher on the plugins at every start.");
+    ImGui::SetItemTooltip("%s", tr("Open the launcher on the plugins at every start."));
     if (const std::string st = updater::plugins_status(); !st.empty()) ImGui::TextDisabled("%s", st.c_str());
 
     const float h = height > 0 ? height : ImGui::GetContentRegionAvail().y;
@@ -260,7 +265,7 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
     ImGui::PopStyleVar();
     if (ui.plugins.empty()) {
         ImGui::PushTextWrapPos(0.0f);
-        ImGui::TextDisabled("No plugins. Get the official ones above, or put plugin files in %s/plugins.", config_user_dir().c_str());
+        ImGui::TextDisabled(tr("No plugins. Get the official ones above, or put plugin files in %s/plugins."), config_user_dir().c_str());
         ImGui::PopTextWrapPos();
     }
     // Each plugin a row: a dot, lit when it is on, and its title.
@@ -270,12 +275,12 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
         ImGui::PushID(static_cast<int>(i));
         const ImVec2 at = ImGui::GetCursorScreenPos();
         if (ImGui::Selectable("##row", ui.selected == static_cast<int>(i), 0, ImVec2(0, row_h))) ui.selected = static_cast<int>(i);
-        ImGui::SetItemTooltip("%s", p.enabled ? "On" : "Off");
+        ImGui::SetItemTooltip("%s", p.enabled ? tr("On") : tr("Off"));
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec4 dot = p.bad_signature ? ImVec4(0.95f, 0.35f, 0.40f, 1.0f) : p.enabled ? ImVec4(0.37f, 0.89f, 0.67f, 1.0f) : ImVec4(0.5f, 0.5f, 0.6f, 0.6f);
         dl->AddCircleFilled(at + ImVec2(fs * 0.55f, row_h * 0.5f), fs * 0.22f, ImGui::GetColorU32(dot));
         dl->AddText(at + ImVec2(fs * 1.3f, (row_h - fs) * 0.5f), ImGui::GetColorU32(p.enabled ? ImGuiCol_Text : ImGuiCol_TextDisabled),
-                    p.title.c_str());
+                    trs(p.title).c_str());
         ImGui::PopID();
     }
     ImGui::EndChild();
@@ -286,21 +291,21 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
     if (!ui.plugins.empty()) {
         PluginEntry& p = ui.plugins[static_cast<std::size_t>(ui.selected)];
         ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.3f);
-        ImGui::TextUnformatted(p.title.c_str());
+        ImGui::TextUnformatted(trs(p.title).c_str());
         ImGui::PopFont();
         if (!p.version.empty()) {
             ImGui::SameLine();
             ImGui::AlignTextToFramePadding();
             ImGui::TextDisabled("%s", p.version.c_str());
         }
-        if (p.official) badge("official", ImVec4(0.37f, 0.89f, 0.67f, 1.0f));
-        else if (p.bad_signature) badge("signature does not match - not loaded", ImVec4(0.95f, 0.35f, 0.40f, 1.0f));
-        else badge("not signed", ImVec4(0.65f, 0.66f, 0.78f, 1.0f));
-        if (p.flags & BB_PLUGIN_GAMEPLAY) badge("changes the game", ImVec4(1.0f, 0.54f, 0.78f, 1.0f));
-        if (!p.author.empty()) ImGui::TextDisabled("by %s - %s", p.author.c_str(), p.file.c_str());
+        if (p.official) badge(tr("official"), ImVec4(0.37f, 0.89f, 0.67f, 1.0f));
+        else if (p.bad_signature) badge(tr("signature does not match - not loaded"), ImVec4(0.95f, 0.35f, 0.40f, 1.0f));
+        else badge(tr("not signed"), ImVec4(0.65f, 0.66f, 0.78f, 1.0f));
+        if (p.flags & BB_PLUGIN_GAMEPLAY) badge(tr("changes the game"), ImVec4(1.0f, 0.54f, 0.78f, 1.0f));
+        if (!p.author.empty()) ImGui::TextDisabled(tr("by %s - %s"), p.author.c_str(), p.file.c_str());
         if (!p.description.empty()) {
             ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextUnformatted(p.description.c_str());
+            ImGui::TextUnformatted(trs(p.description).c_str());
             ImGui::PopTextWrapPos();
         }
         // Plugin API 27's anti-aliasing claim (host/plugins.h): its flags', or in game the one it holds now.
@@ -324,17 +329,17 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
         ImGui::Spacing();
         ImGui::BeginDisabled(p.bad_signature);
         bool on = p.enabled;
-        if (ImGui::Checkbox("Turned on", &on)) {
+        if (ImGui::Checkbox(trl("Turned on"), &on)) {
             plugins_set_enabled(p.name, on);
             p.enabled = on;
         }
         ImGui::EndDisabled();
         if (p.visitor && !p.enabled) {
             ImGui::SameLine();
-            ImGui::TextDisabled("off - joins other players' %s worlds when summoned", p.title.c_str());
+            ImGui::TextDisabled(tr("off - joins other players' %s worlds when summoned"), p.title.c_str());
         } else if (ui.in_game && p.enabled != p.loaded && !plugins_live_switch(p)) {
             ImGui::SameLine();
-            ImGui::TextColored(ImVec4(0.95f, 0.70f, 0.30f, 1.0f), p.enabled ? "starts with the next launch" : "stops at the next launch");
+            ImGui::TextColored(ImVec4(0.95f, 0.70f, 0.30f, 1.0f), "%s", p.enabled ? tr("starts with the next launch") : tr("stops at the next launch"));
         }
         // A panel's pages (BB_OPT_PANEL) are the plugin's to show over the game.
         const bool any = std::any_of(p.options.begin(), p.options.end(), [](const PluginOptionDesc& o) { return o.page.empty(); });
@@ -344,19 +349,19 @@ void plugin_ui_draw(PluginUi& ui, float scale, float height) {
                 if (o.page.empty()) option_row(ui, p, o, scale);
             }
         } else {
-            ImGui::TextDisabled(p.options.empty() ? "No settings." : "Its settings are in its own panel, over the game.");
+            ImGui::TextDisabled("%s", p.options.empty() ? tr("No settings.") : tr("Its settings are in its own panel, over the game."));
         }
         // The menus its table names (BB_OPT_MENU): each opened from here, in
         // game, over the game as the game's own menus look.
         if (ui.in_game && p.loaded && p.enabled) {
             for (const PluginMenuEntry& m : plugin_panel_menus(p.name)) {
                 ImGui::Spacing();
-                if (ImGui::Button(("Open " + m.name + "##menu-" + m.page).c_str())) {
+                if (ImGui::Button((i18n::tf("Open %s", m.name.c_str()) + "##menu-" + m.page).c_str())) {
                     PluginPanelShow how;
                     how.page = m.page;
                     if (plugin_panel_show(p.name, how)) host_options_close();
                 }
-                ImGui::SetItemTooltip("Closes this menu and shows %s's %s menu over the game. Circle or Escape closes it.", p.title.c_str(),
+                ImGui::SetItemTooltip(tr("Closes this menu and shows %s's %s menu over the game. Circle or Escape closes it."), p.title.c_str(),
                                       m.name.c_str());
             }
         }

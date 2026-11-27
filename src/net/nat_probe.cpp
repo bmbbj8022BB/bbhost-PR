@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cstring>
 #include <iterator>
+#include "host/i18n.h"
 
 namespace net::nat {
 
@@ -38,14 +39,14 @@ bool denied(int e) { return e == WSAEACCES; }
 void close_sock(Sock s) { closesocket(s); }
 // The few errors a player may meet here, in words, with the number.
 std::string error_text(int e) {
-    const char* words = e == WSAEACCES          ? "access denied"
-                        : e == WSAEADDRINUSE    ? "address in use"
-                        : e == WSAENETDOWN      ? "the network is down"
-                        : e == WSAENETUNREACH   ? "the network is unreachable"
-                        : e == WSAEHOSTUNREACH  ? "the host is unreachable"
-                        : e == WSAENOBUFS       ? "no buffer space"
+    const char* words = e == WSAEACCES          ? i18n::tr("access denied")
+                        : e == WSAEADDRINUSE    ? i18n::tr("address in use")
+                        : e == WSAENETDOWN      ? i18n::tr("the network is down")
+                        : e == WSAENETUNREACH   ? i18n::tr("the network is unreachable")
+                        : e == WSAEHOSTUNREACH  ? i18n::tr("the host is unreachable")
+                        : e == WSAENOBUFS       ? i18n::tr("no buffer space")
                                                 : nullptr;
-    return (words ? std::string(words) + ", " : std::string()) + "Windows sockets error " + std::to_string(e);
+    return (words ? std::string(words) + ", " : std::string()) + i18n::tf("Windows sockets error %d", e);
 }
 // Up to `ms` for a datagram.
 bool readable(Sock s, int ms) {
@@ -105,7 +106,7 @@ ProbeResult probe(const ProbeParams& p) {
     r.at.resize(p.ports.size());
     if (p.ports.empty()) {
         r.error = ProbeResult::Error::Socket;
-        r.error_text = "no test ports";
+        r.error_text = i18n::tr("no test ports");
         return r;
     }
 #if defined(_WIN32)

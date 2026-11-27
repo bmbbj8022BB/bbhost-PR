@@ -61,6 +61,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include "host/i18n.h"
 
 namespace net::nat {
 
@@ -274,12 +275,10 @@ struct Outcome {
 // in Unix seconds).
 inline std::string ago(double then, double now) {
     const double s = now - then;
-    if (s < 90) return "just now";
-    char buf[48];
-    if (s < 5400) std::snprintf(buf, sizeof(buf), "%d minutes ago", static_cast<int>(s / 60 + 0.5));
-    else if (s < 129600) std::snprintf(buf, sizeof(buf), "%d hours ago", static_cast<int>(s / 3600 + 0.5));
-    else std::snprintf(buf, sizeof(buf), "%d days ago", static_cast<int>(s / 86400 + 0.5));
-    return buf;
+    if (s < 90) return i18n::tr("just now");
+    if (s < 5400) return i18n::tf("%d minutes ago", static_cast<int>(s / 60 + 0.5));
+    if (s < 129600) return i18n::tf("%d hours ago", static_cast<int>(s / 3600 + 0.5));
+    return i18n::tf("%d days ago", static_cast<int>(s / 86400 + 0.5));
 }
 
 // The public port(s) the test ports saw, for the card's detail line:
@@ -297,17 +296,19 @@ inline std::string public_ports(const ProbeResult& r) {
     bool same_addr = true;
     for (const Answer& a : r.at) same_addr = same_addr && (!a.got || a.addr == r.at[0].addr);
     if (ports.size() == 1) {
-        std::string s = "public port " + std::to_string(ports[0]) + (r.at.size() == 2 ? " at both test ports" : " at every test port");
-        if (!same_addr) s += ", from different public addresses";
-        else if (ports[0] == r.local_port) s += ", the game's own";
+        const int pub = static_cast<int>(ports[0]);
+        std::string s = r.at.size() == 2 ? i18n::tf("public port %d at both test ports", pub)
+                                         : i18n::tf("public port %d at every test port", pub);
+        if (!same_addr) s += i18n::tr(", from different public addresses");
+        else if (ports[0] == r.local_port) s += i18n::tr(", the game's own");
         return s;
     }
-    std::string s = "public ports ";
+    std::string s = i18n::tr("public ports ");
     for (std::size_t i = 0; i < ports.size(); ++i) {
-        if (i) s += i + 1 == ports.size() ? " and " : ", ";
+        if (i) s += i + 1 == ports.size() ? i18n::tr(" and ") : ", ";
         s += std::to_string(ports[i]);
     }
-    return s + (same_addr ? "" : ", from different public addresses");
+    return s + (same_addr ? "" : i18n::tr(", from different public addresses"));
 }
 
 // Every datagram the test tried to send was refused by this PC: nothing went
@@ -325,6 +326,31 @@ inline std::string unsaved_reason(const Outcome& o) {
     case SaveReply::State::NoService: return "this server keeps no connection tests (" + o.save.message + ")";
     case SaveReply::State::NoAnswer: return "the server did not answer (" + o.save.message + ")";
     case SaveReply::State::Unsaved: return "the server says: " + o.save.message;
+    case SaveReply::State::Saved: break;
+    }
+    return {};
+}
+
+// The same two, for the screen (translated). The plain ones above stay English for the log.
+inline std::string verdict_label(Verdict v) {
+    switch (v) {
+    case Verdict::Direct: return i18n::tr("direct");
+    case Verdict::Relay: return i18n::tr("relay");
+    case Verdict::Blocked: return i18n::tr("blocked");
+    case Verdict::Inconclusive: return i18n::tr("inconclusive");
+    case Verdict::None: break;
+    }
+    return {};
+}
+inline std::string unsaved_reason_text(const Outcome& o) {
+    if (o.saved()) return {};
+    if (!o.signed_in) return i18n::tr("not signed in");
+    switch (o.save.state) {
+    case SaveReply::State::Limited: return i18n::tr("the server takes 10 tests an hour; try again later");
+    case SaveReply::State::Refused: return i18n::tr("the sign-in has expired");
+    case SaveReply::State::NoService: return i18n::tf("this server keeps no connection tests (%s)", o.save.message.c_str());
+    case SaveReply::State::NoAnswer: return i18n::tf("the server did not answer (%s)", o.save.message.c_str());
+    case SaveReply::State::Unsaved: return i18n::tf("the server says: %s", o.save.message.c_str());
     case SaveReply::State::Saved: break;
     }
     return {};
@@ -442,11 +468,11 @@ inline std::vector<std::string> forward_steps(int port, const std::string& lan, 
     const std::string p = std::to_string(port);
     std::vector<std::string> s;
     if (router)
-        s.push_back("In your router's settings, forward UDP port " + p + " to this PC" +
-                    (lan.empty() ? std::string() : " (" + lan + ")") + ".");
-    s.push_back(windows ? std::string("Allow bbhost.exe in Windows Firewall (Private and Public).")
-                        : "If this PC runs a firewall, allow UDP port " + p + " in it.");
-    s.push_back("Then press Test again.");
+        s.push_back(lan.empty() ? i18n::tf("In your router's settings, forward UDP port %s to this PC.", p.c_str())
+                                : i18n::tf("In your router's settings, forward UDP port %s to this PC (%s).", p.c_str(), lan.c_str()));
+    s.push_back(windows ? std::string(i18n::tr("Allow bbhost.exe in Windows Firewall (Private and Public)."))
+                        : i18n::tf("If this PC runs a firewall, allow UDP port %s in it.", p.c_str()));
+    s.push_back(i18n::tr("Then press Test again."));
     return s;
 }
 
@@ -454,9 +480,9 @@ inline std::vector<std::string> forward_steps(int port, const std::string& lan, 
 // a direct result. Behind a router that changes ports it changes nothing -
 // other hunters cannot connect directly either way - and Details has it.
 inline std::string incoming_line(Inbound i) {
-    if (i == Inbound::Open) return "Incoming: other hunters can connect to you directly, even those whose routers change ports.";
+    if (i == Inbound::Open) return i18n::tr("Incoming: other hunters can connect to you directly, even those whose routers change ports.");
     if (i == Inbound::Closed)
-        return "Incoming: hunters whose routers change ports can't connect to you directly, so they reach you through the relay.";
+        return i18n::tr("Incoming: hunters whose routers change ports can't connect to you directly, so they reach you through the relay.");
     return {};
 }
 // The port check as Details says it, beside the result `v`.
@@ -464,20 +490,25 @@ inline std::string incoming_detail(Inbound i, int port, Verdict v) {
     const std::string p = std::to_string(port);
     switch (i) {
     case Inbound::Open:
-        return "Incoming: open - a packet the server sent unasked, from a port bbhost never sent to, reached UDP port " + p +
-               (v == Verdict::Relay ? ", but your router changes ports for what the game sends, so other hunters still can't "
-                                      "connect directly."
-                                    : ".");
+        return v == Verdict::Relay
+                   ? i18n::tf("Incoming: open - a packet the server sent unasked, from a port bbhost never sent to, reached UDP port %s, "
+                              "but your router changes ports for what the game sends, so other hunters still can't connect directly.",
+                              p.c_str())
+                   : i18n::tf("Incoming: open - a packet the server sent unasked, from a port bbhost never sent to, reached UDP port %s.",
+                              p.c_str());
     case Inbound::Closed:
-        return "Incoming: closed - your router or this PC's firewall stopped a packet the server sent unasked to UDP port " + p + ".";
-    case Inbound::Unavailable: return "Incoming: not checked - this server has no port check.";
+        return i18n::tf("Incoming: closed - your router or this PC's firewall stopped a packet the server sent unasked to UDP port %s.",
+                        p.c_str());
+    case Inbound::Unavailable: return i18n::tr("Incoming: not checked - this server has no port check.");
     case Inbound::NotTested: break;
     }
-    return "Incoming: not checked - the port check got no answer.";
+    return i18n::tr("Incoming: not checked - the port check got no answer.");
 }
 
 // "Allow bbhost.exe ...": the thing to do when something on this PC stops it.
-inline constexpr char kAllowBbhost[] = "Allow bbhost.exe in your firewall or antivirus, then press Test again.";
+inline std::string allow_bbhost() {
+    return i18n::tr("Allow bbhost.exe in your firewall or antivirus, then press Test again.");
+}
 
 // The words of a direct or relay result - a test run here, or the account's
 // last one - and what the relay switch does to them. `lan` and `router` are
@@ -491,56 +522,56 @@ inline void result_words(Card& c, Verdict v, Inbound in, const CardContext& x, c
     const bool off = x.relay == RelaySetting::Off;
     c.tone = Tone::Good;
     if (v == Verdict::Direct && !x.signed_in) {
-        c.head = "Your network allows direct connections";
-        c.sentence = "Your router keeps one port for the game.";
+        c.head = i18n::tr("Your network allows direct connections");
+        c.sentence = i18n::tr("Your router keeps one port for the game.");
         c.incoming = incoming_line(in);
-        c.action = "Sign in (above) to play online.";
+        c.action = i18n::tr("Sign in (above) to play online.");
         return;
     }
     if (v == Verdict::Direct && x.relay == RelaySetting::On) {
-        c.head = "Your network allows direct connections";
-        c.sentence = "The relay is on, so co-op and PvP go through it.";
+        c.head = i18n::tr("Your network allows direct connections");
+        c.sentence = i18n::tr("The relay is on, so co-op and PvP go through it.");
         c.incoming = incoming_line(in);
         if (in == Inbound::Open) {
-            c.action = "To connect directly instead, turn the relay off below.";
+            c.action = i18n::tr("To connect directly instead, turn the relay off below.");
         } else if (in == Inbound::Closed) {
             // First the steps that let other hunters in; then the relay can go.
-            c.action = "To connect directly instead:";
+            c.action = i18n::tr("To connect directly instead:");
             c.steps = forward_steps(x.p2p_port, lan, router, x.windows);
-            c.steps.back() = "Then press Test again; then you can turn the relay off below.";
+            c.steps.back() = i18n::tr("Then press Test again; then you can turn the relay off below.");
         }
         return;
     }
     if (v == Verdict::Direct) {
-        c.head = "Online play works directly";
-        c.sentence = "Co-op and PvP can connect straight to other hunters, without the server's relay.";
+        c.head = i18n::tr("Online play works directly");
+        c.sentence = i18n::tr("Co-op and PvP can connect straight to other hunters, without the server's relay.");
         c.incoming = incoming_line(in);
         if (in != Inbound::Closed) return;
         c.steps = forward_steps(x.p2p_port, lan, router, x.windows);
         if (!off) {
-            c.action = "To let them connect directly:";
+            c.action = i18n::tr("To let them connect directly:");
             return;
         }
         // Turned off while other hunters cannot get in.
         c.tone = Tone::Warn;
-        c.head = "Other hunters may not reach you with the relay off";
-        c.sentence = "You turned the relay off, but your router or this PC's firewall stops the first packets other hunters "
-                     "send you, so direct connections can fail.";
+        c.head = i18n::tr("Other hunters may not reach you with the relay off");
+        c.sentence = i18n::tr("You turned the relay off, but your router or this PC's firewall stops the first packets other hunters "
+                     "send you, so direct connections can fail.");
         c.incoming.clear();
-        c.action = "Forward the port, or turn the relay back on below:";
+        c.action = i18n::tr("Forward the port, or turn the relay back on below:");
         return;
     }
-    c.head = "Online play works through the relay";
-    c.sentence = "Your router changes ports for each connection, so co-op and PvP go through the server's relay, with a "
-                 "little more delay.";
+    c.head = i18n::tr("Online play works through the relay");
+    c.sentence = i18n::tr("Your router changes ports for each connection, so co-op and PvP go through the server's relay, with a "
+                 "little more delay.");
     if (off) {
         c.tone = Tone::Warn;
-        c.head = "Other hunters may not reach you with the relay off";
-        c.sentence = "You turned the relay off, but your router changes ports for each connection, so direct connections "
-                     "to you fail.";
-        c.action = "Turn the relay back on below.";
+        c.head = i18n::tr("Other hunters may not reach you with the relay off");
+        c.sentence = i18n::tr("You turned the relay off, but your router changes ports for each connection, so direct connections "
+                     "to you fail.");
+        c.action = i18n::tr("Turn the relay back on below.");
     } else if (!signed_in) {
-        c.action = "Sign in (above), then press Test again, so the server knows to relay you.";
+        c.action = i18n::tr("Sign in (above), then press Test again, so the server knows to relay you.");
     }
 }
 
@@ -553,26 +584,26 @@ inline Card card_of(const Outcome& o, const CardContext& x) {
     c.tone = Tone::Warn;
     switch (c.reading) {
     case Reading::NotResolved:
-        c.head = "The test server wasn't found";
-        c.sentence = "Its name didn't resolve, so the test couldn't run.";
-        c.action = "Check this PC's internet connection and the server chosen above, then press Test again.";
+        c.head = i18n::tr("The test server wasn't found");
+        c.sentence = i18n::tr("Its name didn't resolve, so the test couldn't run.");
+        c.action = i18n::tr("Check this PC's internet connection and the server chosen above, then press Test again.");
         return c;
     case Reading::PortInUse:
-        c.head = "The game's port is in use";
-        c.sentence = "Another program has UDP port " + port + ", which the test sends from - most likely bbhost itself, running the game.";
-        c.action = "Close the game, or choose another P2P port below, then press Test again.";
-        if (!r.error_text.empty()) c.details.push_back("The system says: " + r.error_text + ".");
+        c.head = i18n::tr("The game's port is in use");
+        c.sentence = i18n::tf("Another program has UDP port %s, which the test sends from - most likely bbhost itself, running the game.", port.c_str());
+        c.action = i18n::tr("Close the game, or choose another P2P port below, then press Test again.");
+        if (!r.error_text.empty()) c.details.push_back(i18n::tf("The system says: %s.", r.error_text.c_str()));
         return c;
     case Reading::NoSocket:
-        c.head = "The test couldn't use UDP port " + port;
-        c.sentence = "This PC didn't let bbhost open the game's port, so nothing was tested.";
-        c.action = "Choose another P2P port below, then press Test again.";
-        if (!r.error_text.empty()) c.details.push_back("The system says: " + r.error_text + ".");
+        c.head = i18n::tf("The test couldn't use UDP port %s", port.c_str());
+        c.sentence = i18n::tr("This PC didn't let bbhost open the game's port, so nothing was tested.");
+        c.action = i18n::tr("Choose another P2P port below, then press Test again.");
+        if (!r.error_text.empty()) c.details.push_back(i18n::tf("The system says: %s.", r.error_text.c_str()));
         return c;
     case Reading::Cancelled:
-        c.head = "The test was stopped";
-        c.sentence = "It ended before it finished, so it tells nothing yet.";
-        c.action = "Press Test again.";
+        c.head = i18n::tr("The test was stopped");
+        c.sentence = i18n::tr("It ended before it finished, so it tells nothing yet.");
+        c.action = i18n::tr("Press Test again.");
         return c;
     default: break;
     }
@@ -582,54 +613,54 @@ inline Card card_of(const Outcome& o, const CardContext& x) {
     switch (c.reading) {
     case Reading::SendRefused:
         c.tone = Tone::Bad;
-        c.head = r.send_denied ? "Something on this PC is blocking bbhost" : "This PC couldn't send anything";
-        c.sentence = "This PC refused every packet bbhost tried to send, so co-op and PvP can't work.";
-        c.action = r.send_denied ? std::string(kAllowBbhost)
-                                 : "Check this PC's internet connection. If it works, allow bbhost.exe in your firewall or "
-                                   "antivirus, then press Test again.";
+        c.head = r.send_denied ? i18n::tr("Something on this PC is blocking bbhost") : i18n::tr("This PC couldn't send anything");
+        c.sentence = i18n::tr("This PC refused every packet bbhost tried to send, so co-op and PvP can't work.");
+        c.action = r.send_denied ? allow_bbhost()
+                                 : std::string(i18n::tr("Check this PC's internet connection. If it works, allow bbhost.exe in your firewall or "
+                                                        "antivirus, then press Test again."));
         break;
     case Reading::Direct:
     case Reading::Relay:
         result_words(c, c.reading == Reading::Direct ? Verdict::Direct : Verdict::Relay, o.inbound, x, lan, router, o.signed_in);
         break;
     case Reading::Inconclusive:
-        c.head = "The test was incomplete";
-        c.sentence = "One of the server's two answers didn't come back, so the test can't tell yet whether co-op and PvP "
-                     "connect directly or through the relay.";
-        c.action = "Press Test again.";
+        c.head = i18n::tr("The test was incomplete");
+        c.sentence = i18n::tr("One of the server's two answers didn't come back, so the test can't tell yet whether co-op and PvP "
+                     "connect directly or through the relay.");
+        c.action = i18n::tr("Press Test again.");
         break;
     case Reading::NoAnswer:
         c.tone = Tone::Bad;
-        c.head = "Something is blocking bbhost";
-        c.sentence = "A firewall or antivirus on this PC, or this network, stops bbhost's packets or the answers to them, "
-                     "so co-op and PvP can't work.";
-        if (!o.signed_in) c.action = "Sign in (above), then press Test again to find out which.";
+        c.head = i18n::tr("Something is blocking bbhost");
+        c.sentence = i18n::tr("A firewall or antivirus on this PC, or this network, stops bbhost's packets or the answers to them, "
+                     "so co-op and PvP can't work.");
+        if (!o.signed_in) c.action = i18n::tr("Sign in (above), then press Test again to find out which.");
         else if (o.save.state == SaveReply::State::Limited)
-            c.action = "Press Test again later to find out which: the server takes 10 tests an hour.";
-        else if (o.save.state == SaveReply::State::Refused) c.action = "Sign in again (above), then press Test again to find out which.";
+            c.action = i18n::tr("Press Test again later to find out which: the server takes 10 tests an hour.");
+        else if (o.save.state == SaveReply::State::Refused) c.action = i18n::tr("Sign in again (above), then press Test again to find out which.");
         else if (o.save.state == SaveReply::State::NoService)
-            c.action = "This server can't tell which, so start with this PC: allow bbhost.exe in your firewall or antivirus, "
-                       "then press Test again.";
-        else c.action = "Press Test again to find out which: the server couldn't tell this time.";
+            c.action = i18n::tr("This server can't tell which, so start with this PC: allow bbhost.exe in your firewall or antivirus, "
+                       "then press Test again.");
+        else c.action = i18n::tr("Press Test again to find out which: the server couldn't tell this time.");
         break;
     case Reading::ServerBlocked:
         c.tone = Tone::Bad;
-        c.head = "Online play is blocked";
-        c.sentence = "None of bbhost's packets reached the server, so co-op and PvP can't work from here.";
-        c.action = std::string(kAllowBbhost) +
-                   " If the website's connection test fails too, this network blocks online play (school and work networks can).";
+        c.head = i18n::tr("Online play is blocked");
+        c.sentence = i18n::tr("None of bbhost's packets reached the server, so co-op and PvP can't work from here.");
+        c.action = allow_bbhost() +
+                   " " + i18n::tr("If the website's connection test fails too, this network blocks online play (school and work networks can).");
         break;
     case Reading::AnswersStopped:
         c.tone = Tone::Bad;
-        c.head = "Answers aren't reaching bbhost";
-        c.sentence = "The server got bbhost's packets, but none of its answers came back, so co-op and PvP can't work: a "
-                     "firewall or antivirus on this PC is most likely stopping them.";
-        c.action = kAllowBbhost;
+        c.head = i18n::tr("Answers aren't reaching bbhost");
+        c.sentence = i18n::tr("The server got bbhost's packets, but none of its answers came back, so co-op and PvP can't work: a "
+                     "firewall or antivirus on this PC is most likely stopping them.");
+        c.action = allow_bbhost();
         break;
     case Reading::AddressDiffers:
-        c.head = "A VPN or proxy may be in the way";
-        c.sentence = "Your sign-in reached the server from one address and bbhost's packets from another, so online play may fail.";
-        c.action = "Turn off any VPN or proxy, then press Test again.";
+        c.head = i18n::tr("A VPN or proxy may be in the way");
+        c.sentence = i18n::tr("Your sign-in reached the server from one address and bbhost's packets from another, so online play may fail.");
+        c.action = i18n::tr("Turn off any VPN or proxy, then press Test again.");
         break;
     default: break;
     }
@@ -637,41 +668,41 @@ inline Card card_of(const Outcome& o, const CardContext& x) {
     // and whether it was kept, the server's word beside this PC's.
     const std::string ports = public_ports(r);
     if (nothing_sent(r))
-        c.details.push_back("This PC refused all " + std::to_string(r.refused) + " packets bbhost tried to send from UDP port " + port +
-                            " (" + r.send_error + ").");
+        c.details.push_back(i18n::tf("This PC refused all %d packets bbhost tried to send from UDP port %s (%s).",
+                                     static_cast<int>(r.refused), port.c_str(), r.send_error.c_str()));
     else
-        c.details.push_back("Tested from UDP port " + port + ", the game's P2P port: " +
-                            (ports.empty() ? std::string("no answer came back from the test ports.") : "the server saw " + ports + "."));
+        c.details.push_back(ports.empty()
+                                ? i18n::tf("Tested from UDP port %s, the game's P2P port: no answer came back from the test ports.", port.c_str())
+                                : i18n::tf("Tested from UDP port %s, the game's P2P port: the server saw %s.", port.c_str(), ports.c_str()));
     if (answers) c.details.push_back(incoming_detail(o.inbound, r.local_port, o.shown()));
     std::string when = ago(o.at, x.now);
     if (!when.empty() && when[0] >= 'a' && when[0] <= 'z') when[0] = static_cast<char>(when[0] - 'a' + 'A');
-    if (o.saved()) c.details.push_back(when + "; saved to your account for this network (test again on another one).");
-    else if (!o.signed_in) c.details.push_back(when + "; this PC's own reading, not saved to your account (sign in above to keep it).");
-    else c.details.push_back(when + "; not saved to your account: " + unsaved_reason(o) + ".");
+    if (o.saved()) c.details.push_back(i18n::tf("%s; saved to your account for this network (test again on another one).", when.c_str()));
+    else if (!o.signed_in) c.details.push_back(i18n::tf("%s; this PC's own reading, not saved to your account (sign in above to keep it).", when.c_str()));
+    else c.details.push_back(i18n::tf("%s; not saved to your account: %s.", when.c_str(), unsaved_reason_text(o).c_str()));
     if (o.saved() && answers && o.save.verdict != Verdict::Blocked) {
         if (o.local == Verdict::Inconclusive)
-            c.details.push_back("One of the server's answers didn't come back to bbhost - a lost packet, most likely; the server "
-                                "saw both requests.");
+            c.details.push_back(i18n::tr("One of the server's answers didn't come back to bbhost - a lost packet, most likely; the server "
+                                "saw both requests."));
         else if (o.local != o.save.verdict)
-            c.details.push_back(std::string("The server says ") + verdict_word(o.save.verdict) + "; this PC's own reading was " +
-                                verdict_word(o.local) +
-                                ". The server compares what reached it from the address this request came from, and a VPN "
-                                "or a proxy for web traffic can make the two differ.");
+            c.details.push_back(i18n::tf("The server says %s; this PC's own reading was %s. The server compares what reached it from "
+                                         "the address this request came from, and a VPN or a proxy for web traffic can make the two differ.",
+                                         verdict_label(o.save.verdict).c_str(), verdict_label(o.local).c_str()));
     } else if (o.saved() && !answers && o.save.verdict != Verdict::Blocked) {
-        c.details.push_back(std::string("The server heard bbhost and reads this network as ") + verdict_word(o.save.verdict) + ".");
+        c.details.push_back(i18n::tf("The server heard bbhost and reads this network as %s.", verdict_label(o.save.verdict).c_str()));
     } else if (c.reading == Reading::AddressDiffers) {
-        c.details.push_back("The test ports answered bbhost, so its packets get through, but the server kept \"blocked\" for "
-                            "your account: none of them came from the address your request came from.");
+        c.details.push_back(i18n::tr("The test ports answered bbhost, so its packets get through, but the server kept \"blocked\" for "
+                            "your account: none of them came from the address your request came from."));
     }
     if (r.refused > 0 && r.sent > 0)
-        c.details.push_back("This PC refused " + std::to_string(r.refused) + " of the " + std::to_string(r.refused + r.sent) +
-                            " packets bbhost tried to send (" + r.send_error +
-                            "): if a firewall or antivirus asked about bbhost.exe, allow it.");
-    if (!lan.empty() && router) c.details.push_back("This PC's address on its network: " + lan + ".");
-    if (x.relay == RelaySetting::Off) c.details.push_back("The relay is off for your account.");
+        c.details.push_back(i18n::tf("This PC refused %d of the %d packets bbhost tried to send (%s): "
+                                     "if a firewall or antivirus asked about bbhost.exe, allow it.",
+                                     static_cast<int>(r.refused), static_cast<int>(r.refused + r.sent), r.send_error.c_str()));
+    if (!lan.empty() && router) c.details.push_back(i18n::tf("This PC's address on its network: %s.", lan.c_str()));
+    if (x.relay == RelaySetting::Off) c.details.push_back(i18n::tr("The relay is off for your account."));
     // A result from a port the setting no longer names: the old port's.
     if (r.local_port > 0 && x.p2p_port > 0 && r.local_port != x.p2p_port) {
-        c.action = "The P2P port is now " + std::to_string(x.p2p_port) + ": press Test again.";
+        c.action = i18n::tf("The P2P port is now %d: press Test again.", x.p2p_port);
         c.steps.clear();
     }
     return c;
@@ -698,39 +729,40 @@ inline Card card_of_record(const Record& rec, const CardContext& x) {
     } else {
         c.reading = Reading::ServerBlocked;
         c.tone = Tone::Bad;
-        c.head = "Online play is blocked";
-        c.sentence = "Nothing from your account's last test reached the server, so co-op and PvP couldn't work from there.";
+        c.head = i18n::tr("Online play is blocked");
+        c.sentence = i18n::tr("Nothing from your account's last test reached the server, so co-op and PvP couldn't work from there.");
         if (here)
-            c.action = std::string(kAllowBbhost) +
-                       " If the website's connection test fails too, this network blocks online play (school and work networks can).";
+            c.action = allow_bbhost() +
+                       " " + i18n::tr("If the website's connection test fails too, this network blocks online play (school and work networks can).");
     }
     if (!here) {
-        c.action = "Press Test again to check this PC.";
+        c.action = i18n::tr("Press Test again to check this PC.");
         c.steps.clear();
     }
-    const std::string when = "Your account's last test, " + ago(rec.at, x.now);
-    const std::string p2p = std::to_string(x.p2p_port);
-    c.details.push_back(here           ? when + ", from UDP port " + p2p + ", this PC's P2P port."
-                        : rec.port > 0 ? when + ", from UDP port " + std::to_string(rec.port) + "; this PC's P2P port is UDP " + p2p + "."
-                                       : when + ", on the website or from another PC.");
+    const std::string when = ago(rec.at, x.now);
+    c.details.push_back(here ? i18n::tf("Your account's last test, %s, from UDP port %d, this PC's P2P port.", when.c_str(), x.p2p_port)
+                        : rec.port > 0 ? i18n::tf("Your account's last test, %s, from UDP port %d; this PC's P2P port is UDP %d.",
+                                                  when.c_str(), rec.port, x.p2p_port)
+                                       : i18n::tf("Your account's last test, %s, on the website or from another PC.", when.c_str()));
     if (here && rec.inbound != Inbound::NotTested) c.details.push_back(incoming_detail(rec.inbound, rec.port, rec.verdict));
-    if (x.relay == RelaySetting::Off) c.details.push_back("The relay is off for your account.");
+    if (x.relay == RelaySetting::Off) c.details.push_back(i18n::tr("The relay is off for your account."));
     return c;
 }
 
 // The card before any test, here or for the account.
 inline Card card_untested(const CardContext& x, bool signed_in) {
     Card c;
-    c.head = "Not tested yet";
-    c.sentence = "The test checks whether other hunters can connect to this PC directly, or whether co-op and PvP go "
-                 "through the server's relay.";
+    c.head = i18n::tr("Not tested yet");
+    c.sentence = i18n::tr("The test checks whether other hunters can connect to this PC directly, or whether co-op and PvP go "
+                 "through the server's relay.");
     if (x.relay == RelaySetting::Off) {
         c.tone = Tone::Warn;
-        c.action = "You turned the relay off: press Test connection to check that other hunters can reach you.";
+        c.action = i18n::tr("You turned the relay off: press Test connection to check that other hunters can reach you.");
     }
-    c.details.push_back("It sends a few packets from UDP port " + std::to_string(x.p2p_port) +
-                        ", the game's P2P port, and takes a few seconds; the game must be closed.");
-    c.details.push_back(signed_in ? "Signed in, the result is kept for your account." : "Sign in (above) to keep the result for your account.");
+    c.details.push_back(i18n::tf("It sends a few packets from UDP port %d, the game's P2P port, and takes a few seconds; "
+                                 "the game must be closed.",
+                                 x.p2p_port));
+    c.details.push_back(signed_in ? i18n::tr("Signed in, the result is kept for your account.") : i18n::tr("Sign in (above) to keep the result for your account."));
     return c;
 }
 
@@ -749,19 +781,19 @@ struct RelayOffWarning {
 // `tested`: a result of this PC's is known - `v` and `i`, from its last test.
 inline RelayOffWarning relay_off_warning(bool tested, Verdict v, Inbound i, const CardContext& x, const std::string& lan, bool router) {
     RelayOffWarning w;
-    const std::string lead = "Without the relay, other hunters must reach this PC directly. ";
+    const std::string lead = i18n::tr("Without the relay, other hunters must reach this PC directly. ");
     if (tested && v == Verdict::Relay) {
-        w.why = lead + "This PC's last test says your router changes ports for each connection, so they can't, and "
-                       "forwarding a port doesn't change that.";
+        w.why = lead + i18n::tr("This PC's last test says your router changes ports for each connection, so they can't, and "
+                                "forwarding a port doesn't change that.");
         return w;
     }
     if (tested && v != Verdict::Direct) {
-        w.why = lead + "This PC's last test didn't get through, so online play may not work at all.";
+        w.why = lead + i18n::tr("This PC's last test didn't get through, so online play may not work at all.");
         return w;
     }
-    w.why = lead + (!tested                 ? "No test has checked that they can."
-                    : i == Inbound::Closed ? "This PC's last test found that your router or firewall stops the first packets they send."
-                                           : "This PC's last test couldn't check whether they can get in.");
+    w.why = lead + (!tested                 ? i18n::tr("No test has checked that they can.")
+                    : i == Inbound::Closed ? i18n::tr("This PC's last test found that your router or firewall stops the first packets they send.")
+                                           : i18n::tr("This PC's last test couldn't check whether they can get in."));
     w.steps = forward_steps(x.p2p_port, lan, router, x.windows);
     return w;
 }
@@ -770,9 +802,9 @@ inline RelayOffWarning relay_off_warning(bool tested, Verdict v, Inbound i, cons
 // 1024 to 65535 (the ones below are the system's), and none of the server's
 // test ports. Whether another program has it is port_taken's.
 inline std::string p2p_port_problem(long port, const std::vector<std::uint16_t>& test_ports) {
-    if (port < 1024 || port > 65535) return "Choose a port from 1024 to 65535.";
+    if (port < 1024 || port > 65535) return i18n::tr("Choose a port from 1024 to 65535.");
     for (std::uint16_t t : test_ports) {
-        if (t == port) return "UDP " + std::to_string(port) + " is one of the server's test ports: choose another.";
+        if (t == port) return i18n::tf("UDP %d is one of the server's test ports: choose another.", static_cast<int>(port));
     }
     return {};
 }
