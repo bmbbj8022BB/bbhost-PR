@@ -3,6 +3,7 @@
 #include "core/config.h"
 #include "engine/debug_menu.h"
 #include "engine/menu_pointer.h"
+#include "host/settings.h"
 #include "host/window.h"
 #include "log.h"
 
@@ -44,7 +45,8 @@ const BindingInfo kInfo[kBindCount] = {
     // Held with the movement keys, as Dark Souls III's Left Alt: a walk.
     {"walk", "Walk", "Hold with the movement keys to walk.", 0, "Left Alt", 0},
     {"roll", "Dodge / Sprint", "Circle. Tap to dodge, hold to sprint.", kCircle, "Space", 0},
-    {"lock_on", "Lock On", "R3. Lock on to a target, or reset the camera.", kR3, "Q", 0},
+    // Circle for a short pulse only: the dodge without the sprint (roll_tap_pulse).
+    {"roll_tap", "Dodge (tap only)", "Circle, a short press: dodge only, holding it does not sprint.", kCircle, nullptr, 0},
 
     {"attack", "Attack", "R1. With the strong attack modifier held, R2.", kR1, nullptr, 1},
     {"strong_attack", "Strong Attack", "R2. Hold to charge.", kR2, "V", 0},
@@ -96,6 +98,7 @@ const BindingInfo kInfo[kBindCount] = {
      0},
     {"menu_status", "Menu Toggle Status", "Triangle in menus: Toggle Status, Switch, Initialize.", kTriangle, "R", 0},
 
+    {"lock_on", "Lock On", "R3. Lock on to a target, or reset the camera.", kR3, "Q", 0},
     {"l3", "Left Stick Press", "L3.", kL3, "Left Ctrl", 0},
     // The follow camera's distance, in the world: each press a step of the
     // Camera distance setting (10%), Reset the game's own. No pad press.
@@ -601,6 +604,90 @@ void chords_take_over(int device, bool held[kBindCount]) {
 }
 }  // namespace
 
+// ---- Dodge (tap only) ------------------------------------------------------------
+namespace {
+// A press of its key or mouse button gives the dodge button a short pulse and
+// nothing more, however long it is held, so it never sprints. The pulse's
+// length is the "Dodge only press" setting (host_settings_ref().dodge_tap_ms).
+// One state per device (0 the keyboard, 1 the mouse), read on every frame.
+// With a Dodge (tap only) key or button set, Dodge / Sprint is the sprint alone:
+// the game rolls when a short press of the button is let go, so the press is
+// held back until a direction is held and it has lasted kSprintStartDelayMs,
+// then given for as long as the key stays down, and for at least
+// kSprintMinHoldMs - let go sooner the game would read it as a roll. Standing
+// still it is never given: the game would read the release as a backstep.
+// 350 and 500 still rolled on a short press; 700 does not.
+constexpr int kSprintMinHoldMs = 700;
+// How long the press is held back before it is given, so a brush of the key is not a sprint.
+constexpr int kSprintStartDelayMs = 80;
+// Keyboard movement keys, so the mouse sprint also knows a direction is held.
+std::atomic<bool> g_move_held{false};
+void roll_sprint_only(int device, bool held[kBindCount]) {
+    using clk = std::chrono::steady_clock;
+    static bool was_down[2], on[2];
+    static clk::time_point down_since[2], on_since[2];
+    if (g_key[kBindRollTap].load(std::memory_order_relaxed) == 0 &&
+        g_mouse[kBindRollTap].load(std::memory_order_relaxed) == 0) {
+        was_down[device] = on[device] = false;
+        return;
+    }
+    const auto now = clk::now();
+    const bool down = held[kBindRoll];
+    // Standing still the game reads the release as a backstep, so the press waits for a direction.
+    const bool keys_move = held[kBindMoveF] || held[kBindMoveB] || held[kBindMoveL] || held[kBindMoveR];
+    if (device == 0) g_move_held.store(keys_move, std::memory_order_relaxed);
+    const bool moving = device == 0 ? keys_move : g_move_held.load(std::memory_order_relaxed);
+    if (down && !was_down[device]) down_since[device] = now;
+    was_down[device] = down;
+    if (down && !on[device] && moving && now - down_since[device] >= std::chrono::milliseconds(kSprintStartDelayMs)) {
+        on[device] = true;
+        on_since[device] = now;
+    }
+    if (on[device] && !down && now - on_since[device] >= std::chrono::milliseconds(kSprintMinHoldMs)) on[device] = false;
+    held[kBindRoll] = on[device];
+}
+
+// Dodging out of a sprint: the sprint holds the dodge button down, and a button
+// that is already down cannot be pressed again, so the dodge would wait for the
+// sprint key to be let go. So the sprint's press is lifted for kDodgeGapMs, the
+// dodge pulse follows, then another gap; if the sprint key is still down by
+// then the sprint goes on, held for at least kSprintMinHoldMs so the game does
+// not read the new short press as a roll. roll_down: the Dodge / Sprint key
+// itself is down, before the sprint-only filter held it back or kept it on.
+constexpr int kDodgeGapMs = 60;
+void roll_tap_pulse(int device, bool held[kBindCount], bool roll_down) {
+    using clk = std::chrono::steady_clock;
+    static bool was_down[2], resume[2];
+    static clk::time_point pulse_from[2], pulse_until[2], cut_until[2], keep_until[2];
+    const auto now = clk::now();
+    const auto ms = [](int n) { return std::chrono::milliseconds(n); };
+    const int pulse_ms = std::clamp(host_settings_ref().dodge_tap_ms, 5, 150);  // the Dodge only press slider
+    const bool down = held[kBindRollTap];
+    if (down && !was_down[device]) {
+        const bool sprinting = held[kBindRoll] || now < keep_until[device];
+        keep_until[device] = clk::time_point{};
+        if (sprinting) {
+            pulse_from[device] = now + ms(kDodgeGapMs);
+            cut_until[device] = pulse_from[device] + ms(pulse_ms + kDodgeGapMs);
+            resume[device] = true;
+        } else {
+            pulse_from[device] = now;
+            cut_until[device] = now;
+            resume[device] = false;
+        }
+        pulse_until[device] = pulse_from[device] + ms(pulse_ms);
+    }
+    was_down[device] = down;
+    held[kBindRollTap] = now >= pulse_from[device] && now < pulse_until[device];
+    if (now >= cut_until[device] && resume[device]) {
+        resume[device] = false;
+        if (roll_down) keep_until[device] = now + ms(kSprintMinHoldMs);
+    }
+    if (now < keep_until[device]) held[kBindRoll] = true;
+    if (now < cut_until[device]) held[kBindRoll] = false;
+}
+}  // namespace
+
 void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount]) {
     for (int a = 0; a < kBindCount; ++a) {
         const int sc = g_key[a].load(std::memory_order_relaxed), wk = g_wkey[a].load(std::memory_order_relaxed);
@@ -612,6 +699,9 @@ void host_bindings_keys_held(const bool* keys, int nkeys, bool held[kBindCount])
     for (const auto& pair : kOpposites) {
         if (held[pair[0]] && held[pair[1]]) held[pair[0]] = held[pair[1]] = false;
     }
+    const bool roll_down_keys = held[kBindRoll];
+    roll_sprint_only(0, held);
+    roll_tap_pulse(0, held, roll_down_keys);
     held[kBindWalk] = held[kBindWalk] || g_walk_on_mouse.load(std::memory_order_relaxed);
     note_debug_key(0, held[kBindDebugMenu]);
     note_zoom_keys(0, held);
@@ -628,8 +718,11 @@ void host_bindings_mouse_held(std::uint32_t buttons, bool held[kBindCount]) {
         held[a] = m >= 1 && m <= kMouseInputs && (buttons & (1u << (m - 1))) && with_ok;
     }
     chords_take_over(1, held);
+    const bool roll_down_mouse = held[kBindRoll];
+    roll_sprint_only(1, held);
     g_walk_on_mouse.store(held[kBindWalk], std::memory_order_relaxed);
     g_roll_on_mouse.store(held[kBindRoll], std::memory_order_relaxed);
+    roll_tap_pulse(1, held, roll_down_mouse);
     note_debug_key(1, held[kBindDebugMenu]);
     note_zoom_keys(1, held);
 }
@@ -1057,6 +1150,7 @@ namespace {
 // touchpad's).
 int pad_function_of(int action) {
     if (action < 0 || action >= kBindCount || host_binding_in_menus(action) > 0) return -1;
+    if (action == kBindRollTap) return -1;  // Circle's press like Dodge / Sprint's: it follows that row's button, not a second one
     // The rows are actions, so under swap_ab their Cross and Circle are exchanged, as host_bindings_apply
     // does for the keyboard: in the Asian release the button that gives Dodge is the one that gives Cross.
     std::uint32_t bit = kInfo[action].button;
