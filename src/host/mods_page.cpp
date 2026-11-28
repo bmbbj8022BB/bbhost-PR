@@ -19,6 +19,7 @@
 #include <set>
 #include <thread>
 #include <vector>
+#include <cmath>
 
 namespace fs = std::filesystem;
 namespace ui = launcher_ui;
@@ -412,8 +413,17 @@ void mods_page_draw(SDL_Window* win, const std::string& app0_in, const std::stri
         const float pills = 150 * scale;
         ImGui::TextUnformatted(ui::fit_text(m.name, ImGui::GetContentRegionAvail().x - arrows - pills).c_str());
         ui::tooltip_for_item(nullptr, m.path);
-        ImGui::SameLine(ImGui::GetCursorPosX() + std::max(0.0f, ImGui::GetContentRegionAvail().x - arrows - pills));
-        ui::pill(m.is_zip ? "zip" : L("folder", "폴더"), ui::kTextDim, ui::alpha(ui::kViolet, 40));
+        const char* type_label = m.is_zip ? "zip" : L("folder", "폴더");
+        // zip 배지 기준으로 정렬: 라벨이 더 넓으면 그 차이만큼 왼쪽으로 당겨서
+        // 뒤따르는 "적용됨" 배지가 모든 줄에서 같은 x에 오도록 한다.
+        // pill()과 같은 폰트/크기로 잰 실제 폭의 차이 (zip 배지가 기준).
+        const float pill_fs = std::round(ImGui::GetFontSize() * 0.8f);
+        ImFont* pill_font = ui::font_strong();
+        const float type_extra = std::max(0.0f,
+            pill_font->CalcTextSizeA(pill_fs, FLT_MAX, 0.0f, type_label).x -
+            pill_font->CalcTextSizeA(pill_fs, FLT_MAX, 0.0f, "zip").x);
+        ImGui::SameLine(ImGui::GetCursorPosX() + std::max(0.0f, ImGui::GetContentRegionAvail().x - arrows - pills - type_extra));
+        ui::pill(type_label, ui::kTextDim, ui::alpha(ui::kViolet, 40));
         if (g.applied.count(m.name)) {
             ImGui::SameLine();
             ui::pill(L("applied", "적용됨"), ui::kGood, ui::alpha(ui::kGood, 36));
