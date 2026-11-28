@@ -414,9 +414,8 @@ void mods_page_draw(SDL_Window* win, const std::string& app0_in, const std::stri
         ImGui::TextUnformatted(ui::fit_text(m.name, ImGui::GetContentRegionAvail().x - arrows - pills).c_str());
         ui::tooltip_for_item(nullptr, m.path);
         const char* type_label = m.is_zip ? "zip" : L("folder", "폴더");
-        // zip 배지 기준으로 정렬: 라벨이 더 넓으면 그 차이만큼 왼쪽으로 당겨서
-        // 뒤따르는 "적용됨" 배지가 모든 줄에서 같은 x에 오도록 한다.
-        // pill()과 같은 폰트/크기로 잰 실제 폭의 차이 (zip 배지가 기준).
+        // Keep the "applied" pill in one column: pull the type pill left by how much
+        // wider than "zip" it is, measured with the same font and size pill() uses.
         const float pill_fs = std::round(ImGui::GetFontSize() * 0.8f);
         ImFont* pill_font = ui::font_strong();
         const float type_extra = std::max(0.0f,
