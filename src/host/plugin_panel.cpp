@@ -682,7 +682,7 @@ int plugin_panel_native_press(int row, std::string* question) {
     const PluginOptionDesc& o = r.desc;
     if (o.type == BB_OPT_TEXT) {
 #if defined(BBHOST_HAVE_SDL3)
-        host_text_entry_begin(value_now(v, r).c_str(), 128, false, o.label.c_str(), TextCharset::BasicLatin, true);
+        host_text_entry_begin(value_now(v, r).c_str(), 128, false, o.label.c_str(), TextCharset::Any, true);
         std::lock_guard<std::mutex> lk(g_mu);
         g_native_typing = {true, v.p.owner, v.page_key, o.key, r.runtime};
 #endif
@@ -1943,7 +1943,7 @@ void plugin_panel_draw(float scale, bool pad) {
         const plugin_menu::Row& r = *pressed.row;
         if (r.desc.type == BB_OPT_TEXT) {
             const std::string v = r.runtime ? plugin_menu::value_of(rt, page_key, r) : plugins_option_value(*p.entry, r.desc);
-            host_text_entry_begin(v.c_str(), 128, false, r.desc.label.c_str(), TextCharset::BasicLatin, true);
+            host_text_entry_begin(v.c_str(), 128, false, r.desc.label.c_str(), TextCharset::Any, true);
             g_typing = {true, p.owner, page_key, r.desc.key, r.runtime};
             ask_sound(kMenuSoundDecide);
         } else if (r.desc.flags & BB_OPT_CONFIRM) {
